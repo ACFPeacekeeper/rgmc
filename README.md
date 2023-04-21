@@ -1,2 +1,2 @@
-# rgm
-Robust Generative Model
+# rmgm
+Robust Multimodal Generative Model
