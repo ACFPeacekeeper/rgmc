@@ -9,8 +9,6 @@ class VAE(nn.Module):
         self.encoder = Encoder(latent_dim)
         self.decoder = Decoder(latent_dim)
 
-        self.scale = torch.exp(nn.Parameter(torch.Tensor([0.0])))
-
     def forward(self, x):
         mean, logvar = self.encoder(x)
         std = torch.exp(torch.sqrt(logvar))
