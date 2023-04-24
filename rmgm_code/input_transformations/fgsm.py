@@ -4,11 +4,11 @@ import torch.nn as nn
 from adversarial_attack import AdversarialAttack
 
 class FGSM(AdversarialAttack):
-    def __init__(self, model, eps=8/255):
+    def __init__(self, model: nn.Module, eps=8/255) -> None:
         super().__init__("FGSM", model)
         self.eps = eps
 
-    def forward(self, x, y):
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         x = x.detach().clone()
         y = y.detach().clone()
 
@@ -23,5 +23,5 @@ class FGSM(AdversarialAttack):
 
         x_adv = x + self.eps * grad.sign()
         x_adv = torch.clam(x_adv, 0, 1).detach()
-        
+
         return x_adv

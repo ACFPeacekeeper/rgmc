@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
 
+from typing import Tuple
 from rmgm_code.architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim: torch.Tensor) -> None:
         super(VAE, self).__init__()
         self.encoder = Encoder(latent_dim)
         self.decoder = Decoder(latent_dim)
 
-    def forward(self, x):
+    def forward(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         mean, logvar = self.encoder(x)
         std = torch.exp(torch.sqrt(logvar))
         
@@ -22,7 +23,8 @@ class VAE(nn.Module):
 
         return z, mean, std, x_hat
     
-    def loss_elbo(self, x, z, mean, std, x_hat, beta=0.5):
+    def loss_elbo(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, mean: torch.Tensor, 
+                  std: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor], beta=0.5) -> float:
         p = torch.distributions.Normal(torch.zeros_like(mean), torch.ones_like(std))
         q = torch.distributions.Normal(mean, std)
 
