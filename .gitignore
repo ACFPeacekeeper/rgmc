@@ -396,3 +396,8 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Datasets
+./datasets/atari/*.pt
+./datasets/mhd/*.pt
+./datasets/mosi_mosei/*.dt

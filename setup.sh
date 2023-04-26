@@ -53,6 +53,6 @@ for idx in "${!GMC_TASKS[@]}"; do
 
 done
 
-sed -i "s|<output-of-pwd>|${CUR_DIR}|g" ${CUR_DIR}/rmgm_code/main.py
+sed -i -e "s|^m_path.*$|m_path = \"${CUR_DIR}\"|g" ${CUR_DIR}/rmgm_code/main.py
 
 echo "Setup completed!"
