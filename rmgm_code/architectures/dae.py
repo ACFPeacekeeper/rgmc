@@ -5,10 +5,12 @@ from typing import Tuple
 from architectures.dae_networks import Encoder, Decoder
 
 class DAE(nn.Module):
-    def __init__(self, latent_dim: int, noise_factor=0.3) -> None:
+    def __init__(self, latent_dim: int, device, noise_factor=0.3) -> None:
         super(DAE, self).__init__()
         self.encoder = Encoder(latent_dim)
         self.decoder = Decoder(latent_dim)
+
+        self.device = device
 
         self.noise_factor = noise_factor
 
@@ -23,7 +25,7 @@ class DAE(nn.Module):
         x_hat = self.decoder(z)
         return z, x_hat
     
-    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], x_hat: Tuple[torch.Tensor, torch.Tensor]) -> float:
+    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor]) -> float:
         loss = torch.nn.MSELoss()
         img_loss = loss(x_hat[0], x[0])
         traj_loss = loss(x_hat[1], x[1])

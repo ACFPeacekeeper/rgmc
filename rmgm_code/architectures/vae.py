@@ -5,18 +5,19 @@ from typing import Tuple
 from architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
-    def __init__(self, latent_dim: int) -> None:
+    def __init__(self, latent_dim: int, device) -> None:
         super(VAE, self).__init__()
         self.encoder = Encoder(latent_dim)
         self.decoder = Decoder(latent_dim)
+        
+        self.device = device
 
     def forward(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         mean, logvar = self.encoder(x)
         std = torch.exp(logvar/2)
-        # std = torch.exp(torch.sqrt(logvar))
         
         dist = torch.distributions.Normal(0, 1)
-        eps = dist.sample(mean.shape)
+        eps = dist.sample(mean.shape).to(self.device)
 
         z = mean + std * eps
         
@@ -25,7 +26,7 @@ class VAE(nn.Module):
         return z, mean, std, x_hat
     
     def loss(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, mean: torch.Tensor, 
-                  std: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor], beta=0.5) -> float:
+                  std: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor], beta=1.) -> float:
         
         p = torch.distributions.Normal(torch.zeros_like(mean), torch.ones_like(std))
         q = torch.distributions.Normal(mean, std)
@@ -33,7 +34,7 @@ class VAE(nn.Module):
         log_q = q.log_prob(z)
         log_p = p.log_prob(z)
 
-        kld = (log_q - log_p)
+        kld = torch.exp(log_q - log_p)
         kld = beta * kld.sum(-1)
 
         img_recon_loss = ((x[0] - x_hat[0])**2).sum()
