@@ -398,6 +398,6 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Datasets
-./datasets/atari/*.pt
-./datasets/mhd/*.pt
-./datasets/mosi_mosei/*.dt
+rmgm_code/datasets/atari/*.pt
+rmgm_code/datasets/mhd/*.pt
+rmgm_code/datasets/mosi_mosei/*.dt

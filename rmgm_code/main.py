@@ -12,7 +12,7 @@ torch.manual_seed(42)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Assign path to current directory
-m_path = "<output-of-pwd>"
+m_path = "/home/pkhunter/Repositories/rmgm"
 
 def process_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
@@ -68,7 +68,7 @@ def train_model(arguments):
         transform = None
 
     if arguments.dataset.upper() == 'MHD':
-        dataset = torch.load(os.path.join(cur_dir, "datasets", "mhd", "mhd_train.pt"))
+        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "mhd_train.pt"))
 
     img_samples = dataset[1]
     traj_samples = dataset[2]
@@ -92,16 +92,16 @@ def train_model(arguments):
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
             print('Saving model checkpoint to file...')
-            torch.save(model.state_dict(), os.path.join(cur_dir, "checkpoints", f'{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
+            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", f'{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
             checkpoint_counter = arguments.checkpoint
 
     print("Saving per epoch loss values to file...")
-    with open(os.path.join(cur_dir, f"{arguments.model_type.lower()}_{arguments.dataset.lower()}_results.txt"), 'w') as file:
+    with open(os.path.join(m_path, f"{arguments.model_type.lower()}_{arguments.dataset.lower()}_results.txt"), 'w') as file:
         file.write(f'{arguments.model_type.upper()} loss per epoch on {arguments.dataset.upper()} dataset\n')
         for idx, loss_value in enumerate(epoch_loss):
             file.write(f'Epoch {idx} loss: {loss_value}\n')
 
-    torch.save(model.state_dict(), os.path.join(cur_dir, "saved_models", arguments.model_file))
+    torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_file))
     return model
 
 def test_model(arguments):
@@ -119,14 +119,14 @@ def main() -> None:
     print(f'Model type: {args.model_type}')
     print(f'Pipeline stage: {args.stage}')
     if args.stage == 'train':
-        os.makedirs(os.path.join(cur_dir, "saved_models"), exist_ok=True)
-        os.makedirs(os.path.join(cur_dir, "checkpoints"), exist_ok=True)
+        os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
+        os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
         train_model(args)
     elif args.stage == 'test_model':
-        os.makedirs(os.path.join(cur_dir, "model_test_results"))
+        os.makedirs(os.path.join(m_path, "model_test_results"))
         test_model(args)
     elif args.stage == 'test_classifier':
-        os.makedirs(os.path.join(cur_dir, "classifier_test_results"))
+        os.makedirs(os.path.join(m_path, "classifier_test_results"))
         test_downstream_classifier(args)
 
 if __name__ == "__main__":
