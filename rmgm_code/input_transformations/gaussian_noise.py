@@ -1,6 +1,6 @@
 import torch
 
-from noise import Noise
+from input_transformations.noise import Noise
 
 class GaussianNoise(Noise):
     def __init__(self, mean=0., std=1.) -> None:

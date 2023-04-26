@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from typing import Tuple
-from rmgm_code.architectures.dae_networks import Encoder, Decoder
+from architectures.dae_networks import Encoder, Decoder
 
 class DAE(nn.Module):
     def __init__(self, latent_dim: int, noise_factor=0.3) -> None:
@@ -23,7 +23,7 @@ class DAE(nn.Module):
         x_hat = self.decoder(z)
         return z, x_hat
     
-    def loss_mse(self, x: Tuple[torch.Tensor, torch.Tensor], x_hat: Tuple[torch.Tensor, torch.Tensor]) -> float:
+    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], x_hat: Tuple[torch.Tensor, torch.Tensor]) -> float:
         loss = torch.nn.MSELoss()
         img_loss = loss(x_hat[0], x[0])
         traj_loss = loss(x_hat[1], x[1])

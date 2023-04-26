@@ -5,7 +5,7 @@ from typing import Tuple
 
 class Encoder(nn.Module):
     def __init__(self, latent_dim: int) -> None:
-        super(Encoder).__init__()
+        super(Encoder, self).__init__()
         self.feature_extractor = nn.Sequential(
             nn.Linear(28 * 28 + 200, 512),
             nn.SiLU(),
@@ -28,7 +28,7 @@ class Encoder(nn.Module):
     
 class Decoder(nn.Module):
     def __init__(self, latent_dim: int) -> None:
-        super(Decoder).__init__()
+        super(Decoder, self).__init__()
         self.feature_reconstructor = nn.Sequential(
             nn.Linear(latent_dim, 256),
             nn.SiLU(),

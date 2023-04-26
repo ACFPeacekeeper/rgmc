@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from adversarial_attack import AdversarialAttack
+from input_transformations.adversarial_attack import AdversarialAttack
 
 class FGSM(AdversarialAttack):
     def __init__(self, model: nn.Module, eps=8/255) -> None:
