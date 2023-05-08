@@ -48,7 +48,7 @@ for idx in "${!GMC_TASKS[@]}"; do
         cp -r ${GMC_DIR}/${task}/dataset ${DATA_DIR}/${dataset}
         #ln -s ${GMC_DIR}/${task}/dataset/*.[dp]t ${DATA_DIR}/${dataset}/
         touch ${DATA_DIR}/${dataset}/__init__.py
-        echo "Completed! Created symlinks of the files in the ${GMC_DIR}/${task}/dataset directory."
+        echo "Completed! Copied the files in ${GMC_DIR}/${task}/dataset to ${DATA_DIR}/${dataset}."
     fi
 
 done
