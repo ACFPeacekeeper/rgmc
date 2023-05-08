@@ -7,7 +7,14 @@ conda env create -f environment.yml
 conda activate RMGM
 ```
 ## Setup Datasets
-Run the following command to setup the datasets required to run the experiments:
+First, you must clone the repository with the gmc code with the following command:
+```bash
+git clone https://github.com/miguelsvasco/gmc.git
+```
+
+and follow the (https://github.com/miguelsvasco/gmc)[repository] instructions to correctly setup the GMC framework.
+
+Then execute the following command to setup the datasets required to run the experiments:
 ```bash
 bash setup.sh
 ```
