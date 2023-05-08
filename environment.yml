@@ -121,6 +121,7 @@ dependencies:
   - torchaudio=2.0.0=py310_cu118
   - torchtriton=2.0.0=py310
   - torchvision=0.15.0=py310_cu118
+  - tqdm=4.65.0=py310h2f386ee_0
   - typing_extensions=4.5.0=py310h06a4308_0
   - tzdata=2023c=h04d1e81_0
   - urllib3=1.26.15=py310h06a4308_0
@@ -132,3 +133,4 @@ dependencies:
   - zstd=1.5.5=hc292b87_0
   - pip:
       - mpmath==1.2.1
+prefix: /home/pkhunter/anaconda3/envs/RMGM
