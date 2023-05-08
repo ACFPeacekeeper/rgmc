@@ -12,15 +12,13 @@ First, you must clone the repository with the gmc code with the following comman
 git clone https://github.com/miguelsvasco/gmc.git
 ```
 
-and follow the (https://github.com/miguelsvasco/gmc)[repository] instructions to correctly setup the GMC framework.
-
 Then execute the following command to setup the datasets required to run the experiments:
 ```bash
 bash setup.sh
 ```
 
 ## Experiments
-In every GMC experiment, please set up the corresponding local machine path in `ingredients/machine_ingredients.py` file by copying the output of `pwd` to the ingredient file (e.g. for the unsupervised experiment):
+As indicated in the (gmc repository)[https://github.com/miguelsvasco/gmc] instructions, please set up the corresponding local machine path in `ingredients/machine_ingredients.py` file by copying the output of `pwd` to the ingredient file (e.g. for the unsupervised experiment):
 ```bash
 cd unsupervised/
 pwd
