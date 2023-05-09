@@ -22,14 +22,13 @@ class Encoder(nn.Module):
         if len(x) == 2:
             img = x[0]
             traj = x[1]
-            feats = torch.concat(torch.flatten(img), traj)
+            feats = torch.concat((torch.flatten(img), traj))
         else:
             if self.exclude_modality == 'trajectory':
                 feats = torch.flatten(x)
             elif self.exclude_modality == 'image':
                 feats = x
             
-        print(feats.size())
         comb_feats = self.first_layer(feats)
         comb_feats = self.feature_extractor(comb_feats)
 

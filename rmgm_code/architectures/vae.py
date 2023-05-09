@@ -59,7 +59,6 @@ class VAE(nn.Module):
             img_recon_loss /= len(batch)
             traj_recon_loss /= len(batch)
         else:
-            print(len(batch[0].size()))
             if len(batch[0].size()) == 3:
                 for x, x_hat in zip(batch, recons):
                     img_recon_loss += recon_loss(x_hat[0], x[0])
