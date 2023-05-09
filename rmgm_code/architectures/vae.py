@@ -41,6 +41,6 @@ class VAE(nn.Module):
 
         elbo = kld + (scales['Image recon scale'] * img_recon_loss + scales['Trajectory recon scale'] * traj_recon_loss)
 
-        loss_dict = Counter({'ELBO': elbo, 'KLD': kld, 'Img recon loss': img_recon_loss, 'Traj recon loss': traj_recon_loss})
+        loss_dict = Counter({'Total loss': elbo, 'KLD': kld, 'Img recon loss': img_recon_loss, 'Traj recon loss': traj_recon_loss})
         return elbo, loss_dict
         

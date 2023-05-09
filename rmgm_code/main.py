@@ -4,6 +4,7 @@ import torch.nn as nn
 import numpy as np
 import tracemalloc
 import argparse
+import random
 import torch
 import math
 import sys
@@ -37,13 +38,14 @@ def process_arguments() -> argparse.Namespace:
     parser.add_argument('-l', '--latent_dim', type=int, default=126, help='Dimension of the latent space of the models encodings.')
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
     parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
-    parser.add_argument('-t', '--target_modality', type=str, choices=['image', 'trajectory'], help='Define the modality to target with noisy and/or adversarial samples.')
+    parser.add_argument('-t', '--target_modality', type=str, default='image', choices=['image', 'trajectory'], help='Define the modality to target with noisy and/or adversarial samples.')
     parser.add_argument('--image_scale', type=float, default=0.5, help='Define weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=0.5, help='Define weight for the trajectory reconstruction loss.')
     parser.add_argument('--kld_beta', type=float, default=0.5)
     parser.add_argument('--noise_mean', type=float, default=0.)
     parser.add_argument('--noise_std', type=float, default=1.)
     parser.add_argument('--adv_eps', type=float, default=8/255)
+    parser.add_argument('--debug', type=bool, default=True)
     args = parser.parse_args()
 
     try:
@@ -85,10 +87,6 @@ def process_arguments() -> argparse.Namespace:
 
         file.write(f'Dataset: {args.dataset}\n')
         print(f'Dataset: {args.dataset}')
-        file.write(f'Optimizer: {args.optimizer}\n')
-        print(f'Optimizer: {args.optimizer}')
-        file.write(f'Batch size: {args.batch_size}\n')
-        print(f'Batch size: {args.batch_size}')
         file.write(f'Latent dimension: {args.latent_dim}\n')
         print(f'Latent dimension: {args.latent_dim}')
         file.write(f'Pipeline stage: {args.stage}\n')
@@ -97,7 +95,7 @@ def process_arguments() -> argparse.Namespace:
     return args, file_path
 
 
-def save_epoch_results(results_file_path, loss_dict):
+def save_results(results_file_path, loss_dict):
     with open(results_file_path, 'a') as file:
         for key, value in loss_dict.items():
             print(f'{key}: {value}')
@@ -121,27 +119,33 @@ def save_epoch_results(results_file_path, loss_dict):
 
 
 def train_model(arguments, results_file_path) -> nn.Module:
-    if arguments.model_type.upper() == 'VAE':
+    if arguments.model_type == 'VAE':
         model = vae.VAE(arguments.latent_dim, device)
-        loss_list_dict = {'ELBO': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
-    elif arguments.model_type.upper() == 'DAE':
+    elif arguments.model_type == 'DAE':
         model = dae.DAE(arguments.latent_dim, device)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale}
 
     model.cuda(device)
+
+    print(f'Optimizer: {arguments.optimizer}')
+    print(f'Batch size: {arguments.batch_size}')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Optimizer: {arguments.optimizer}\n')
+        file.write(f'Batch size: {arguments.batch_size}\n')
     
     if arguments.optimizer == 'adam':
         optimizer = optim.Adam(model.parameters())
     
     checkpoint_counter = arguments.checkpoint 
 
-    if arguments.dataset.upper() == 'MHD':
+    if arguments.dataset == 'MHD':
         dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
-    elif arguments.dataset.upper() == 'MOSI_MOSEI':
+    elif arguments.dataset == 'MOSI_MOSEI':
         raise NotImplementedError
-    elif arguments.dataset.upper() == 'PENDULUM':
+    elif arguments.dataset == 'PENDULUM':
         dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
 
     img_samples = dataset[1]
@@ -172,14 +176,11 @@ def train_model(arguments, results_file_path) -> nn.Module:
     with open(results_file_path, 'a') as file:
         file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
 
+    data = list(zip(img_samples, traj_samples))
+
     if arguments.adversarial_attack == 'FGSM':
-        adv_attack = fgsm.FGSM(device, model, eps=arguments['adv_eps'])
-        if arguments.target_modality == 'image':
-            img_samples = adv_attack.example_generation(img_samples, img_samples)
-        elif arguments.target_modality == 'trajectory':
-            traj_samples = adv_attack.example_generation(traj_samples, traj_samples)
-        else:
-            raise ValueError
+        adv_attack = fgsm.FGSM(device, model, eps=arguments.adv_eps)
+        data = adv_attack.example_generation(data, data, arguments.target_modality)
 
         print(f'FGSM epsilon value: {arguments.adv_eps}')
         with open(results_file_path, 'a') as file:
@@ -199,7 +200,7 @@ def train_model(arguments, results_file_path) -> nn.Module:
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0))
             
         batch_number = math.ceil(len(img_samples)/arguments.batch_size)
-        data = list(zip(img_samples, traj_samples))
+        random.shuffle(data)
         for batch_idx in tqdm(range(batch_number)):
             # Adjust batch size if its the last batch
             batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(img_samples) else len(img_samples) 
@@ -225,10 +226,9 @@ def train_model(arguments, results_file_path) -> nn.Module:
                 optimizer.step()
 
         for key, value in loss_dict.items():
-            loss_dict[key] = value / batch_number
-            loss_list_dict[key][epoch] = loss_dict[key]
+            loss_list_dict[key][epoch] = value / batch_number
 
-        save_epoch_results(results_file_path, loss_dict)
+        save_results(results_file_path, loss_dict)
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
             print('Saving model checkpoint to file...')
@@ -236,6 +236,8 @@ def train_model(arguments, results_file_path) -> nn.Module:
             checkpoint_counter = arguments.checkpoint
 
         torch.cuda.empty_cache()
+
+    tracemalloc.stop()
 
     for idx, (key, values) in enumerate(loss_list_dict.items()):
         plt.figure(idx, figsize=(20, 20))
@@ -249,14 +251,13 @@ def train_model(arguments, results_file_path) -> nn.Module:
 
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
     torch.cuda.empty_cache()
-    tracemalloc.stop()
     return model
 
 def train_downstream_classifier(arguments, results_file_path):
-    if arguments.model_type.upper() == 'VAE':
+    if arguments.model_type == 'VAE':
         model = vae.VAE(arguments.latent_dim, device)
-        loss_list_dict = {'ELBO': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-    elif arguments.model_type.upper() == 'DAE':
+        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+    elif arguments.model_type == 'DAE':
         model = dae.DAE(arguments.latent_dim, device)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
 
@@ -264,13 +265,93 @@ def train_downstream_classifier(arguments, results_file_path):
         model.load_state_dict(torch.load(arguments.path_model))
         for param in model.parameters():
             param.requires_grad = False
+
+    raise NotImplementedError
         
 
 
-def test_model(arguments):
-    #TODO 
-    raise NotImplementedError
+def test_model(arguments, results_file_path):
+    if arguments.model_type == 'VAE':
+        model = vae.VAE(arguments.latent_dim, device)
+        loss_dict = Counter({'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.})
+        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+    elif arguments.model_type == 'DAE':
+        model = dae.DAE(arguments.latent_dim, device, test=True)
+        loss_dict = Counter({'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.})
+        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale}
 
+    if arguments.path_model:
+        model.load_state_dict(torch.load(os.path.join("saved_models", arguments.path_model)))
+        for param in model.parameters():
+            param.requires_grad = False
+
+    model.to(device)
+
+    if arguments.dataset == 'MHD':
+        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_test.pt"))
+    elif arguments.dataset == 'MOSI_MOSEI':
+        raise NotImplementedError
+    elif arguments.dataset == 'PENDULUM':
+        dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "test_pendulum_dataset_samples2000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
+
+    img_samples = dataset[1]
+    traj_samples = dataset[2]
+    img_samples = img_samples.to(device)
+    traj_samples = traj_samples.to(device)
+
+    print(f'Noise: {arguments.noise}')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Noise: {arguments.noise}\n')
+    
+    if arguments.noise == "gaussian":
+        noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
+        if arguments.target_modality == 'image':
+            img_samples = noise.add_noise(img_samples)
+        elif arguments.target_modality == 'trajectory':
+            traj_samples = noise.add_noise(traj_samples)
+        else:
+            raise ValueError
+        
+        print(f'Noise mean: {arguments.noise_mean}')
+        print(f'Noise standard deviation: {arguments.noise_std}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Noise mean: {arguments.noise_mean}\n')
+            file.write(f'Noise standard deviation: {arguments.noise_std}\n')
+
+    print(f'Adversarial attack: {arguments.adversarial_attack}')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
+
+    data = list(zip(img_samples, traj_samples))
+
+    if arguments.adversarial_attack == 'FGSM':
+        adv_attack = fgsm.FGSM(device, model, eps=arguments.adv_eps)
+        data = adv_attack.example_generation(data, data, arguments.target_modality)
+
+        print(f'FGSM epsilon value: {arguments.adv_eps}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'FGSM epsilon value: {arguments.adv_eps}\n')
+
+    if arguments.adversarial_attack != 'none' or arguments.noise != 'none':
+        print(f'Target modality: {arguments.target_modality}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Target modality: {arguments.target_modality}\n')
+    
+    tracemalloc.start()
+    print('Testing model')
+    with open(results_file_path, 'a') as file:
+        file.write('Testing model:\n')
+
+    for data_sample in tqdm(data, total=len(data)):
+        result = model(data_sample)
+        _, sample_loss_dict = model.loss(data_sample, *result, scales=scales)
+        loss_dict = loss_dict + sample_loss_dict
+
+    for key, value in loss_dict.items():
+        loss_dict[key] = value / len(img_samples)
+
+    save_results(results_file_path, loss_dict)
+    return
 
 def test_downstream_classifier(arguments):
     #TODO

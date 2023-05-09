@@ -6,13 +6,14 @@ from collections import Counter
 from architectures.dae_networks import Encoder, Decoder
 
 class DAE(nn.Module):
-    def __init__(self, latent_dim: int, device, noise_factor=0.3) -> None:
+    def __init__(self, latent_dim: int, device, noise_factor=0.3, test=False) -> None:
         super(DAE, self).__init__()
         self.encoder = Encoder(latent_dim)
         self.decoder = Decoder(latent_dim)
 
         self.device = device
 
+        self.test = test
         self.noise_factor = noise_factor
 
     def add_noise(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -21,8 +22,9 @@ class DAE(nn.Module):
         return [torch.clip(img_noisy, 0., 1.), torch.clip(traj_noisy, 0., 1.)]
 
     def forward(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        x_noisy = self.add_noise(x)
-        z = self.encoder(x_noisy)
+        if not self.test:
+            x = self.add_noise(x)
+        z = self.encoder(x)
         x_hat = self.decoder(z)
         return x_hat, z
     
