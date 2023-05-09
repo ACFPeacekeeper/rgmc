@@ -402,4 +402,5 @@ rmgm_code/datasets/pendulum/dataset
 rmgm_code/datasets/mhd/dataset
 rmgm_code/datasets/mosi_mosei/dataset
 rmgm_code/checkpoints
+rmgm_code/saved_models
 gmc/
