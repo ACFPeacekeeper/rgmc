@@ -3,14 +3,14 @@ import torch
 from input_transformations.noise import Noise
 
 class GaussianNoise(Noise):
-    def __init__(self, device, mean=0., std=1.) -> None:
+    def __init__(self, device, mean=0., std=1.):
         self.mean = mean
         self.std = std
 
         self.device = device
 
-    def add_noise(self, x: torch.Tensor) -> torch.Tensor:
+    def add_noise(self, x):
         return x + torch.randn(x.size()).to(self.device) * self.std + self.mean
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)

@@ -2,16 +2,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Tuple
+from tqdm import tqdm
 from input_transformations.adversarial_attack import AdversarialAttack
 
 class FGSM(AdversarialAttack):
-    def __init__(self, device, model: nn.Module, eps=8/255) -> None:
+    def __init__(self, device, model, eps=8/255):
         super().__init__("FGSM", model)
         self.eps = eps
         self.device = device
 
-    def example_generation(self, x: Tuple[torch.Tensor], y: Tuple[torch.Tensor], target_modality: str) -> Tuple[torch.Tensor]:
+    def example_generation(self, x, y, target_modality):
         loss = nn.MSELoss().cuda(self.device)
         if target_modality == 'image':
             x_adv = [torch.empty(len(x[0][0]))]*len(x)
@@ -23,7 +23,7 @@ class FGSM(AdversarialAttack):
             raise ValueError
 
         
-        for idx, (x_sample, y_sample) in enumerate(zip(x, y)):
+        for idx, (x_sample, y_sample) in enumerate(tqdm(zip(x, y), total=len(x[0]))):
             x_sample = [x_sample[0].detach().clone().to(self.device), x_sample[1].detach().clone().to(self.device)]
             
             if len(y_sample == 2):
@@ -67,5 +67,5 @@ class FGSM(AdversarialAttack):
         
         return x
     
-    def __repr__(self) -> str:
+    def __repr__(self):
         return self.__class__.__name__ + '(epsilon={0})'.format(self.eps)

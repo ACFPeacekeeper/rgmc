@@ -1,5 +1,3 @@
-import torch
-
 class Noise(object):
     def __init__(self, device, mean=0., std=1.) -> None:
         self.mean = mean
@@ -7,8 +5,8 @@ class Noise(object):
 
         self.device = device
 
-    def add_noise(self, x: torch.Tensor) -> torch.Tensor:
+    def add_noise(self, x):
         raise NotImplementedError
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)

@@ -6,6 +6,7 @@ import tracemalloc
 import argparse
 import random
 import torch
+import time
 import math
 import sys
 import os
@@ -24,7 +25,7 @@ print(f"Using device: {device}.")
 # Assign path to current directory
 m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
-def process_arguments() -> argparse.Namespace:
+def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
     parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC'], help='Model type to be used in the experiment.')
     parser.add_argument('-p', '--path_model', type=str, help="Filename of the file where the model is to be loaded from.")
@@ -101,24 +102,24 @@ def save_results(results_file_path, loss_dict):
             print(f'{key}: {value}')
             file.write(f'- {key}: {value}\n')
     
-    print(f'Current RAM usage: {tracemalloc.get_traced_memory()[0]}')
-    print(f'Peak RAM usage: {tracemalloc.get_traced_memory()[1]}')
+    print('Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
+    print('Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
     if device.type == 'cuda':
-        print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-        print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-        print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
+        print("Torch CUDA memory allocated: %f GB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
+        print("Torch CUDA memory reserved: %f GB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
+        print("Torch CUDA max memory reserved: %f GB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
     with open(results_file_path, 'a') as file:
-        file.write(f'- Current RAM usage: {tracemalloc.get_traced_memory()[0]}\n')
-        file.write(f'- Peak RAM usage: {tracemalloc.get_traced_memory()[1]}\n')
+        file.write('- Current RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
+        file.write('- Peak RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
         if device.type == 'cuda':
-            file.write("- Torch CUDA memory allocated: %fGB\n"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-            file.write("- Torch CUDA memory reserved: %fGB\n"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-            file.write("- Torch CUDA max memory reserved: %fGB\n"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
+            file.write("- Torch CUDA memory allocated: %f GB\n"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
+            file.write("- Torch CUDA memory reserved: %f GB\n"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
+            file.write("- Torch CUDA max memory reserved: %f GB\n"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
 
     return
 
 
-def train_model(arguments, results_file_path) -> nn.Module:
+def train_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
         model = vae.VAE(arguments.latent_dim, device)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
@@ -132,7 +133,7 @@ def train_model(arguments, results_file_path) -> nn.Module:
 
     print(f'Optimizer: {arguments.optimizer}')
     print(f'Batch size: {arguments.batch_size}')
-    print(f'Shuffle: {arguments.shuffle}')
+    print(f'Shuffle data every epoch: {arguments.shuffle}')
     with open(results_file_path, 'a') as file:
         file.write(f'Optimizer: {arguments.optimizer}\n')
         file.write(f'Batch size: {arguments.batch_size}\n')
@@ -199,41 +200,39 @@ def train_model(arguments, results_file_path) -> nn.Module:
         with open(results_file_path, 'a') as file:
             file.write(f'Epoch {epoch}:\n')
 
-        loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0))
+        loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
             
         batch_number = math.ceil(len(img_samples)/arguments.batch_size)
 
         if arguments.shuffle:
             random.shuffle(data)
 
+        epoch_start = time.time()
         for batch_idx in tqdm(range(batch_number)):
             # Adjust batch size if its the last batch
             batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(img_samples) else len(img_samples) 
             batch = data[batch_idx*arguments.batch_size:batch_end_idx]
-            batch_loss = [0.]*len(batch)
-            batch_loss_dict = Counter(dict.fromkeys(loss_dict.keys(), 0.))
             if arguments.optimizer != 'none':
                 optimizer.zero_grad()
-            for idx, (img_sample, traj_sample) in enumerate(batch):
-                result = model((img_sample, traj_sample))
-                loss, sample_loss_dict = model.loss((img_sample, traj_sample), *result, scales=scales)
-                batch_loss[idx] = loss
-                batch_loss_dict = batch_loss_dict + sample_loss_dict
-
-            for key, value in batch_loss_dict.items():
-                batch_loss_dict[key] = value / len(batch)
-
+            
+            x_hat, _ = model(batch)
+            loss, batch_loss_dict = model.loss(batch, x_hat, scales=scales)
             loss_dict = loss_dict + batch_loss_dict
             
-            loss = sum(batch_loss)/len(batch)
             loss.backward()
             if arguments.optimizer != 'none':
                 optimizer.step()
-
+        
         for key, value in loss_dict.items():
-            loss_list_dict[key][epoch] = value / batch_number
-
+            loss_dict[key] = value / batch_number
+            loss_list_dict[key][epoch] = loss_dict[key]
+            
+        epoch_end = time.time()
+        print(f'Epoch runtime: {epoch_end - epoch_start} sec')
+        with open(results_file_path, 'a') as file:
+            file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
         save_results(results_file_path, loss_dict)
+
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
             print('Saving model checkpoint to file...')
@@ -241,6 +240,7 @@ def train_model(arguments, results_file_path) -> nn.Module:
             checkpoint_counter = arguments.checkpoint
 
         torch.cuda.empty_cache()
+        tracemalloc.reset_peak()
 
     tracemalloc.stop()
 
@@ -353,7 +353,10 @@ def test_model(arguments, results_file_path):
         loss_dict = loss_dict + sample_loss_dict
 
     for key, value in loss_dict.items():
-        loss_dict[key] = value / len(img_samples)
+        if arguments.model_type == 'VAE' and key == 'KLD':
+            loss_dict = value
+        else:
+            loss_dict[key] = value / len(img_samples)
 
     save_results(results_file_path, loss_dict)
     return
@@ -363,7 +366,7 @@ def test_downstream_classifier(arguments):
     raise NotImplementedError
 
 
-def main() -> None:
+def main():
     os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
     arguments, file_path = process_arguments()
     if arguments.stage == 'train_model':

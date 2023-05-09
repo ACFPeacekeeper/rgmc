@@ -1,13 +1,10 @@
-import torch
-import torch.nn as nn
-
 class AdversarialAttack(object):
-    def __init__(self, name: str, model: nn.Module) -> None:
+    def __init__(self, name, model):
         self.name = name
         self.model = model
 
-    def example_generation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def example_generation(self, x, y):
         raise NotImplementedError
     
-    def __repr__(self) -> str:
+    def __repr__(self):
         raise NotImplementedError

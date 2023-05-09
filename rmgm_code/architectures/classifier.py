@@ -2,7 +2,7 @@ from torch import nn
 from torch.nn import functional as F
 
 class Classifier(nn.Module):
-    def __init__(self, latent_dim, model) -> None:
+    def __init__(self, latent_dim, model):
         super().__init__()
         self.model = model
         self.layers = nn.Sequential(
