@@ -1,7 +1,7 @@
 from torch import nn
 from torch.nn import functional as F
 
-class Classifier(nn.Module):
+class MNISTClassifier(nn.Module):
     def __init__(self, latent_dim, model):
         super().__init__()
         self.model = model
