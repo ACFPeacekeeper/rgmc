@@ -306,19 +306,26 @@ def test_model(arguments, results_file_path):
         for param in model.parameters():
             param.requires_grad = False
 
-    model.to(device)
+    model.cuda(device)
 
     if arguments.dataset == 'MHD':
-        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_test.pt"))
+        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
     elif arguments.dataset == 'MOSI_MOSEI':
         raise NotImplementedError
     elif arguments.dataset == 'PENDULUM':
-        dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "test_pendulum_dataset_samples2000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
+        dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
 
-    img_samples = dataset[1]
-    traj_samples = dataset[2]
-    img_samples = img_samples.to(device)
-    traj_samples = traj_samples.to(device)
+
+    if arguments.exclude_modality == 'image':
+        data = list(dataset[2].to(device))
+    elif arguments.exclude_modality == 'trajectory':
+        data = list(dataset[1].to(device))
+    else:
+        img_samples = dataset[1]
+        traj_samples = dataset[2]
+        img_samples = img_samples.to(device)
+        traj_samples = traj_samples.to(device)
+        data = list(zip(img_samples, traj_samples))
 
     print(f'Noise: {arguments.noise}')
     with open(results_file_path, 'a') as file:
@@ -326,12 +333,7 @@ def test_model(arguments, results_file_path):
     
     if arguments.noise == "gaussian":
         noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
-        if arguments.target_modality == 'image':
-            img_samples = noise.add_noise(img_samples)
-        elif arguments.target_modality == 'trajectory':
-            traj_samples = noise.add_noise(traj_samples)
-        else:
-            raise ValueError
+        data = noise.add_noise(data, arguments.target_modality)
         
         print(f'Noise mean: {arguments.noise_mean}')
         print(f'Noise standard deviation: {arguments.noise_std}')
@@ -342,8 +344,6 @@ def test_model(arguments, results_file_path):
     print(f'Adversarial attack: {arguments.adversarial_attack}')
     with open(results_file_path, 'a') as file:
         file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
-
-    data = list(zip(img_samples, traj_samples))
 
     if arguments.adversarial_attack == 'FGSM':
         adv_attack = fgsm.FGSM(device, model, eps=arguments.adv_eps)
