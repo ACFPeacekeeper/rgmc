@@ -24,16 +24,13 @@ class DAE(nn.Module):
         x_noisy = self.add_noise(x)
         z = self.encoder(x_noisy)
         x_hat = self.decoder(z)
-        return z, x_hat
+        return x_hat, z
     
-    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[float, dict]:
+    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], x_hat: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, scales: dict) -> Tuple[float, dict]:
         loss = torch.nn.MSELoss().cuda(self.device)
         img_loss = loss(x_hat[0], x[0])
         traj_loss = loss(x_hat[1], x[1])
-        total_loss = 0.5 * img_loss + 0.5 * traj_loss
+        total_loss = scales['Image recon scale'] * img_loss + scales['Trajectory recon scale'] * traj_loss
 
         loss_dict = Counter({'Total loss': total_loss, 'Img recon loss': img_loss, 'Traj recon loss': traj_loss})
-            
         return total_loss, loss_dict
-
-        

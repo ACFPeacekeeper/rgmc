@@ -25,12 +25,13 @@ class VAE(nn.Module):
         
         x_hat = self.decoder(z)
 
-        return z, mean, std, x_hat
+        return x_hat, z, mean, std
     
-    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, mean: torch.Tensor, 
-                  std: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor], beta=0.5) -> Tuple[float, dict]:
+    
+    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], x_hat: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, 
+             mean: torch.Tensor, std: torch.Tensor, scales: dict) -> Tuple[float, dict]:
         
-        kld = beta * (1 + torch.log(std**2) - (mean)**2 - (std)**2).sum()
+        kld = -scales['KLD beta'] * (1 + torch.log(std**2) - (mean)**2 - (std)**2).sum()
 
         recon_loss = torch.nn.MSELoss().cuda(self.device)
 
@@ -38,9 +39,8 @@ class VAE(nn.Module):
 
         traj_recon_loss = recon_loss(x_hat[1], x[1])
 
-        elbo = kld + (0.5 * img_recon_loss + 0.5 * traj_recon_loss)
+        elbo = kld + (scales['Image recon scale'] * img_recon_loss + scales['Trajectory recon scale'] * traj_recon_loss)
 
         loss_dict = Counter({'ELBO': elbo, 'KLD': kld, 'Img recon loss': img_recon_loss, 'Traj recon loss': traj_recon_loss})
-
         return elbo, loss_dict
         
