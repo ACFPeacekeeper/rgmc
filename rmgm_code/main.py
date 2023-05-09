@@ -43,11 +43,11 @@ def process_arguments():
     parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
     parser.add_argument('--image_scale', type=float, default=1., help='Define weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Define weight for the trajectory reconstruction loss.')
-    parser.add_argument('--kld_beta', type=float, default=0.5)
-    parser.add_argument('--noise_mean', type=float, default=0.)
-    parser.add_argument('--noise_std', type=float, default=1.)
-    parser.add_argument('--adv_eps', type=float, default=8/255)
-    parser.add_argument('--shuffle', type=bool, default=True)
+    parser.add_argument('--kld_beta', type=float, default=0.5, help='Define beta value for KL divergence.')
+    parser.add_argument('--noise_mean', type=float, default=0., help='Define mean for noise distribution.')
+    parser.add_argument('--noise_std', type=float, default=1., help='Define standard deviation for noise distribution.')
+    parser.add_argument('--adv_eps', type=float, default=8/255, help='Define epsilon value for adversarial example generation.')
+    parser.add_argument('--shuffle', type=bool, default=True, help='Shuffle the data after each epoch.')
     args = parser.parse_args()
 
     try:
@@ -293,11 +293,11 @@ def train_downstream_classifier(arguments, results_file_path):
 
 def test_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device)
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality)
         loss_dict = Counter({'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.})
         scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
     elif arguments.model_type == 'DAE':
-        model = dae.DAE(arguments.latent_dim, device, test=True)
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
         loss_dict = Counter({'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.})
         scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale}
 
