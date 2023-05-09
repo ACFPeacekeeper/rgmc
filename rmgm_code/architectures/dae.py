@@ -27,7 +27,7 @@ class DAE(nn.Module):
         return x_hat, z
     
     def loss(self, x: Tuple[torch.Tensor, torch.Tensor], x_hat: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, scales: dict) -> Tuple[float, dict]:
-        loss = torch.nn.MSELoss().cuda(self.device)
+        loss = nn.MSELoss().cuda(self.device)
         img_loss = loss(x_hat[0], x[0])
         traj_loss = loss(x_hat[1], x[1])
         total_loss = scales['Image recon scale'] * img_loss + scales['Trajectory recon scale'] * traj_loss

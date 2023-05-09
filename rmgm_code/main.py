@@ -174,6 +174,13 @@ def train_model(arguments, results_file_path) -> nn.Module:
 
     if arguments.adversarial_attack == 'FGSM':
         adv_attack = fgsm.FGSM(device, model, eps=arguments['adv_eps'])
+        if arguments.target_modality == 'image':
+            img_samples = adv_attack.example_generation(img_samples, img_samples)
+        elif arguments.target_modality == 'trajectory':
+            traj_samples = adv_attack.example_generation(traj_samples, traj_samples)
+        else:
+            raise ValueError
+
         print(f'FGSM epsilon value: {arguments.adv_eps}')
         with open(results_file_path, 'a') as file:
             file.write(f'FGSM epsilon value: {arguments.adv_eps}\n')

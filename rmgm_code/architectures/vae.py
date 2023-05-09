@@ -33,7 +33,7 @@ class VAE(nn.Module):
         
         kld = -scales['KLD beta'] * (1 + torch.log(std**2) - (mean)**2 - (std)**2).sum()
 
-        recon_loss = torch.nn.MSELoss().cuda(self.device)
+        recon_loss = nn.MSELoss().cuda(self.device)
 
         img_recon_loss = recon_loss(x_hat[0], x[0])
 

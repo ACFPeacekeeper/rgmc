@@ -11,7 +11,7 @@ class FGSM(AdversarialAttack):
         self.device = device
 
     def example_generation(self, x: Tuple[torch.Tensor], y: Tuple[torch.Tensor]) -> Tuple[torch.Tensor]:
-        loss = nn.CrossEntropyLoss().cuda(self.device)
+        loss = nn.MSELoss().cuda(self.device)
         x_adv = [torch.empty(x[0].size())]*len(x)
         for idx, (x_sample, y_sample) in enumerate(zip(x, y)):
             x_sample = x_sample.detach().clone().to(self.device)
