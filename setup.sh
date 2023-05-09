@@ -3,6 +3,18 @@ CUR_DIR=$(pwd)
 DATA_DIR=${CUR_DIR}/rmgm_code/datasets
 GMC_DIR=${CUR_DIR}/gmc/gmc_code
 
+if ! [ -d "${CUR_DIR}/rmgm_code/checkpoints" ]; then
+    echo "Setting up checkpoints directory..."
+    mkdir ${CUR_DIR}/rmgm_code/checkpoints
+    echo "Completed! ${CUR_DIR}/rmgm_code/checkpoints directory created."
+fi
+
+if ! [ -d "${CUR_DIR}/rmgm_code/saved_models" ]; then
+    echo "Setting up saved_models directory..."
+    mkdir ${CUR_DIR}/rmgm_code/saved_models
+    echo "Completed! ${CUR_DIR}/rmgm_code/saved_models directory created."
+fi
+
 if ! [ -d "$DATA_DIR" ]; then
     echo "Setting up $DATA_DIR directory..."
     mkdir ${DATA_DIR}
@@ -12,8 +24,8 @@ fi
 
 COMMANDS='#!/bin/bash\nTARGET_DIR\=\$(pwd)\nTARGET_DIR=\${TARGET_DIR}/gmc/gmc_code\n'
 declare -a GMC_TASKS=("rl" "supervised" "unsupervised")
-declare -a RMGM_DATASETS=("pendulum" "mosi_mosei" "mhd")
-declare -a FILE_LIST=("test_pendulum_dataset_samples2000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt;train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt;" "mosei_valid_a.dt;mosi_valid_a.dt;mosei_train_a.dt;mosei_test_a.dt;mosi_train_a.dt;mosi_test_a.dt;" "mhd_train.pt;mhd_test.pt;")
+declare -a RMGM_DATASETS=("pendulum"  "mosi_mosei" "mhd")
+declare -a FILE_LIST=("train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt;test_pendulum_dataset_samples2000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt;" "mosei_test_a.dt;mosi_test_a.dt;mosei_valid_a.dt;mosei_train_a.dt;mosi_train_a.dt;mosi_valid_a.dt;" "mhd_test.pt;mhd_train.pt;")
 
 for idx in "${!GMC_TASKS[@]}"; do
     idx_file_list=${FILE_LIST[$idx]}
@@ -23,12 +35,11 @@ for idx in "${!GMC_TASKS[@]}"; do
     file_diff=$(diff <(echo "$idx_file_list") <(echo "$gmc_dataset_files"))
 
     if [ "$file_diff" != "" ]; then
-
         download_script=${CUR_DIR}/gmc/gmc_code/download_${task}_dataset.sh
 
         if IFS= read -r firstline < "$download_script" && ! [[ $firstline == '#!/bin/bash' ]]; then
             echo "Making ${download_script} executable..."
-            sed -i "/${firstline}/i ${COMMANDS}" $download_script
+            sed -i "/${firstline}/i ${COMMANDS}" $downpendulumload_script
             sed -i -e 's/-O ./-O ${TARGET_DIR}/g' $download_script
             chmod u+x $download_script
             echo "Completed! The script ${download_script} is now executable."
@@ -44,6 +55,9 @@ for idx in "${!GMC_TASKS[@]}"; do
     file_diff=$(diff <(echo "$idx_file_list") <(echo "$rmgm_dataset_files"))
 
     if [ "$file_diff" != "" ]; then
+        echo IDX FILE LIST $idx_file_list
+        echo RMGM DATASET FILES $rmgm_dataset_files
+
         echo "Setting up the ${DATA_DIR}/${dataset} directory..."
         cp -r ${GMC_DIR}/${task}/dataset ${DATA_DIR}/${dataset}
         #ln -s ${GMC_DIR}/${task}/dataset/*.[dp]t ${DATA_DIR}/${dataset}/
@@ -53,6 +67,6 @@ for idx in "${!GMC_TASKS[@]}"; do
 
 done
 
-sed -i -e "s|^m_path.*$|m_path = \"${CUR_DIR}\"|g" ${CUR_DIR}/rmgm_code/main.py
+sed -i -e "s|^m_path.*$|m_path = \"${CUR_DIR}/rmgm_code\"|g" ${CUR_DIR}/rmgm_code/main.py
 
 echo "Setup completed!"
