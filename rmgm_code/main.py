@@ -40,8 +40,9 @@ def process_arguments():
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
     parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
     parser.add_argument('-t', '--target_modality', type=str, default='image', choices=['image', 'trajectory'], help='Define the modality to target with noisy and/or adversarial samples.')
-    parser.add_argument('--image_scale', type=float, default=0.5, help='Define weight for the image reconstruction loss.')
-    parser.add_argument('--traj_scale', type=float, default=0.5, help='Define weight for the trajectory reconstruction loss.')
+    parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
+    parser.add_argument('--image_scale', type=float, default=1., help='Define weight for the image reconstruction loss.')
+    parser.add_argument('--traj_scale', type=float, default=1., help='Define weight for the trajectory reconstruction loss.')
     parser.add_argument('--kld_beta', type=float, default=0.5)
     parser.add_argument('--noise_mean', type=float, default=0.)
     parser.add_argument('--noise_std', type=float, default=1.)
@@ -76,6 +77,22 @@ def process_arguments():
     with open(file_path, 'w') as file:
         file.write(f'Model: {args.model_type}\n')
         print(f'Model: {args.model_type}')
+
+        file.write(f'Exclude modality: {args.exclude_modality}\n')
+        print(f'Exclude modality: {args.exclude_modality}')
+
+        if args.exclude_modality == 'image':
+            args.image_scale = 0.
+            if args.target_modality == 'image':
+                args.target_modality = 'none'
+        elif args.exclude_modality == 'trajectory':
+            args.traj_scale == 0.
+            if args.target_modality == 'trajectory':
+                args.target_modality = 'none'
+        else:
+            # If 2 modalities are present, divide scale of each modality by 2
+            args.image_scale /= 2.
+            args.traj_scale /= 2.
 
         if args.model_type == 'VAE' or args.model_type == 'DAE':
             file.write(f'Image recon loss scale: {args.image_scale}\n')
@@ -121,11 +138,11 @@ def save_results(results_file_path, loss_dict):
 
 def train_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device)
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
     elif arguments.model_type == 'DAE':
-        model = dae.DAE(arguments.latent_dim, device)
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale}
 
@@ -151,10 +168,16 @@ def train_model(arguments, results_file_path):
     elif arguments.dataset == 'PENDULUM':
         dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
 
-    img_samples = dataset[1]
-    traj_samples = dataset[2]
-    img_samples = img_samples.to(device)
-    traj_samples = traj_samples.to(device)
+    if arguments.exclude_modality == 'image':
+        data = list(dataset[2].to(device))
+    elif arguments.exclude_modality == 'trajectory':
+        data = list(dataset[1].to(device))
+    else:
+        img_samples = dataset[1]
+        traj_samples = dataset[2]
+        img_samples = img_samples.to(device)
+        traj_samples = traj_samples.to(device)
+        data = list(zip(img_samples, traj_samples))
 
     print(f'Noise: {arguments.noise}')
     with open(results_file_path, 'a') as file:
@@ -162,12 +185,7 @@ def train_model(arguments, results_file_path):
     
     if arguments.noise == "gaussian":
         noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
-        if arguments.target_modality == 'image':
-            img_samples = noise.add_noise(img_samples)
-        elif arguments.target_modality == 'trajectory':
-            traj_samples = noise.add_noise(traj_samples)
-        else:
-            raise ValueError
+        data = noise.add_noise(data, arguments.target_modality)
         
         print(f'Noise mean: {arguments.noise_mean}')
         print(f'Noise standard deviation: {arguments.noise_std}')
@@ -178,8 +196,6 @@ def train_model(arguments, results_file_path):
     print(f'Adversarial attack: {arguments.adversarial_attack}')
     with open(results_file_path, 'a') as file:
         file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
-
-    data = list(zip(img_samples, traj_samples))
 
     if arguments.adversarial_attack == 'FGSM':
         adv_attack = fgsm.FGSM(device, model, eps=arguments.adv_eps)
@@ -228,7 +244,7 @@ def train_model(arguments, results_file_path):
             loss_list_dict[key][epoch] = loss_dict[key]
             
         epoch_end = time.time()
-        print(f'Epoch runtime: {epoch_end - epoch_start} sec')
+        print(f'Runtime: {epoch_end - epoch_start} sec')
         with open(results_file_path, 'a') as file:
             file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
         save_results(results_file_path, loss_dict)
@@ -347,18 +363,17 @@ def test_model(arguments, results_file_path):
     with open(results_file_path, 'a') as file:
         file.write('Testing model:\n')
 
-    for data_sample in tqdm(data, total=len(data)):
-        result = model(data_sample)
-        _, sample_loss_dict = model.loss(data_sample, *result, scales=scales)
-        loss_dict = loss_dict + sample_loss_dict
 
-    for key, value in loss_dict.items():
-        if arguments.model_type == 'VAE' and key == 'KLD':
-            loss_dict = value
-        else:
-            loss_dict[key] = value / len(img_samples)
+    test_start = time.time()
+    x_hat, _ = model(data)
+    _, loss_dict = model.loss(data, x_hat, scales=scales)
+    test_end = time.time()
 
+    print(f'Runtime: {test_end - test_start} sec')
+    with open(results_file_path, 'a') as file:
+        file.write(f'- Runtime: {test_end - test_start} sec\n')
     save_results(results_file_path, loss_dict)
+    tracemalloc.stop()
     return
 
 def test_downstream_classifier(arguments):

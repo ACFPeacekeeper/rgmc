@@ -2,38 +2,61 @@ import torch
 import torch.nn as nn
 
 class Encoder(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim, first_layer_dim):
         super(Encoder, self).__init__()
+        self.first_layer = nn.Linear(first_layer_dim, 512)
+
         self.feature_extractor = nn.Sequential(
-            nn.Linear(28 * 28 + 200, 512),
             nn.SiLU(),
             nn.Linear(512, 256),
             nn.SiLU(),
             nn.Linear(256, latent_dim)
         )
+
+    def set_first_layer(self, first_layer_dim):
+        self.first_layer = nn.Linear(first_layer_dim, 512)
     
     def forward(self, x):
-        img = x[0]
-        traj = x[1]
-        img = torch.flatten(img)
-        return self.feature_extractor(torch.concat((img, traj)))
+        if len(x) == 2:
+            img = x[0]
+            traj = x[1]
+            img = torch.flatten(img)
+            comb_feats = self.first_layer(torch.concat((img, traj)))
+            comb_feats = self.feature_extractor(comb_feats)
+        else:
+            comb_feats = self.first_layer(torch.concat((x[0])))
+            comb_feats = self.feature_extractor(comb_feats)
+
+        return comb_feats
     
     
 class Decoder(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim, exclude_modality, last_layer_dim=None):
         super(Decoder, self).__init__()
         self.feature_reconstructor = nn.Sequential(
             nn.Linear(latent_dim, 256),
             nn.SiLU(),
             nn.Linear(256, 512),
             nn.SiLU(),
-            nn.Linear(512, 28 * 28 + 200)
         )
+
+        self.last_layer = nn.Linear(512, last_layer_dim)
+        self.exclude_modality = exclude_modality
+
+    def set_last_layer(self, last_layer_dim):
+        self.last_layer = nn.Linear(512, last_layer_dim)
 
     def forward(self, z):
         x_hat = self.feature_reconstructor(z)
-        img_recon = x_hat[:28*28]
-        img_recon = torch.reshape(img_recon, (1, 28, 28))
-        traj_recon = x_hat[28*28:28*28+200]
-        return [img_recon, traj_recon]
+        x_hat = self.last_layer(x_hat)
+        if self.exclude_modality == 'image':
+            recon = (torch.reshape(x_hat, (1, 28, 28)))
+        elif self.exclude_modality == 'trajectory':
+            recon = (x_hat)
+        else:
+            img_recon = x_hat[:28*28]
+            img_recon = torch.reshape(img_recon, (1, 28, 28))
+            traj_recon = x_hat[28*28:28*28+200]
+            recon = (img_recon, traj_recon)
+        return recon
 

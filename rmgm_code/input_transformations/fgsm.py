@@ -11,52 +11,49 @@ class FGSM(AdversarialAttack):
         self.eps = eps
         self.device = device
 
-    def example_generation(self, x, y, target_modality):
+    def example_generation(self, batch, targets, target_modality):
         loss = nn.MSELoss().cuda(self.device)
         if target_modality == 'image':
-            x_adv = [torch.empty(len(x[0][0]))]*len(x)
-            x_same = [torch.empty(len(x[0][1]))]*len(x)
+            x_adv = [torch.empty(len(batch[0][0]))]*len(batch)
+            x_same = [torch.empty(len(batch[0][1]))]*len(batch)
         elif target_modality == 'trajectory':
-            x_adv = [torch.empty(len(x[0][1]))]*len(x)
-            x_same = [torch.empty(len(x[0][0]))]*len(x)
+            x_adv = [torch.empty(len(batch[0][1]))]*len(batch)
+            x_same = [torch.empty(len(batch[0][0]))]*len(batch)
         else:
             raise ValueError
+        
+        if len(targets[0]) == 1:
+            x_hat = self.model(batch)
+        else:
+            x_hat, _ = self.model(batch)
 
         
-        for idx, (x_sample, y_sample) in enumerate(tqdm(zip(x, y), total=len(x[0]))):
-            x_sample = [x_sample[0].detach().clone().to(self.device), x_sample[1].detach().clone().to(self.device)]
-            
-            if len(y_sample == 2):
-                y_sample = [y_sample[0].detach().clone().to(self.device), y_sample[1].detach().clone().to(self.device)]
-            else:
-                y_sample = y_sample.detach().clone().to(self.device)
-
+        for idx in range(len(batch)):
             if target_modality == 'image':
-                x_sample[0].requires_grad = True
-                x_same[idx] = x_sample[1]
+                batch[idx][0].requires_grad = True
+                cost = loss(x_hat[idx][0], targets[idx][0])
+                grad = torch.autograd.grad(cost, batch[idx][0], retain_graph=False, create_graph=False)[0]
+                x_adv_sample = batch[idx][0] + self.eps * grad.sign()
+                x_same[idx] = batch[idx][1]
             elif target_modality == 'trajectory':
-                x_sample[1].requires_grad = True
-                x_same[idx] = x_sample[0]
-
-            if len(y_sample) == 2:
-                results = self.model(x_sample)
-                if target_modality == 'image':
-                    cost = loss(results[0][0], y_sample[0])
-                    grad = torch.autograd.grad(cost, x_sample[0], retain_graph=False, create_graph=False)[0]
-                    x_adv_sample = x_sample[0] + self.eps * grad.sign()
-                elif target_modality == 'trajectory':
-                    cost = loss(results[0][1], y_sample[1])
-                    grad = torch.autograd.grad(cost, x_sample[1], retain_graph=False, create_graph=False)[0]
-                    x_adv_sample = x_sample[1] + self.eps * grad.sign()
+                batch[idx][1].requires_grad = True
+                cost = loss(x_hat[idx][1], targets[idx][1])
+                grad = torch.autograd.grad(cost, batch[idx][1], retain_graph=False, create_graph=False)[0]
+                x_adv_sample = batch[idx][1] + self.eps * grad.sign()
+                x_same[idx] = batch[idx][0]
             else:
-                y_pred, _ = self.model(x_sample)
-                one_hot_label = F.one_hot(y_sample, num_classes=len(y_pred))
-                cost = F.nll_loss(y_pred, one_hot_label)
-                grad = torch.autograd.grad(cost, y_sample, retain_graph=False, create_graph=False)[0]
+                one_hot_label = F.one_hot(targets[idx], num_classes=len(x_hat[idx]))
+                cost = F.nll_loss(x_hat[idx], one_hot_label)
                 if target_modality == 'image':
-                    x_adv_sample = x_sample[0] + self.eps * grad.sign()
+                    batch[idx][0].requires_grad = True
+                    grad = torch.autograd.grad(cost, batch[idx][0], retain_graph=False, create_graph=False)[0]
+                    x_adv_sample = batch[idx][0] + self.eps * grad.sign()
+                    x_same[idx] = batch[idx][1]
                 elif target_modality == 'trajectory':
-                    x_adv_sample = x_sample[1] + self.eps * grad.sign()
+                    batch[idx][1].requires_grad = True
+                    grad = torch.autograd.grad(cost, batch[idx][1], retain_graph=False, create_graph=False)[0]
+                    x_adv_sample = batch[idx][1] + self.eps * grad.sign()
+                    x_same[idx] = batch[idx][0]
                 
             x_adv[idx] = torch.clamp(x_adv_sample, 0, 1)
 
