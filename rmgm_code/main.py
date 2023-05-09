@@ -45,7 +45,7 @@ def process_arguments() -> argparse.Namespace:
     parser.add_argument('--noise_mean', type=float, default=0.)
     parser.add_argument('--noise_std', type=float, default=1.)
     parser.add_argument('--adv_eps', type=float, default=8/255)
-    parser.add_argument('--debug', type=bool, default=True)
+    parser.add_argument('--shuffle', type=bool, default=True)
     args = parser.parse_args()
 
     try:
@@ -132,13 +132,15 @@ def train_model(arguments, results_file_path) -> nn.Module:
 
     print(f'Optimizer: {arguments.optimizer}')
     print(f'Batch size: {arguments.batch_size}')
+    print(f'Shuffle: {arguments.shuffle}')
     with open(results_file_path, 'a') as file:
         file.write(f'Optimizer: {arguments.optimizer}\n')
         file.write(f'Batch size: {arguments.batch_size}\n')
+        file.write(f'Shuffle data every epoch: {arguments.shuffle}\n')
     
     if arguments.optimizer == 'adam':
         optimizer = optim.Adam(model.parameters())
-    
+
     checkpoint_counter = arguments.checkpoint 
 
     if arguments.dataset == 'MHD':
@@ -200,7 +202,10 @@ def train_model(arguments, results_file_path) -> nn.Module:
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0))
             
         batch_number = math.ceil(len(img_samples)/arguments.batch_size)
-        random.shuffle(data)
+
+        if arguments.shuffle:
+            random.shuffle(data)
+
         for batch_idx in tqdm(range(batch_number)):
             # Adjust batch size if its the last batch
             batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(img_samples) else len(img_samples) 
