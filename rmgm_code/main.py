@@ -86,7 +86,7 @@ def process_arguments():
             if args.target_modality == 'image':
                 args.target_modality = 'none'
         elif args.exclude_modality == 'trajectory':
-            args.traj_scale == 0.
+            args.traj_scale = 0.
             if args.target_modality == 'trajectory':
                 args.target_modality = 'none'
         else:
