@@ -3,6 +3,12 @@ CUR_DIR=$(pwd)
 DATA_DIR=${CUR_DIR}/rmgm_code/datasets
 GMC_DIR=${CUR_DIR}/gmc/gmc_code
 
+if ! [ -d "${CUR_DIR}/rmgm_code/results" ]; then
+    echo "Setting up results directory..."
+    mkdir ${CUR_DIR}/rmgm_code/results
+    echo "Completed! ${CUR_DIR}/rmgm_code/results directory created."
+fi
+
 if ! [ -d "${CUR_DIR}/rmgm_code/checkpoints" ]; then
     echo "Setting up checkpoints directory..."
     mkdir ${CUR_DIR}/rmgm_code/checkpoints
