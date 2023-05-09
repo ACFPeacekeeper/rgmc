@@ -12,7 +12,7 @@ fi
 
 COMMANDS='#!/bin/bash\nTARGET_DIR\=\$(pwd)\nTARGET_DIR=\${TARGET_DIR}/gmc/gmc_code\n'
 declare -a GMC_TASKS=("rl" "supervised" "unsupervised")
-declare -a RMGM_DATASETS=("atari" "mosi_mosei" "mhd")
+declare -a RMGM_DATASETS=("pendulum" "mosi_mosei" "mhd")
 declare -a FILE_LIST=("test_pendulum_dataset_samples2000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt;train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt;" "mosei_valid_a.dt;mosi_valid_a.dt;mosei_train_a.dt;mosei_test_a.dt;mosi_train_a.dt;mosi_test_a.dt;" "mhd_train.pt;mhd_test.pt;")
 
 for idx in "${!GMC_TASKS[@]}"; do

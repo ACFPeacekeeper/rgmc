@@ -19,7 +19,7 @@ class Encoder(nn.Module):
     def forward(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
         img = x[0]
         traj = x[1]
-        img = torch.flatten(img, start_dim=-1)
+        img = torch.flatten(img)
         comb_feats = self.feature_extractor(torch.concat((img, traj)))
 
         mean = self.fc_mean(comb_feats)
@@ -40,7 +40,7 @@ class Decoder(nn.Module):
     def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         x_hat = self.feature_reconstructor(z)
         img_recon = x_hat[:28*28]
-        img_recon = torch.reshape(img_recon, (28, 28, 1))
+        img_recon = torch.reshape(img_recon, (1, 28, 28))
         traj_recon = x_hat[28*28:28*28+200]
         return [img_recon, traj_recon]
 

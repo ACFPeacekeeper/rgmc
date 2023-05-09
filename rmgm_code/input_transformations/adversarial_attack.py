@@ -6,5 +6,8 @@ class AdversarialAttack(object):
         self.name = name
         self.model = model
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def example_generation(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+    
+    def __repr__(self) -> str:
         raise NotImplementedError

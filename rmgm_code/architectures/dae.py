@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from typing import Tuple
+from collections import Counter
 from architectures.dae_networks import Encoder, Decoder
 
 class DAE(nn.Module):
@@ -25,11 +26,14 @@ class DAE(nn.Module):
         x_hat = self.decoder(z)
         return z, x_hat
     
-    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor]) -> float:
-        loss = torch.nn.MSELoss()
+    def loss(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[float, dict]:
+        loss = torch.nn.MSELoss().cuda(self.device)
         img_loss = loss(x_hat[0], x[0])
         traj_loss = loss(x_hat[1], x[1])
         total_loss = 0.5 * img_loss + 0.5 * traj_loss
-        return total_loss
+
+        loss_dict = Counter({'Total loss': total_loss, 'Img recon loss': img_loss, 'Traj recon loss': traj_loss})
+            
+        return total_loss, loss_dict
 
         

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from typing import Tuple
+from collections import Counter
 from architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
@@ -16,6 +17,7 @@ class VAE(nn.Module):
         mean, logvar = self.encoder(x)
         std = torch.exp(logvar/2)
         
+        # Reparameterization trick
         dist = torch.distributions.Normal(0, 1)
         eps = dist.sample(mean.shape).to(self.device)
 
@@ -26,23 +28,19 @@ class VAE(nn.Module):
         return z, mean, std, x_hat
     
     def loss(self, x: Tuple[torch.Tensor, torch.Tensor], z: torch.Tensor, mean: torch.Tensor, 
-                  std: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor], beta=1.) -> float:
+                  std: torch.Tensor, x_hat: Tuple[torch.Tensor, torch.Tensor], beta=0.5) -> Tuple[float, dict]:
         
-        p = torch.distributions.Normal(torch.zeros_like(mean), torch.ones_like(std))
-        q = torch.distributions.Normal(mean, std)
+        kld = beta * (1 + torch.log(std**2) - (mean)**2 - (std)**2).sum()
 
-        log_q = q.log_prob(z)
-        log_p = p.log_prob(z)
+        recon_loss = torch.nn.MSELoss().cuda(self.device)
 
-        kld = torch.exp(log_q - log_p)
-        kld = beta * kld.sum(-1)
+        img_recon_loss = recon_loss(x_hat[0], x[0])
 
-        img_recon_loss = ((x[0] - x_hat[0])**2).sum()
+        traj_recon_loss = recon_loss(x_hat[1], x[1])
 
-        # TODO: Might use another loss for trajectory recon loss
-        traj_recon_loss = ((x[1] - x_hat[1])**2).sum()
+        elbo = kld + (0.5 * img_recon_loss + 0.5 * traj_recon_loss)
 
-        elbo = (kld - (0.5 * img_recon_loss + 0.5 *traj_recon_loss))
+        loss_dict = Counter({'ELBO': elbo, 'KLD': kld, 'Img recon loss': img_recon_loss, 'Traj recon loss': traj_recon_loss})
 
-        return elbo
+        return elbo, loss_dict
         

@@ -1,5 +1,0 @@
-VAE loss per epoch on MHD dataset
-Epoch 0 loss: -22236.517578125
-Epoch 1 loss: -22236.01953125
-Epoch 2 loss: -22236.10546875
-Epoch 3 loss: -22237.37109375
