@@ -398,7 +398,8 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Datasets
-rmgm_code/datasets/atari/dataset
+rmgm_code/datasets/pendulum/dataset
 rmgm_code/datasets/mhd/dataset
 rmgm_code/datasets/mosi_mosei/dataset
+rmgm_code/checkpoints
 gmc/
