@@ -16,12 +16,13 @@ class VAE(nn.Module):
             else:
                 self.layer_dim = 28 * 28 + 200
 
-        self.encoder = Encoder(latent_dim, self.layer_dim)
+        self.encoder = Encoder(latent_dim, exclude_modality, self.layer_dim)
         self.decoder = Decoder(latent_dim, exclude_modality, self.layer_dim)
         
         self.device = device
         self.beta = beta
         self.kld = 0.
+        self.exclude_modality = exclude_modality
 
     def forward(self, batch):
         z = [torch.Tensor]*len(batch)
@@ -58,15 +59,16 @@ class VAE(nn.Module):
             img_recon_loss /= len(batch)
             traj_recon_loss /= len(batch)
         else:
-            if len(batch[0][0]) == 3:
+            print(len(batch[0].size()))
+            if len(batch[0].size()) == 3:
                 for x, x_hat in zip(batch, recons):
-                    img_recon_loss += recon_loss(x_hat[0])
+                    img_recon_loss += recon_loss(x_hat[0], x[0])
                 
                 img_recon_loss /= len(batch)
             
-            elif len(batch[0][0]) == 1:
+            elif len(batch[0].size()) == 1:
                 for x, x_hat in zip(batch, recons):
-                    traj_recon_loss += recon_loss(x_hat[0])
+                    traj_recon_loss += recon_loss(x_hat[0], x[0])
 
                 traj_recon_loss /= len(batch)
         

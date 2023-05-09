@@ -16,12 +16,13 @@ class DAE(nn.Module):
             else:
                 self.layer_dim = 28 * 28 + 200
 
-        self.encoder = Encoder(latent_dim, self.layer_dim)
+        self.encoder = Encoder(latent_dim, exclude_modality, self.layer_dim)
         self.decoder = Decoder(latent_dim, exclude_modality, self.layer_dim)
 
         self.device = device
         self.test = test
         self.noise_factor = noise_factor
+        self.exclude_modality = exclude_modality
 
     def add_noise(self, x):
         if len(x) == 2:
@@ -29,7 +30,7 @@ class DAE(nn.Module):
             traj_noisy = x[1] + torch.randn_like(x[1]) * self.noise_factor
             x_noisy = [torch.clip(img_noisy, 0., 1.), torch.clip(traj_noisy, 0., 1.)]
         else:
-            x_noisy = [torch.clip(x[0]) + torch.rand_like(x[0]) * self.noise_factor]
+            x_noisy = torch.clip(x, 0., 1.) + torch.rand_like(x) * self.noise_factor
         return x_noisy
 
     def forward(self, batch):
@@ -60,15 +61,15 @@ class DAE(nn.Module):
             img_loss /= len(batch)
             traj_loss /= len(batch)
         else:
-            if len(batch[0][0]) == 3:
+            if len(batch[0].size()) == 3:
                 for x, x_hat in zip(batch, recons):
-                    img_loss += loss(x_hat[0])
+                    img_loss += loss(x_hat[0], x[0])
                 
                 img_loss /= len(batch)
             
-            elif len(batch[0][0]) == 1:
+            elif len(batch[0].size()) == 1:
                 for x, x_hat in zip(batch, recons):
-                    traj_loss += loss(x_hat[0])
+                    traj_loss += loss(x_hat[0], x[0])
 
                 traj_loss /= len(batch)
 

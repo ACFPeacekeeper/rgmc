@@ -218,7 +218,7 @@ def train_model(arguments, results_file_path):
 
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
             
-        batch_number = math.ceil(len(img_samples)/arguments.batch_size)
+        batch_number = math.ceil(len(data)/arguments.batch_size)
 
         if arguments.shuffle:
             random.shuffle(data)
@@ -226,7 +226,7 @@ def train_model(arguments, results_file_path):
         epoch_start = time.time()
         for batch_idx in tqdm(range(batch_number)):
             # Adjust batch size if its the last batch
-            batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(img_samples) else len(img_samples) 
+            batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(data) else len(data) 
             batch = data[batch_idx*arguments.batch_size:batch_end_idx]
             if arguments.optimizer != 'none':
                 optimizer.zero_grad()
