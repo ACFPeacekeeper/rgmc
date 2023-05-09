@@ -124,11 +124,11 @@ def train_model(arguments, results_file_path) -> nn.Module:
     if arguments.model_type.upper() == 'VAE':
         model = vae.VAE(arguments.latent_dim, device)
         loss_list_dict = {'ELBO': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-        scales = {'Image recon scale': {arguments.image_scale}, 'Trajectory recon scale': {arguments.traj_scale}}
+        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
     elif arguments.model_type.upper() == 'DAE':
         model = dae.DAE(arguments.latent_dim, device)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-        scales = {'Image recon scale': {arguments.image_scale}, 'Trajectory recon scale': {arguments.traj_scale}, 'KLD beta': {arguments.kld_beta}}
+        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale}
 
     model.cuda(device)
     
