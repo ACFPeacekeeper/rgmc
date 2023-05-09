@@ -3,24 +3,6 @@ CUR_DIR=$(pwd)
 DATA_DIR=${CUR_DIR}/rmgm_code/datasets
 GMC_DIR=${CUR_DIR}/gmc/gmc_code
 
-if ! [ -d "${CUR_DIR}/rmgm_code/results" ]; then
-    echo "Setting up results directory..."
-    mkdir ${CUR_DIR}/rmgm_code/results
-    echo "Completed! ${CUR_DIR}/rmgm_code/results directory created."
-fi
-
-if ! [ -d "${CUR_DIR}/rmgm_code/checkpoints" ]; then
-    echo "Setting up checkpoints directory..."
-    mkdir ${CUR_DIR}/rmgm_code/checkpoints
-    echo "Completed! ${CUR_DIR}/rmgm_code/checkpoints directory created."
-fi
-
-if ! [ -d "${CUR_DIR}/rmgm_code/saved_models" ]; then
-    echo "Setting up saved_models directory..."
-    mkdir ${CUR_DIR}/rmgm_code/saved_models
-    echo "Completed! ${CUR_DIR}/rmgm_code/saved_models directory created."
-fi
-
 if ! [ -d "$DATA_DIR" ]; then
     echo "Setting up $DATA_DIR directory..."
     mkdir ${DATA_DIR}

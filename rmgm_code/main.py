@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import tracemalloc
 import argparse
 import torch
@@ -49,8 +50,15 @@ def process_arguments() -> argparse.Namespace:
         parser.print_help()
         sys.exit(1)
 
+    os.makedirs(os.path.join(m_path, "results", args.stage), exist_ok=True)
 
-    with open(os.path.join(m_path, f"{args.model_type.lower()}_{args.dataset.lower()}_{args.stage}_results.txt"), 'w') as file:
+    counter = 1
+    file_path = os.path.join(m_path, "results", args.stage, f"{args.model_type.lower()}_{args.dataset.lower()}_{counter}.txt")
+    while os.path.exists(file_path):
+        counter += 1
+        file_path = os.path.join(m_path, "results", args.stage, f"{args.model_type.lower()}_{args.dataset.lower()}_{counter}.txt")
+
+    with open(file_path, 'w') as file:
         file.write(f'Model: {args.model_type}\n')
         file.write(f'Dataset: {args.dataset}\n')
         file.write(f'Batch size: {args.batch_size}\n')
@@ -66,12 +74,10 @@ def process_arguments() -> argparse.Namespace:
         print(f'Adversarial attack: {args.adversarial_attack}')
         print(f'Pipeline stage: {args.stage}')
 
-    return args
+    return args, file_path
 
 
-def train_model(arguments):
-    results_file_path = os.path.join(m_path, f"{arguments.model_type.lower()}_{arguments.dataset.lower()}_{arguments.stage}_results.txt")
-
+def train_model(arguments, results_file_path):
     if arguments.model_type.upper() == 'VAE':
         model = vae.VAE(arguments.latent_dim, device)
         loss_dict = Counter({'ELBO': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.})
@@ -104,6 +110,8 @@ def train_model(arguments):
             traj_samples = noise.add_noise(traj_samples)
         else:
             raise ValueError
+        
+    loss_values = [0.]*arguments.epochs
 
     tracemalloc.start()
     for epoch in range(arguments.epochs):
@@ -136,6 +144,7 @@ def train_model(arguments):
             loss.backward()
 
         total_loss = sum(epoch_loss)/batch_number
+        loss_values[epoch] = total_loss
         for key, value in loss_dict.items():
             loss_dict[key] = value / batch_number
 
@@ -166,6 +175,9 @@ def train_model(arguments):
 
         torch.cuda.empty_cache()
 
+    plt.plot(loss_values.detach().cpu().numpy())
+    plt.savefig(f'{os.path.splitext(results_file_path)[0]}.png')
+
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_file))
     torch.cuda.empty_cache()
     tracemalloc.stop()
@@ -182,17 +194,16 @@ def test_downstream_classifier(arguments):
 
 
 def main() -> None:
-    arguments = process_arguments()
+    os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
+    arguments, file_path = process_arguments()
     if arguments.stage == 'train_model':
         os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-        train_model(arguments)
+        train_model(arguments, file_path)
     elif arguments.stage == 'test_model':
-        os.makedirs(os.path.join(m_path, "model_test_results"))
-        test_model(arguments)
+        test_model(arguments, file_path)
     elif arguments.stage == 'test_classifier':
-        os.makedirs(os.path.join(m_path, "classifier_test_results"))
-        test_downstream_classifier(arguments)
+        test_downstream_classifier(arguments, file_path)
 
 if __name__ == "__main__":
     main()
