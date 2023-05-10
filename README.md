@@ -18,7 +18,7 @@ bash setup.sh
 ```
 
 ## Experiments
-As indicated in the (gmc repository)[https://github.com/miguelsvasco/gmc] instructions, please set up the corresponding local machine path in `ingredients/machine_ingredients.py` file by copying the output of `pwd` to the ingredient file (e.g. for the unsupervised experiment):
+As indicated in the [gmc repository](https://github.com/miguelsvasco/gmc) instructions, please set up the corresponding local machine path in `ingredients/machine_ingredients.py` file by copying the output of `pwd` to the ingredient file (e.g. for the unsupervised experiment):
 ```bash
 cd unsupervised/
 pwd
