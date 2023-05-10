@@ -12,8 +12,8 @@ class GaussianNoise(Noise):
     def add_noise(self, x, target_modality):
         if len(x[0]) == 2:
             if target_modality == 'image':
-                x_noisy = [torch.empty(len(x[0][0]))]*len(x)
-                x_same = [torch.empty(len(x[0][1]))]*len(x)
+                x_noisy = [torch.empty(x[0].size())]*len(x)
+                x_same = [torch.empty(x[1].size())]*len(x)
                 for idx, x_sample in enumerate(x):
                     x_noisy[idx] = x_sample[0] + torch.randn(x_sample[0].size()).to(self.device) * self.std + self.mean
                     x_same[idx] = x_sample[1]
@@ -28,10 +28,14 @@ class GaussianNoise(Noise):
             else:
                 raise ValueError
         else:
-            x_noisy = [torch.empty(len(x[0][0]))]*len(x)
-            for x_sample in x:
-                x_noisy = x_sample[0] + torch.randn(x_sample[0].size()).to(self.device) * self.std + self.mean
+            print(x[0].size())
+            x_noisy = [torch.empty(x[0].size())]*len(x)
+            for idx, x_sample in enumerate(x):
+                
+                x_noisy[idx] = x_sample[0] + torch.randn(x_sample[0].size()).to(self.device) * self.std + self.mean
             x_trans = list(x_noisy)
+            print(x_trans[0].size())
+
 
         return x_trans
 

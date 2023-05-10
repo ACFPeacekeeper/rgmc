@@ -3,6 +3,7 @@ import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 import tracemalloc
+import traceback
 import argparse
 import random
 import torch
@@ -384,18 +385,25 @@ def test_downstream_classifier(arguments):
 def main():
     os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
     arguments, file_path = process_arguments()
-    if arguments.stage == 'train_model':
-        os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
-        os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-        train_model(arguments, file_path)
-    elif arguments.stage == 'train_classifier':
-        os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
-        os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-        train_downstream_classifier(arguments, file_path)
-    elif arguments.stage == 'test_model':
-        test_model(arguments, file_path)
-    elif arguments.stage == 'test_classifier':
-        test_downstream_classifier(arguments, file_path)
+    try:
+        if arguments.stage == 'train_model':
+            os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
+            os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
+            train_model(arguments, file_path)
+        elif arguments.stage == 'train_classifier':
+            os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
+            os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
+            train_downstream_classifier(arguments, file_path)
+        elif arguments.stage == 'test_model':
+            test_model(arguments, file_path)
+        elif arguments.stage == 'test_classifier':
+            test_downstream_classifier(arguments, file_path)
+
+        sys.exit(0)
+    except Exception as e:
+        traceback.print_exception(*sys.exc_info())
+        os.remove(file_path)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
