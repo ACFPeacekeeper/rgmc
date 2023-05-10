@@ -14,24 +14,24 @@ class GaussianNoise(Noise):
             if target_modality == 'image':
                 x_noisy = [torch.empty(len(x[0][0]))]*len(x)
                 x_same = [torch.empty(len(x[0][1]))]*len(x)
-                for x_sample in x:
-                    x_noisy = x_sample[0] + torch.randn(x_sample[0].size()).to(self.device) * self.std + self.mean
-                    x_same = x_sample[1]
-                x_trans = (x_noisy, x_same)
+                for idx, x_sample in enumerate(x):
+                    x_noisy[idx] = x_sample[0] + torch.randn(x_sample[0].size()).to(self.device) * self.std + self.mean
+                    x_same[idx] = x_sample[1]
+                x_trans = list(zip(x_noisy, x_same))
             elif target_modality == 'traj':
                 x_noisy = [torch.empty(len(x[0][1]))]*len(x)
                 x_same = [torch.empty(len(x[0][0]))]*len(x)
                 for x_sample in x:
                     x_noisy = x_sample[1] + torch.randn(x_sample[1].size()).to(self.device) * self.std + self.mean
                     x_same = x_sample[0]
-                x_trans = (x_same, x_noisy)
+                x_trans = list(zip(x_same, x_noisy))
             else:
                 raise ValueError
         else:
             x_noisy = [torch.empty(len(x[0][0]))]*len(x)
             for x_sample in x:
                 x_noisy = x_sample[0] + torch.randn(x_sample[0].size()).to(self.device) * self.std + self.mean
-            x_trans = (x_noisy)
+            x_trans = list(x_noisy)
 
         return x_trans
 
