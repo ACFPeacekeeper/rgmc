@@ -1,79 +1,85 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
+from tqdm import tqdm
 from collections import Counter
 from architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
-    def __init__(self, latent_dim, device, exclude_modality, layer_dim=-1, beta=0.5):
+    def __init__(self, latent_dim, device, exclude_modality, layer_dim=-1, beta=0.5, verbose=False):
         super(VAE, self).__init__()
         self.layer_dim = layer_dim
         if self.layer_dim == -1:
             if exclude_modality == 'image':
                 self.layer_dim = 200
+                self.modality_dims = [0, 200]
             elif exclude_modality == 'trajectory':
                 self.layer_dim = 28 * 28
+                self.modality_dims = [0, 28 * 28]
             else:
                 self.layer_dim = 28 * 28 + 200
+                self.modality_dims = [0, 28 * 28, 200]
 
-        self.encoder = Encoder(latent_dim, exclude_modality, self.layer_dim)
-        self.decoder = Decoder(latent_dim, exclude_modality, self.layer_dim)
+        self.encoder = Encoder(latent_dim, self.layer_dim)
+        self.decoder = Decoder(latent_dim, self.layer_dim)
         
         self.device = device
         self.beta = beta
         self.kld = 0.
+        self.verbose = verbose
         self.exclude_modality = exclude_modality
 
-    def forward(self, batch):
-        z = [torch.Tensor]*len(batch)
-        if len(batch[0]) == 2:
-            x_hat = [(torch.Tensor, torch.Tensor)]*len(batch)
+    def set_verbose(self, verbose):
+        self.verbose = verbose
+
+    def forward(self, x):
+        data_list = list(x.values())
+        if len(data_list[0].size()) > 2:
+            data = torch.flatten(data_list[0], start_dim=1)
         else:
-            x_hat = [(torch.Tensor)]*len(batch)
+            data = data_list[0]
 
-        for idx, x in enumerate(batch):
-            mean, logvar = self.encoder(x)
-            std = torch.exp(logvar/2)
+        for id in range(1, len(data_list)):
+            data = torch.concat((data, data_list[id]), dim=-1)
+
+        z = torch.Tensor
+
+        mean, logvar = self.encoder(data)
+        std = torch.exp(logvar/2)
+    
+        # Reparameterization trick
+        dist = torch.distributions.Normal(0, 1)
+        eps = dist.sample(mean.shape).to(self.device)
+
+        z = mean + std * eps
+        tmp = self.decoder(z)
         
-            # Reparameterization trick
-            dist = torch.distributions.Normal(0, 1)
-            eps = dist.sample(mean.shape).to(self.device)
+        self.kld += - self.beta * (1 + logvar - (mean)**2 - (std)**2).sum()
 
-            z[idx] = mean + std * eps
-            x_hat[idx] = self.decoder(z[idx])
-            self.kld += - self.beta * (1 + logvar - (mean)**2 - (std)**2).sum()
+        x_hat = dict.fromkeys(x.keys())
+        for id, key in enumerate(x_hat.keys()):
+            x_hat[key] = tmp[:, self.modality_dims[id]:self.modality_dims[id]+self.modality_dims[id+1]]
+            if key == 'image':
+                x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
 
         return x_hat, z
     
     
-    def loss(self, batch, recons, scales):
-        recon_loss = nn.MSELoss().cuda(self.device)
-        img_recon_loss = 0.
-        traj_recon_loss = 0.
+    def loss(self, x, x_hat, scales):
+        loss_function = nn.MSELoss().cuda(self.device)
+        recon_losses =  dict.fromkeys(x.keys())
 
-        if len(batch[0]) == 2:
-            for x, x_hat in zip(batch, recons):
-                img_recon_loss += recon_loss(x_hat[0], x[0])
-                traj_recon_loss += recon_loss(x_hat[1], x[1])
+        for key in x.keys():
+            recon_losses[key] = scales[key] * loss_function(x_hat[key], x[key])
 
-            img_recon_loss /= len(batch)
-            traj_recon_loss /= len(batch)
-        else:
-            if len(batch[0].size()) == 3:
-                for x, x_hat in zip(batch, recons):
-                    img_recon_loss += recon_loss(x_hat[0], x[0])
-                
-                img_recon_loss /= len(batch)
-            
-            elif len(batch[0].size()) == 1:
-                for x, x_hat in zip(batch, recons):
-                    traj_recon_loss += recon_loss(x_hat[0], x[0])
-
-                traj_recon_loss /= len(batch)
+        recon_loss = 0
+        for value in recon_losses.values():
+            recon_loss += value
         
-        elbo = self.kld + (scales['Image recon scale'] * img_recon_loss + scales['Trajectory recon scale'] * traj_recon_loss)
+        elbo = self.kld + recon_loss
 
-        loss_dict = Counter({'Total loss': elbo, 'KLD': self.kld, 'Img recon loss': img_recon_loss, 'Traj recon loss': traj_recon_loss})
+        loss_dict = Counter({'Total loss': elbo, 'KLD': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
         

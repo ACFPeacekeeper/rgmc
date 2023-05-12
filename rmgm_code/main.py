@@ -24,7 +24,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}.")
 
 # Assign path to current directory
-m_path = "copy-output-of-pwd-here"
+m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
 def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
@@ -32,23 +32,23 @@ def process_arguments():
     parser.add_argument('-p', '--path_model', type=str, help="Filename of the file where the model is to be loaded from.")
     parser.add_argument('-m', '--model_out', type=str, help="Filename of the file where the model is to be saved to.")
     parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI_MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
-    parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier'], help='Stage(s) of the pipeline to execute in the experiment.')
+    parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage(s) of the pipeline to execute in the experiment.')
     parser.add_argument('-o', '--optimizer', type=str, default='adam', choices=['adam', 'none'], help='Define optimizer for the model.')
-    parser.add_argument('-e', '--epochs', type=int, default=10, help='Number of epochs to train the model.')
-    parser.add_argument('-c', '--checkpoint', type=int, default=10, help='Epoch interval between checkpoints of the model in training.')
+    parser.add_argument('-e', '--epochs', type=int, default=50, help='Number of epochs to train the model.')
+    parser.add_argument('-c', '--checkpoint', type=int, default=50, help='Epoch interval between checkpoints of the model in training.')
     parser.add_argument('-b', '--batch_size', type=int, default=32, help='Number of samples processed for each model update.')
-    parser.add_argument('-l', '--latent_dim', type=int, default=126, help='Dimension of the latent space of the models encodings.')
+    parser.add_argument('-l', '--latent_dim', type=int, default=128, help='Dimension of the latent space of the models encodings.')
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
     parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
     parser.add_argument('-t', '--target_modality', type=str, default='image', choices=['image', 'trajectory'], help='Define the modality to target with noisy and/or adversarial samples.')
     parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
     parser.add_argument('--image_scale', type=float, default=1., help='Define weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Define weight for the trajectory reconstruction loss.')
-    parser.add_argument('--kld_beta', type=float, default=0.5, help='Define beta value for KL divergence.')
+    parser.add_argument('--kld_beta', type=float, default=0.1, help='Define beta value for KL divergence.')
     parser.add_argument('--noise_mean', type=float, default=0., help='Define mean for noise distribution.')
     parser.add_argument('--noise_std', type=float, default=1., help='Define standard deviation for noise distribution.')
     parser.add_argument('--adv_eps', type=float, default=8/255, help='Define epsilon value for adversarial example generation.')
-    parser.add_argument('--shuffle', type=bool, default=True, help='Shuffle the data after each epoch.')
+    parser.add_argument('--idx', nargs="+", type=int)
     args = parser.parse_args()
 
     try:
@@ -63,6 +63,8 @@ def process_arguments():
                 raise argparse.ArgumentError("Argument error: checkpoint value must be a positive and non-zero integer.")
             elif args.checkpoint > args.epochs:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
+        if args.exclude_modality == args.target_modality:
+            raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(1)
@@ -139,23 +141,21 @@ def save_results(results_file_path, loss_dict):
 
 def train_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality)
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
     elif arguments.model_type == 'DAE':
         model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
 
     model.cuda(device)
 
     print(f'Optimizer: {arguments.optimizer}')
     print(f'Batch size: {arguments.batch_size}')
-    print(f'Shuffle data every epoch: {arguments.shuffle}')
     with open(results_file_path, 'a') as file:
         file.write(f'Optimizer: {arguments.optimizer}\n')
         file.write(f'Batch size: {arguments.batch_size}\n')
-        file.write(f'Shuffle data every epoch: {arguments.shuffle}\n')
     
     if arguments.optimizer == 'adam':
         optimizer = optim.Adam(model.parameters())
@@ -170,15 +170,11 @@ def train_model(arguments, results_file_path):
         dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
 
     if arguments.exclude_modality == 'image':
-        data = list(dataset[2].to(device))
+        dataset = {'trajectory': dataset[2].to(device)}
     elif arguments.exclude_modality == 'trajectory':
-        data = list(dataset[1].to(device))
+        dataset = {'image': dataset[1].to(device)}
     else:
-        img_samples = dataset[1]
-        traj_samples = dataset[2]
-        img_samples = img_samples.to(device)
-        traj_samples = traj_samples.to(device)
-        data = list(zip(img_samples, traj_samples))
+        dataset = {'image': dataset[1].to(device), 'trajectory': dataset[2].to(device)}
 
     print(f'Noise: {arguments.noise}')
     with open(results_file_path, 'a') as file:
@@ -186,8 +182,8 @@ def train_model(arguments, results_file_path):
     
     if arguments.noise == "gaussian":
         noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
-        data = noise.add_noise(data, arguments.target_modality)
-        
+        dataset[arguments.target_modality] = noise.add_noise(dataset[arguments.target_modality])
+
         print(f'Noise mean: {arguments.noise_mean}')
         print(f'Noise standard deviation: {arguments.noise_std}')
         with open(results_file_path, 'a') as file:
@@ -199,8 +195,8 @@ def train_model(arguments, results_file_path):
         file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
 
     if arguments.adversarial_attack == 'FGSM':
-        adv_attack = fgsm.FGSM(device, model, eps=arguments.adv_eps)
-        data = adv_attack.example_generation(data, data, arguments.target_modality)
+        adv_attack = fgsm.FGSM(device, model, arguments.target_modality, eps=arguments.adv_eps,)
+        dataset[arguments.target_modality] = adv_attack.example_generation(dataset, dataset[arguments.target_modality])
 
         print(f'FGSM epsilon value: {arguments.adv_eps}')
         with open(results_file_path, 'a') as file:
@@ -219,16 +215,16 @@ def train_model(arguments, results_file_path):
 
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
             
-        batch_number = math.ceil(len(data)/arguments.batch_size)
-
-        if arguments.shuffle:
-            random.shuffle(data)
+        batch_number = math.ceil(len(list(dataset.values())[0])/arguments.batch_size)
 
         epoch_start = time.time()
         for batch_idx in tqdm(range(batch_number)):
             # Adjust batch size if its the last batch
-            batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(data) else len(data) 
-            batch = data[batch_idx*arguments.batch_size:batch_end_idx]
+            batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(list(dataset.values())[0]) else len(list(dataset.values())[0])
+            batch = dict.fromkeys(dataset.keys())
+            for key, value in dataset.items():
+                batch[key] = value[batch_idx*arguments.batch_size:batch_end_idx, :]
+
             if arguments.optimizer != 'none':
                 optimizer.zero_grad()
             
@@ -294,13 +290,13 @@ def train_downstream_classifier(arguments, results_file_path):
 
 def test_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality)
-        loss_dict = Counter({'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.})
-        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
+        loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
     elif arguments.model_type == 'DAE':
         model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
-        loss_dict = Counter({'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.})
-        scales = {'Image recon scale': arguments.image_scale, 'Trajectory recon scale': arguments.traj_scale}
+        loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
 
     if arguments.path_model:
         model.load_state_dict(torch.load(os.path.join("saved_models", arguments.path_model)))
@@ -316,17 +312,12 @@ def test_model(arguments, results_file_path):
     elif arguments.dataset == 'PENDULUM':
         dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
 
-
     if arguments.exclude_modality == 'image':
-        data = list(dataset[2].to(device))
+        dataset = {'trajectory': dataset[2].to(device)}
     elif arguments.exclude_modality == 'trajectory':
-        data = list(dataset[1].to(device))
+        dataset = {'image': dataset[1].to(device)}
     else:
-        img_samples = dataset[1]
-        traj_samples = dataset[2]
-        img_samples = img_samples.to(device)
-        traj_samples = traj_samples.to(device)
-        data = list(zip(img_samples, traj_samples))
+        dataset = {'image': dataset[1].to(device), 'trajectory': dataset[2].to(device)}
 
     print(f'Noise: {arguments.noise}')
     with open(results_file_path, 'a') as file:
@@ -334,8 +325,8 @@ def test_model(arguments, results_file_path):
     
     if arguments.noise == "gaussian":
         noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
-        data = noise.add_noise(data, arguments.target_modality)
-        
+        dataset[arguments.target_modality] = noise.add_noise(dataset[arguments.target_modality])
+
         print(f'Noise mean: {arguments.noise_mean}')
         print(f'Noise standard deviation: {arguments.noise_std}')
         with open(results_file_path, 'a') as file:
@@ -347,8 +338,8 @@ def test_model(arguments, results_file_path):
         file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
 
     if arguments.adversarial_attack == 'FGSM':
-        adv_attack = fgsm.FGSM(device, model, eps=arguments.adv_eps)
-        data = adv_attack.example_generation(data, data, arguments.target_modality)
+        adv_attack = fgsm.FGSM(device, model, arguments.target_modality, eps=arguments.adv_eps,)
+        dataset[arguments.target_modality] = adv_attack.example_generation(dataset, dataset[arguments.target_modality])
 
         print(f'FGSM epsilon value: {arguments.adv_eps}')
         with open(results_file_path, 'a') as file:
@@ -366,8 +357,8 @@ def test_model(arguments, results_file_path):
 
 
     test_start = time.time()
-    x_hat, _ = model(data)
-    _, loss_dict = model.loss(data, x_hat, scales=scales)
+    x_hat, _ = model(dataset)
+    _, loss_dict = model.loss(dataset, x_hat, scales=scales)
     test_end = time.time()
 
     print(f'Runtime: {test_end - test_start} sec')
@@ -399,11 +390,11 @@ def main():
         elif arguments.stage == 'test_classifier':
             test_downstream_classifier(arguments, file_path)
 
-        sys.exit(0)
-    except Exception as e:
+    except:
         traceback.print_exception(*sys.exc_info())
         os.remove(file_path)
         sys.exit(1)
 
 if __name__ == "__main__":
     main()
+    sys.exit(0)

@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tqdm import tqdm
 from input_transformations.adversarial_attack import AdversarialAttack
 
 class FGSM(AdversarialAttack):
@@ -19,12 +18,14 @@ class FGSM(AdversarialAttack):
             x[modality].requires_grad = True
             
         x_adv = torch.empty(targets.size())
+        self.model.set_verbose(True)
+        print("Generating adversarial examples...")
         x_hat, _ = self.model(x)
+        self.model.set_verbose(False)
 
-        print(type(x_hat[self.target_modality]))
-        print(type(targets))
         cost = loss(x_hat[self.target_modality], targets)
-        grad = torch.autograd.grad(cost, x[self.target_modality], retain_graph=False, create_graph=False)
+        
+        grad = torch.autograd.grad(cost, x[self.target_modality], retain_graph=False, create_graph=False)[0]
 
         x_adv = x[self.target_modality] + self.eps * grad.sign()
 
