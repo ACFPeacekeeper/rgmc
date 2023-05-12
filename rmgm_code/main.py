@@ -44,7 +44,7 @@ def process_arguments():
     parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
     parser.add_argument('--image_scale', type=float, default=1., help='Define weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Define weight for the trajectory reconstruction loss.')
-    parser.add_argument('--kld_beta', type=float, default=0.5, help='Define beta value for KL divergence.')
+    parser.add_argument('--kld_beta', type=float, default=0.1, help='Define beta value for KL divergence.')
     parser.add_argument('--noise_mean', type=float, default=0., help='Define mean for noise distribution.')
     parser.add_argument('--noise_std', type=float, default=1., help='Define standard deviation for noise distribution.')
     parser.add_argument('--adv_eps', type=float, default=8/255, help='Define epsilon value for adversarial example generation.')
@@ -83,6 +83,14 @@ def process_arguments():
 
         file.write(f'Exclude modality: {args.exclude_modality}\n')
         print(f'Exclude modality: {args.exclude_modality}')
+
+        if args.path_model:
+            file.write(f'Load model file: {args.path_model}\n')
+            print(f'Load model file: {args.path_model}')
+
+        if args.model_out:
+            file.write(f'Store model file: {args.model_out}\n')
+            print(f'Store model file: {args.model_out}')
 
         if args.exclude_modality == 'image':
             args.image_scale = 0.

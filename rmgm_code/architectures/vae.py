@@ -7,7 +7,7 @@ from collections import Counter
 from architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
-    def __init__(self, latent_dim, device, exclude_modality, layer_dim=-1, beta=0.5, verbose=False):
+    def __init__(self, latent_dim, device, exclude_modality, beta, layer_dim=-1, verbose=False):
         super(VAE, self).__init__()
         self.layer_dim = layer_dim
         if self.layer_dim == -1:
