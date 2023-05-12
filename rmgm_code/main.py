@@ -44,7 +44,7 @@ def process_arguments():
     parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
     parser.add_argument('--image_scale', type=float, default=1., help='Define weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Define weight for the trajectory reconstruction loss.')
-    parser.add_argument('--kld_beta', type=float, default=0.1, help='Define beta value for KL divergence.')
+    parser.add_argument('--kld_beta', type=float, default=0.5, help='Define beta value for KL divergence.')
     parser.add_argument('--noise_mean', type=float, default=0., help='Define mean for noise distribution.')
     parser.add_argument('--noise_std', type=float, default=1., help='Define standard deviation for noise distribution.')
     parser.add_argument('--adv_eps', type=float, default=8/255, help='Define epsilon value for adversarial example generation.')

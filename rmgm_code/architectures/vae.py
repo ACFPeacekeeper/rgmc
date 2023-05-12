@@ -77,6 +77,7 @@ class VAE(nn.Module):
         for value in recon_losses.values():
             recon_loss += value
         
+        self.kld = self.kld / len(list(x.values())[0])
         elbo = self.kld + recon_loss
 
         loss_dict = Counter({'Total loss': elbo, 'KLD': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
