@@ -89,12 +89,22 @@ def process_arguments():
         print(f'Exclude modality: {args.exclude_modality}')
 
         if args.path_model != 'none':
-            file.write(f'Load classifier file: {args.path_model}\n')
-            print(f'Load classifier file: {args.path_model}')
+            file.write(f'Load model file: {args.path_model}\n')
+            print(f'Load model file: {args.path_model}')
+            if args.stage == 'test_classifier':
+                file.write(f'Load classifier file: {args.path_model}\n')
+                print(f'Load classifier file: {args.path_model}')
 
         if args.model_out != 'none':
-            file.write(f'Store classifier file: {args.model_out}\n')
-            print(f'Store classifier file: {args.model_out}')
+            if args.stage == 'train_model':
+                file.write(f'Store model file: saved_models/{args.model_out}\n')
+                print(f'Store model file: saved_models/{args.model_out}')
+            elif args.stage == 'train_classifier':
+                file.write(f'Store classifier file: saved_models/{args.model_out}\n')
+                print(f'Store classifier file: saved_models/{args.model_out}')
+        elif args.stage == 'train_classifier':
+            file.write(f'Store classifier file: saved_models/clf_{os.path.basename(args.path_model)}\n')
+            print(f'Store classifier file: saved_models/clf_{os.path.basename(args.path_model)}')
 
         if args.exclude_modality == 'image':
             args.image_scale = 0.
@@ -201,7 +211,7 @@ def save_results(results_file_path, loss_dict):
 
     return
 
-def save_final_results(arguments, results_file_path, model, loss_list_dict):
+def save_final_results(arguments, results_file_path, loss_list_dict):
     for idx, (key, values) in enumerate(loss_list_dict.items()):
         plt.figure(idx, figsize=(20, 20))
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
@@ -220,14 +230,6 @@ def save_final_results(arguments, results_file_path, model, loss_list_dict):
             file.write(f'- {key}: {np.mean(values)}\n')
             
 
-    if arguments.model_out != 'none':
-        torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
-    else:
-        if arguments.stage == 'train_classifier':
-            torch.save(model.state_dict(), os.path.join(m_path, "saved_models", f'clf_{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
-        else:
-            torch.save(model.state_dict(), os.path.join(m_path, "saved_models", f'{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
-    
     return
 
 
@@ -305,7 +307,11 @@ def train_model(arguments, results_file_path):
         tracemalloc.reset_peak()
 
     tracemalloc.stop()
-    save_final_results(arguments, results_file_path, model, loss_list_dict)
+    save_final_results(arguments, results_file_path, loss_list_dict)
+    if arguments.model_out != 'none':
+        torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
+    else:
+        torch.save(model.state_dict(), os.path.join(m_path, "saved_models", f'{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
     torch.cuda.empty_cache()
     return model
 
@@ -400,7 +406,11 @@ def train_downstream_classifier(arguments, results_file_path):
         tracemalloc.reset_peak()
 
     tracemalloc.stop()
-    save_final_results(arguments, results_file_path, clf, loss_list_dict)
+    save_final_results(arguments, results_file_path, loss_list_dict)
+    if arguments.model_out != 'none':
+        torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
+    else:
+        torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", f'clf_{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
     torch.cuda.empty_cache()
     return clf
 
@@ -415,7 +425,7 @@ def test_model(arguments, results_file_path):
         model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
         loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
 
-    model.load_state_dict(torch.load(os.path.join("saved_models", arguments.path_model)))
+    model.load_state_dict(torch.load(arguments.path_model))
     for param in model.parameters():
         param.requires_grad = False
 
@@ -447,7 +457,7 @@ def test_downstream_classifier(arguments, results_file_path):
         model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
         
     model.load_state_dict(torch.load(arguments.path_model))
     for param in model.parameters():
