@@ -12,7 +12,7 @@ import math
 import sys
 import os
 
-from architectures import vae, dae
+from architectures import vae, dae, classifier
 from input_transformations import gaussian_noise, fgsm
 from matplotlib.ticker import StrMethodFormatter
 from torchvision import transforms
@@ -115,6 +115,54 @@ def process_arguments():
 
     return args, file_path
 
+def dataset_setup(arguments, results_file_path, model):
+    if arguments.dataset == 'MHD':
+        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
+    elif arguments.dataset == 'MOSI_MOSEI':
+        raise NotImplementedError
+    elif arguments.dataset == 'PENDULUM':
+        dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
+
+    if arguments.exclude_modality == 'image':
+        dataset = {'trajectory': dataset[2].to(device)}
+    elif arguments.exclude_modality == 'trajectory':
+        dataset = {'image': dataset[1].to(device)}
+    else:
+        dataset = {'image': dataset[1].to(device), 'trajectory': dataset[2].to(device)}
+
+    print(f'Noise: {arguments.noise}')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Noise: {arguments.noise}\n')
+    
+    if arguments.noise == "gaussian":
+        noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
+        dataset[arguments.target_modality] = noise.add_noise(dataset[arguments.target_modality])
+
+        print(f'Noise mean: {arguments.noise_mean}')
+        print(f'Noise standard deviation: {arguments.noise_std}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Noise mean: {arguments.noise_mean}\n')
+            file.write(f'Noise standard deviation: {arguments.noise_std}\n')
+
+    print(f'Adversarial attack: {arguments.adversarial_attack}')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
+
+    if arguments.adversarial_attack == 'FGSM':
+        adv_attack = fgsm.FGSM(device, model, arguments.target_modality, eps=arguments.adv_eps,)
+        dataset[arguments.target_modality] = adv_attack.example_generation(dataset, dataset[arguments.target_modality])
+
+        print(f'FGSM epsilon value: {arguments.adv_eps}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'FGSM epsilon value: {arguments.adv_eps}\n')
+
+    if arguments.adversarial_attack != 'none' or arguments.noise != 'none':
+        print(f'Target modality: {arguments.target_modality}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Target modality: {arguments.target_modality}\n')
+
+    return dataset
+
 
 def save_results(results_file_path, loss_dict):
     with open(results_file_path, 'a') as file:
@@ -162,50 +210,7 @@ def train_model(arguments, results_file_path):
 
     checkpoint_counter = arguments.checkpoint 
 
-    if arguments.dataset == 'MHD':
-        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
-    elif arguments.dataset == 'MOSI_MOSEI':
-        raise NotImplementedError
-    elif arguments.dataset == 'PENDULUM':
-        dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
-
-    if arguments.exclude_modality == 'image':
-        dataset = {'trajectory': dataset[2].to(device)}
-    elif arguments.exclude_modality == 'trajectory':
-        dataset = {'image': dataset[1].to(device)}
-    else:
-        dataset = {'image': dataset[1].to(device), 'trajectory': dataset[2].to(device)}
-
-    print(f'Noise: {arguments.noise}')
-    with open(results_file_path, 'a') as file:
-        file.write(f'Noise: {arguments.noise}\n')
-    
-    if arguments.noise == "gaussian":
-        noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
-        dataset[arguments.target_modality] = noise.add_noise(dataset[arguments.target_modality])
-
-        print(f'Noise mean: {arguments.noise_mean}')
-        print(f'Noise standard deviation: {arguments.noise_std}')
-        with open(results_file_path, 'a') as file:
-            file.write(f'Noise mean: {arguments.noise_mean}\n')
-            file.write(f'Noise standard deviation: {arguments.noise_std}\n')
-
-    print(f'Adversarial attack: {arguments.adversarial_attack}')
-    with open(results_file_path, 'a') as file:
-        file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
-
-    if arguments.adversarial_attack == 'FGSM':
-        adv_attack = fgsm.FGSM(device, model, arguments.target_modality, eps=arguments.adv_eps,)
-        dataset[arguments.target_modality] = adv_attack.example_generation(dataset, dataset[arguments.target_modality])
-
-        print(f'FGSM epsilon value: {arguments.adv_eps}')
-        with open(results_file_path, 'a') as file:
-            file.write(f'FGSM epsilon value: {arguments.adv_eps}\n')
-
-    if arguments.adversarial_attack != 'none' or arguments.noise != 'none':
-        print(f'Target modality: {arguments.target_modality}')
-        with open(results_file_path, 'a') as file:
-            file.write(f'Target modality: {arguments.target_modality}\n')
+    dataset = dataset_setup(arguments, results_file_path, model)
 
     tracemalloc.start()
     for epoch in range(arguments.epochs):
@@ -273,16 +278,35 @@ def train_model(arguments, results_file_path):
 
 def train_downstream_classifier(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device)
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
     elif arguments.model_type == 'DAE':
-        model = dae.DAE(arguments.latent_dim, device)
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
 
     if arguments.path_model:
         model.load_state_dict(torch.load(arguments.path_model))
         for param in model.parameters():
             param.requires_grad = False
+
+    model.cuda(device)
+
+    clf = classifier.MNISTClassifier(arguments.latent_dim, model)
+
+    print(f'Optimizer: {arguments.optimizer}')
+    print(f'Batch size: {arguments.batch_size}')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Optimizer: {arguments.optimizer}\n')
+        file.write(f'Batch size: {arguments.batch_size}\n')
+    
+    if arguments.optimizer == 'adam':
+        optimizer = optim.Adam(model.parameters())
+
+    checkpoint_counter = arguments.checkpoint 
+
+    dataset = dataset_setup(arguments, results_file_path, model)
 
     raise NotImplementedError
         
@@ -305,50 +329,7 @@ def test_model(arguments, results_file_path):
 
     model.cuda(device)
 
-    if arguments.dataset == 'MHD':
-        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
-    elif arguments.dataset == 'MOSI_MOSEI':
-        raise NotImplementedError
-    elif arguments.dataset == 'PENDULUM':
-        dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
-
-    if arguments.exclude_modality == 'image':
-        dataset = {'trajectory': dataset[2].to(device)}
-    elif arguments.exclude_modality == 'trajectory':
-        dataset = {'image': dataset[1].to(device)}
-    else:
-        dataset = {'image': dataset[1].to(device), 'trajectory': dataset[2].to(device)}
-
-    print(f'Noise: {arguments.noise}')
-    with open(results_file_path, 'a') as file:
-        file.write(f'Noise: {arguments.noise}\n')
-    
-    if arguments.noise == "gaussian":
-        noise = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
-        dataset[arguments.target_modality] = noise.add_noise(dataset[arguments.target_modality])
-
-        print(f'Noise mean: {arguments.noise_mean}')
-        print(f'Noise standard deviation: {arguments.noise_std}')
-        with open(results_file_path, 'a') as file:
-            file.write(f'Noise mean: {arguments.noise_mean}\n')
-            file.write(f'Noise standard deviation: {arguments.noise_std}\n')
-
-    print(f'Adversarial attack: {arguments.adversarial_attack}')
-    with open(results_file_path, 'a') as file:
-        file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
-
-    if arguments.adversarial_attack == 'FGSM':
-        adv_attack = fgsm.FGSM(device, model, arguments.target_modality, eps=arguments.adv_eps,)
-        dataset[arguments.target_modality] = adv_attack.example_generation(dataset, dataset[arguments.target_modality])
-
-        print(f'FGSM epsilon value: {arguments.adv_eps}')
-        with open(results_file_path, 'a') as file:
-            file.write(f'FGSM epsilon value: {arguments.adv_eps}\n')
-
-    if arguments.adversarial_attack != 'none' or arguments.noise != 'none':
-        print(f'Target modality: {arguments.target_modality}')
-        with open(results_file_path, 'a') as file:
-            file.write(f'Target modality: {arguments.target_modality}\n')
+    dataset = dataset_setup(arguments, results_file_path, model)
     
     tracemalloc.start()
     print('Testing model')
@@ -368,8 +349,27 @@ def test_model(arguments, results_file_path):
     tracemalloc.stop()
     return
 
-def test_downstream_classifier(arguments):
-    #TODO
+def test_downstream_classifier(arguments, results_file_path):
+    if arguments.model_type == 'VAE':
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
+        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+    elif arguments.model_type == 'DAE':
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
+        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
+
+    if arguments.path_model:
+        model.load_state_dict(torch.load(arguments.path_model))
+        for param in model.parameters():
+            param.requires_grad = False
+
+    model.cuda(device)
+
+    clf = classifier.MNISTClassifier(arguments.latent_dim, model)
+
+    dataset = dataset_setup(arguments, results_file_path, model)
+
     raise NotImplementedError
 
 
