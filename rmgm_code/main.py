@@ -29,13 +29,13 @@ m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
     parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC'], help='Model type to be used in the experiment.')
-    parser.add_argument('-p', '--path_model', type=str, help="Filename of the file where the model is to be loaded from.")
-    parser.add_argument('-m', '--model_out', type=str, help="Filename of the file where the model is to be saved to.")
+    parser.add_argument('-p', '--path_model', type=str, default='none', help="Filename of the file where the model is to be loaded from.")
+    parser.add_argument('-m', '--model_out', type=str, default='none', help="Filename of the file where the model is to be saved to.")
     parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI_MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
     parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage(s) of the pipeline to execute in the experiment.')
     parser.add_argument('-o', '--optimizer', type=str, default='adam', choices=['adam', 'none'], help='Define optimizer for the model.')
-    parser.add_argument('-e', '--epochs', type=int, default=50, help='Number of epochs to train the model.')
-    parser.add_argument('-c', '--checkpoint', type=int, default=50, help='Epoch interval between checkpoints of the model in training.')
+    parser.add_argument('-e', '--epochs', type=int, default=1, help='Number of epochs to train the model.')
+    parser.add_argument('-c', '--checkpoint', type=int, default=1, help='Epoch interval between checkpoints of the model in training.')
     parser.add_argument('-b', '--batch_size', type=int, default=32, help='Number of samples processed for each model update.')
     parser.add_argument('-l', '--latent_dim', type=int, default=128, help='Dimension of the latent space of the models encodings.')
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
@@ -63,8 +63,12 @@ def process_arguments():
                 raise argparse.ArgumentError("Argument error: checkpoint value must be a positive and non-zero integer.")
             elif args.checkpoint > args.epochs:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
+        else:
+            if args.path_model == 'none':
+                raise argparse.ArgumentError(f"Argument error: the --path_model argument cannot be none when the --stage argument is {args.stage}.")
         if args.exclude_modality == args.target_modality:
             raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
+    
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(1)
@@ -84,13 +88,13 @@ def process_arguments():
         file.write(f'Exclude modality: {args.exclude_modality}\n')
         print(f'Exclude modality: {args.exclude_modality}')
 
-        if args.path_model:
-            file.write(f'Load model file: {args.path_model}\n')
-            print(f'Load model file: {args.path_model}')
+        if args.path_model != 'none':
+            file.write(f'Load classifier file: {args.path_model}\n')
+            print(f'Load classifier file: {args.path_model}')
 
-        if args.model_out:
-            file.write(f'Store model file: {args.model_out}\n')
-            print(f'Store model file: {args.model_out}')
+        if args.model_out != 'none':
+            file.write(f'Store classifier file: {args.model_out}\n')
+            print(f'Store classifier file: {args.model_out}')
 
         if args.exclude_modality == 'image':
             args.image_scale = 0.
@@ -123,20 +127,23 @@ def process_arguments():
 
     return args, file_path
 
-def dataset_setup(arguments, results_file_path, model):
+def dataset_setup(arguments, results_file_path, model, get_labels=False):
     if arguments.dataset == 'MHD':
-        dataset = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
+        dataloader = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
     elif arguments.dataset == 'MOSI_MOSEI':
         raise NotImplementedError
     elif arguments.dataset == 'PENDULUM':
-        dataset = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
+        dataloader = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
 
     if arguments.exclude_modality == 'image':
-        dataset = {'trajectory': dataset[2].to(device)}
+        dataset = {'trajectory': dataloader[2].to(device)}
     elif arguments.exclude_modality == 'trajectory':
-        dataset = {'image': dataset[1].to(device)}
+        dataset = {'image': dataloader[1].to(device)}
     else:
-        dataset = {'image': dataset[1].to(device), 'trajectory': dataset[2].to(device)}
+        dataset = {'image': dataloader[1].to(device), 'trajectory': dataloader[2].to(device)}
+
+    if get_labels:
+        dataset['label'] = dataloader[0].to(device)
 
     print(f'Noise: {arguments.noise}')
     with open(results_file_path, 'a') as file:
@@ -194,16 +201,45 @@ def save_results(results_file_path, loss_dict):
 
     return
 
+def save_final_results(arguments, results_file_path, model, loss_list_dict):
+    for idx, (key, values) in enumerate(loss_list_dict.items()):
+        plt.figure(idx, figsize=(20, 20))
+        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
+        plt.plot(range(arguments.epochs), values, label='loss values')
+        plt.xlabel("Epoch")
+        plt.ylabel(key)
+        plt.title(f'{key} per epoch')
+        plt.legend()
+        plt.savefig(f'{os.path.splitext(results_file_path)[0]}_{key}.png')
+
+    with open(results_file_path, 'a') as file:
+        print('Average epoch results:')
+        file.write('Average epoch results:\n')
+        for key, values in loss_list_dict.items():
+            print(f'- {key}: {np.mean(values)}')
+            file.write(f'- {key}: {np.mean(values)}\n')
+            
+
+    if arguments.model_out != 'none':
+        torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
+    else:
+        if arguments.stage == 'train_classifier':
+            torch.save(model.state_dict(), os.path.join(m_path, "saved_models", f'clf_{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
+        else:
+            torch.save(model.state_dict(), os.path.join(m_path, "saved_models", f'{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
+    
+    return
+
 
 def train_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'DAE':
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
 
     model.cuda(device)
 
@@ -242,7 +278,7 @@ def train_model(arguments, results_file_path):
                 optimizer.zero_grad()
             
             x_hat, _ = model(batch)
-            loss, batch_loss_dict = model.loss(batch, x_hat, scales=scales)
+            loss, batch_loss_dict = model.loss(batch, x_hat)
             loss_dict = loss_dict + batch_loss_dict
             
             loss.backward()
@@ -269,39 +305,30 @@ def train_model(arguments, results_file_path):
         tracemalloc.reset_peak()
 
     tracemalloc.stop()
-
-    for idx, (key, values) in enumerate(loss_list_dict.items()):
-        plt.figure(idx, figsize=(20, 20))
-        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
-        plt.plot(range(arguments.epochs), values, label='loss values')
-        plt.xlabel("Epoch")
-        plt.ylabel(key)
-        plt.title(f'{key} per epoch')
-        plt.legend()
-        plt.savefig(f'{os.path.splitext(results_file_path)[0]}_{key}.png')
-
-    torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
+    save_final_results(arguments, results_file_path, model, loss_list_dict)
     torch.cuda.empty_cache()
     return model
 
+
 def train_downstream_classifier(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
     elif arguments.model_type == 'DAE':
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
 
-    if arguments.path_model:
-        model.load_state_dict(torch.load(arguments.path_model))
-        for param in model.parameters():
-            param.requires_grad = False
+    loss_list_dict = {'Loss': np.zeros(arguments.epochs)}
+
+    model.load_state_dict(torch.load(arguments.path_model))
+    for param in model.parameters():
+        param.requires_grad = False
 
     model.cuda(device)
 
     clf = classifier.MNISTClassifier(arguments.latent_dim, model)
+
+    clf.cuda(device)
 
     print(f'Optimizer: {arguments.optimizer}')
     print(f'Batch size: {arguments.batch_size}')
@@ -310,30 +337,87 @@ def train_downstream_classifier(arguments, results_file_path):
         file.write(f'Batch size: {arguments.batch_size}\n')
     
     if arguments.optimizer == 'adam':
-        optimizer = optim.Adam(model.parameters())
+        optimizer = optim.Adam(clf.parameters())
 
     checkpoint_counter = arguments.checkpoint 
 
-    dataset = dataset_setup(arguments, results_file_path, model)
+    dataset = dataset_setup(arguments, results_file_path, model, get_labels=True)
 
-    raise NotImplementedError
-        
+    tracemalloc.start()
+    for epoch in range(arguments.epochs):
+        print(f'Epoch {epoch}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Epoch {epoch}:\n')
+            
+        batch_number = math.ceil(len(list(dataset.values())[0])/arguments.batch_size)
+
+        if arguments.optimizer != 'none':
+                optimizer.zero_grad()
+
+        loss_dict = dict.fromkeys(loss_list_dict.keys(), 0.)
+
+        epoch_start = time.time()
+
+        for batch_idx in tqdm(range(batch_number)):
+            # Adjust batch size if its the last batch
+            batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(list(dataset.values())[0]) else len(list(dataset.values())[0])
+            batch = dict.fromkeys(dataset.keys())
+            batch.pop('label', None)
+            for key, value in dataset.items():
+                if key != 'label':
+                    batch[key] = value[batch_idx*arguments.batch_size:batch_end_idx, :]
+                else:
+                    batch_labels = value[batch_idx*arguments.batch_size:batch_end_idx]
+
+            if arguments.optimizer != 'none':
+                optimizer.zero_grad()
+
+            _, classification, _ = clf(batch)
+            loss = clf.loss(classification, batch_labels)
+
+            loss.backward()
+            if arguments.optimizer != 'none':
+                optimizer.step()
+
+            loss_dict['Loss'] += loss
+
+        loss_dict['Loss'] = loss_dict['Loss'] / batch_number
+        loss_list_dict['Loss'][epoch] = loss_dict['Loss']
+
+        epoch_end = time.time()
+        print(f'Runtime: {epoch_end - epoch_start} sec')
+        with open(results_file_path, 'a') as file:
+            file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
+        save_results(results_file_path, loss_dict)
+
+        checkpoint_counter -= 1
+        if checkpoint_counter == 0:
+            print('Saving model checkpoint to file...')
+            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", f'clf_{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
+            checkpoint_counter = arguments.checkpoint
+
+        torch.cuda.empty_cache()
+        tracemalloc.reset_peak()
+
+    tracemalloc.stop()
+    save_final_results(arguments, results_file_path, clf, loss_list_dict)
+    torch.cuda.empty_cache()
+    return clf
 
 
 def test_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
-        loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
     elif arguments.model_type == 'DAE':
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
-        loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+        loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
 
-    if arguments.path_model:
-        model.load_state_dict(torch.load(os.path.join("saved_models", arguments.path_model)))
-        for param in model.parameters():
-            param.requires_grad = False
+    model.load_state_dict(torch.load(os.path.join("saved_models", arguments.path_model)))
+    for param in model.parameters():
+        param.requires_grad = False
 
     model.cuda(device)
 
@@ -347,7 +431,7 @@ def test_model(arguments, results_file_path):
 
     test_start = time.time()
     x_hat, _ = model(dataset)
-    _, loss_dict = model.loss(dataset, x_hat, scales=scales)
+    _, loss_dict = model.loss(dataset, x_hat)
     test_end = time.time()
 
     print(f'Runtime: {test_end - test_start} sec')
@@ -359,26 +443,51 @@ def test_model(arguments, results_file_path):
 
 def test_downstream_classifier(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, beta=arguments.kld_beta)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
     elif arguments.model_type == 'DAE':
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-
-    if arguments.path_model:
-        model.load_state_dict(torch.load(arguments.path_model))
-        for param in model.parameters():
-            param.requires_grad = False
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        
+    model.load_state_dict(torch.load(arguments.path_model))
+    for param in model.parameters():
+        param.requires_grad = False
 
     model.cuda(device)
 
     clf = classifier.MNISTClassifier(arguments.latent_dim, model)
+    clf_path = os.path.join("saved_models", "clf_" + os.path.basename(arguments.path_model))
+    clf.load_state_dict(torch.load(clf_path))
+    for param in clf.parameters():
+        param.requires_grad = False
 
-    dataset = dataset_setup(arguments, results_file_path, model)
+    clf.cuda(device)
 
-    raise NotImplementedError
+    dataset = dataset_setup(arguments, results_file_path, model, get_labels=True)
+
+    tracemalloc.start()
+    print('Testing classifier')
+    with open(results_file_path, 'a') as file:
+        file.write('Testing classifier:\n')
+
+    features =  dataset.copy()
+    features.pop('label', None)
+    labels = dataset['label']
+
+    test_start = time.time()
+    x_hat, classification, _ = clf(features)
+    _, loss_dict = clf.model.loss(features, x_hat)
+    clf_loss = clf.loss(classification, labels)
+    test_end = time.time()
+
+
+    loss_dict['Classifier loss'] = clf_loss
+    print(f'Runtime: {test_end - test_start} sec')
+    with open(results_file_path, 'a') as file:
+        file.write(f'- Runtime: {test_end - test_start} sec\n')
+    save_results(results_file_path, loss_dict)
+    tracemalloc.stop()
+    return
 
 
 def main():

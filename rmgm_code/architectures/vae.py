@@ -7,7 +7,7 @@ from collections import Counter
 from architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
-    def __init__(self, latent_dim, device, exclude_modality, beta, layer_dim=-1, verbose=False):
+    def __init__(self, latent_dim, device, exclude_modality, scales, layer_dim=-1, verbose=False):
         super(VAE, self).__init__()
         self.layer_dim = layer_dim
         if self.layer_dim == -1:
@@ -25,7 +25,7 @@ class VAE(nn.Module):
         self.decoder = Decoder(latent_dim, self.layer_dim)
         
         self.device = device
-        self.beta = beta
+        self.scales = scales
         self.kld = 0.
         self.verbose = verbose
         self.exclude_modality = exclude_modality
@@ -55,7 +55,7 @@ class VAE(nn.Module):
         z = mean + std * eps
         tmp = self.decoder(z)
         
-        self.kld += - self.beta * (1 + logvar - (mean)**2 - (std)**2).sum()
+        self.kld += - self.scales['KLD beta'] * (1 + logvar - (mean)**2 - (std)**2).sum()
 
         x_hat = dict.fromkeys(x.keys())
         for id, key in enumerate(x_hat.keys()):
@@ -66,12 +66,12 @@ class VAE(nn.Module):
         return x_hat, z
     
     
-    def loss(self, x, x_hat, scales):
+    def loss(self, x, x_hat):
         loss_function = nn.MSELoss().cuda(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = scales[key] * loss_function(x_hat[key], x[key])
+            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key])
 
         recon_loss = 0
         for value in recon_losses.values():

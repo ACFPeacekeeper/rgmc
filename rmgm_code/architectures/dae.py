@@ -5,7 +5,7 @@ from collections import Counter
 from architectures.dae_networks import Encoder, Decoder
 
 class DAE(nn.Module):
-    def __init__(self, latent_dim, device, exclude_modality, layer_dim=-1, noise_factor=0.3, test=False, verbose=False):
+    def __init__(self, latent_dim, device, exclude_modality, scales, layer_dim=-1, noise_factor=0.3, test=False, verbose=False):
         super(DAE, self).__init__()
         self.layer_dim = layer_dim
         if self.layer_dim == -1:
@@ -23,6 +23,7 @@ class DAE(nn.Module):
         self.decoder = Decoder(latent_dim, self.layer_dim)
 
         self.device = device
+        self.scales = scales
         self.test = test
         self.noise_factor = noise_factor
         self.verbose = verbose
@@ -61,12 +62,12 @@ class DAE(nn.Module):
 
         return x_hat, z
     
-    def loss(self, x, x_hat, scales):
+    def loss(self, x, x_hat):
         loss_function = nn.MSELoss().cuda(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = scales[key] * loss_function(x_hat[key], x[key])
+            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key])
 
         recon_loss = 0
         for value in recon_losses.values():

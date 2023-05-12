@@ -5,19 +5,26 @@ class MNISTClassifier(nn.Module):
     def __init__(self, latent_dim, model):
         super().__init__()
         self.model = model
-        self.layers = nn.Sequential(
-            nn.Linear(latent_dim, 256),
-            F.relu(),
-            nn.Linear(256, 128),
-            F.relu(),
-            nn.Linear(128, 10),
-        )
+        self.fc1 = nn.Linear(latent_dim, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 10)
 
     def forward(self, x):
-        encoding = self.model(x)
-        classification = F.log_softmax(self.layers(encoding[0]))
-        return classification, encoding
+        x_hat, encoding = self.model(x)
+        encoding = self.fc1(encoding)
+        encoding = F.relu(encoding)
+        encoding = self.fc2(encoding)
+        encoding = F.relu(encoding)
+        encoding = self.fc3(encoding)
+        classification = F.log_softmax(encoding, dim=-1)
+        return x_hat, classification, encoding
     
-    def loss(self, y_pred, label):
-        one_hot_label = F.one_hot(label, num_classes=len(y_pred))
-        return F.nll_loss(y_pred, one_hot_label)
+    def loss(self, y_preds, labels):
+        batch_size = labels.size()[0]
+        loss = 0.
+        for pred, label in zip(y_preds, labels):
+            one_hot_label = F.one_hot(label, num_classes=pred.size(dim=-1))
+            loss += F.nll_loss(pred, one_hot_label)
+
+        loss /= batch_size
+        return loss
