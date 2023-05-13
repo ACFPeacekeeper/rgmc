@@ -94,6 +94,9 @@ def process_arguments():
             if args.stage == 'test_classifier':
                 file.write(f'Load classifier file: {args.path_model}\n')
                 print(f'Load classifier file: {args.path_model}')
+        elif args.stage == 'inference':
+            file.write(f'Load model file: {os.path.basename(args.path_model)}\n')
+            print(f'Load model file: {os.path.basename(args.path_model)}')
 
         if args.model_out != 'none':
             if args.stage == 'train_model':
@@ -105,6 +108,12 @@ def process_arguments():
         elif args.stage == 'train_classifier':
             file.write(f'Store classifier file: saved_models/clf_{os.path.basename(args.path_model)}\n')
             print(f'Store classifier file: saved_models/clf_{os.path.basename(args.path_model)}')
+
+
+        if args.stage == 'train_model' or args.stage == 'train_classifier' or args.stage == 'inference':
+            file.write(f'Checkpoint save counter: {args.checkpoint}\n')
+            print(f'Checkpoint save counter: {args.checkpoint}')
+        
 
         if args.exclude_modality == 'image':
             args.image_scale = 0.
@@ -524,10 +533,13 @@ def inference(arguments, results_file_path):
 
     inference_start = time.time()
     x_hat, _ = model(dataset)
+    counter = 0
     for idx, (img, recon) in tqdm(enumerate(zip(dataset['image'], x_hat['image'])), total=x_hat['image'].size(dim=0)):
-        img_path = os.path.basename(os.path.splitext(results_file_path)[0])
-        plt.imsave(os.path.join("images", f'{img_path}_{idx}_orig.png'), torch.reshape(img, (28,28)).detach().clone().cpu())
-        plt.imsave(os.path.join("images", f'{img_path}_{idx}_recon.png'), torch.reshape(recon, (28,28)).detach().clone().cpu())
+        if counter % arguments.checkpoint == 0: 
+            img_path = os.path.basename(os.path.splitext(results_file_path)[0])
+            plt.imsave(os.path.join("images", f'{img_path}_{idx}_orig.png'), torch.reshape(img, (28,28)).detach().clone().cpu())
+            plt.imsave(os.path.join("images", f'{img_path}_{idx}_recon.png'), torch.reshape(recon, (28,28)).detach().clone().cpu())
+        counter += 1
 
     inference_stop = time.time()
     print(f'Runtime: {inference_stop - inference_start} sec')
