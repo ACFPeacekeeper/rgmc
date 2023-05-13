@@ -189,11 +189,12 @@ def dataset_setup(arguments, results_file_path, model, get_labels=False):
     return dataset
 
 
-def save_results(results_file_path, loss_dict):
-    with open(results_file_path, 'a') as file:
-        for key, value in loss_dict.items():
-            print(f'{key}: {value}')
-            file.write(f'- {key}: {value}\n')
+def save_results(results_file_path, loss_dict=None):
+    if loss_dict is not None:
+        with open(results_file_path, 'a') as file:
+            for key, value in loss_dict.items():
+                print(f'{key}: {value}')
+                file.write(f'- {key}: {value}\n')
     
     print('Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
     print('Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
@@ -499,6 +500,43 @@ def test_downstream_classifier(arguments, results_file_path):
     tracemalloc.stop()
     return
 
+def inference(arguments, results_file_path):
+    if arguments.model_type == 'VAE':
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+    elif arguments.model_type == 'DAE':
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
+        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+
+    model.load_state_dict(torch.load(arguments.path_model))
+    for param in model.parameters():
+        param.requires_grad = False
+
+    model.cuda(device)
+
+    dataset = dataset_setup(arguments, results_file_path, model)
+    
+    tracemalloc.start()
+    print('Performing inference')
+    with open(results_file_path, 'a') as file:
+        file.write('Performing inference:\n')
+
+
+    inference_start = time.time()
+    x_hat, _ = model(dataset)
+    for idx, (img, recon) in tqdm(enumerate(zip(dataset['image'], x_hat['image'])), total=x_hat['image'].size(dim=0)):
+        img_path = os.path.basename(os.path.splitext(results_file_path)[0])
+        plt.imsave(os.path.join("images", f'{img_path}_{idx}_orig.png'), torch.reshape(img, (28,28)).detach().clone().cpu())
+        plt.imsave(os.path.join("images", f'{img_path}_{idx}_recon.png'), torch.reshape(recon, (28,28)).detach().clone().cpu())
+
+    inference_stop = time.time()
+    print(f'Runtime: {inference_stop - inference_start} sec')
+    with open(results_file_path, 'a') as file:
+        file.write(f'- Runtime: {inference_stop - inference_start} sec\n')
+    save_results(results_file_path)
+    tracemalloc.stop()
+    return
+
 
 def main():
     os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
@@ -516,6 +554,9 @@ def main():
             test_model(arguments, file_path)
         elif arguments.stage == 'test_classifier':
             test_downstream_classifier(arguments, file_path)
+        elif arguments.stage == 'inference':
+            os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
+            inference(arguments, file_path)
 
     except:
         traceback.print_exception(*sys.exc_info())

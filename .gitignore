@@ -404,4 +404,5 @@ rmgm_code/datasets/mosi_mosei/dataset
 rmgm_code/checkpoints
 rmgm_code/saved_models
 rmgm_code/results
+rmgm_code/images
 gmc/
