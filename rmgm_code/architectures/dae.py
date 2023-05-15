@@ -25,7 +25,21 @@ class DAE(nn.Module):
         self.scales = scales
         self.test = test
         self.noise_factor = noise_factor
+
+    def set_modalities(self, exclude_modality):
+        if exclude_modality == 'image':
+            self.layer_dim = 200
+            self.modality_dims = [0, 200]
+        elif exclude_modality == 'trajectory':
+            self.layer_dim = 28 * 28
+            self.modality_dims = [0, 28 * 28]
+        else:
+            self.layer_dim = 28 * 28 + 200
+            self.modality_dims = [0, 28 * 28, 200]
+            
         self.exclude_modality = exclude_modality
+        self.encoder.set_first_layer(self.layer_dim)
+        self.decoder.set_last_layer(self.layer_dim)
 
     def add_noise(self, x):
         x_noisy = []*len(x)
@@ -35,6 +49,9 @@ class DAE(nn.Module):
 
     def forward(self, x):
         data_list = list(x.values())
+        if not self.test:
+            data_list = self.add_noise(data_list)
+
         if len(data_list[0].size()) > 2:
             data = torch.flatten(data_list[0], start_dim=1)
         else:
@@ -64,6 +81,11 @@ class DAE(nn.Module):
         recon_loss = 0
         for value in recon_losses.values():
             recon_loss += value
+
+        if recon_losses.get('trajectory') is None:
+            recon_losses['trajectory'] = 0.
+        elif recon_losses.get('image') is None:
+            recon_losses['image'] = 0.
 
         loss_dict = Counter({'Total loss': recon_loss, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
         return recon_loss, loss_dict

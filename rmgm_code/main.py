@@ -19,13 +19,14 @@ from tqdm import tqdm
 from collections import Counter
 
 # Assign path to current directory
-m_path = "<copy-output-of-pwd-here>"
+m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
 def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
     parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC'], help='Model type to be used in the experiment.')
     parser.add_argument('-p', '--path_model', type=str, default='none', help="Filename of the file where the model is to be loaded from.")
     parser.add_argument('--torch_seed', '--seed', type=int, default=42, help='Value for pytorch seed for results replication.')
+    parser.add_argument('--train_results', type=str, default='none', help='Filename of the results file of the model training, to load model config from.')
     parser.add_argument('--path_classifier', type=str, default='none', help="Filename of the file where the classifier is to be loaded from.")
     parser.add_argument('-m', '--model_out', type=str, default='none', help="Filename of the file where the model/classifier is to be saved to.")
     parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI', 'MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
@@ -38,7 +39,7 @@ def process_arguments():
     parser.add_argument('-l', '--latent_dim', type=int, default=128, help='Dimension of the latent space of the models encodings.')
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
     parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
-    parser.add_argument('-t', '--target_modality', type=str, default='image', choices=['image', 'trajectory'], help='Modality to target with noisy and/or adversarial samples.')
+    parser.add_argument('-t', '--target_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Modality to target with noisy and/or adversarial samples.')
     parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
     parser.add_argument('--image_scale', type=float, default=1., help='Weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Weight for the trajectory reconstruction loss.')
@@ -67,7 +68,7 @@ def process_arguments():
         else:
             if args.path_model == 'none':
                 raise argparse.ArgumentError(f"Argument error: the --path_model argument cannot be none when the --stage argument is {args.stage}.")
-        if args.exclude_modality == args.target_modality:
+        if args.exclude_modality != 'none' and args.target_modality != 'none' and args.exclude_modality == args.target_modality:
             raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
     
     except argparse.ArgumentError:
@@ -138,17 +139,17 @@ def process_arguments():
             args.traj_scale /= 2.
 
         if args.model_type == 'VAE' or args.model_type == 'DAE':
-            file.write(f'Image recon loss scale: {args.image_scale}\n')
-            print(f'Image recon loss scale: {args.image_scale}')
-            file.write(f'Trajectory recon loss scale: {args.traj_scale}\n')
-            print(f'Trajectory recon loss scale: {args.traj_scale}')
+            file.write(f'Image loss recon scale: {args.image_scale}\n')
+            print(f'Image loss recon scale: {args.image_scale}')
+            file.write(f'Trajectory loss recon scale: {args.traj_scale}\n')
+            print(f'Trajectory loss recon scale: {args.traj_scale}')
         if args.model_type == 'VAE':
             if args.stage == 'train_model':
-                file.write(f'KLD betas value: {args.kld_betas}\n')
-                print(f'KLD betas value: {args.kld_betas}')
+                file.write(f'KLD beta loss scale: {args.kld_betas}\n')
+                print(f'KLD beta loss scale: {args.kld_betas}')
             else:
-                file.write(f'KLD beta value: {args.kld_betas[1]}\n')
-                print(f'KLD beta value: {args.kld_betas[1]}')
+                file.write(f'KLD beta loss scale: {args.kld_betas[1]}\n')
+                print(f'KLD beta loss scale: {args.kld_betas[1]}')
 
         file.write(f'Dataset: {args.dataset}\n')
         print(f'Dataset: {args.dataset}')
@@ -286,7 +287,7 @@ def save_final_results(arguments, results_file_path, loss_list_dict):
 
 def train_model(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'DAE':
@@ -389,16 +390,31 @@ def train_model(arguments, results_file_path, device):
 
 
 def train_downstream_classifier(arguments, results_file_path, device):
+    if arguments.train_results != 'none':
+        with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
+            lines = file.readlines()
+            exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
+        
+        print(f'Loaded model training configuration from: {arguments.train_results}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
+    else:
+        exclude_modality = arguments.exclude_modality
+
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
+    elif arguments.model_type == 'GMC':
+        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
 
     loss_list_dict = {'Loss': np.zeros(arguments.epochs)}
 
     model.load_state_dict(torch.load(arguments.path_model))
+    if arguments.train_results != 'none':
+        model.set_modalities(arguments.exclude_modality)
     for param in model.parameters():
         param.requires_grad = False
 
@@ -503,16 +519,31 @@ def train_downstream_classifier(arguments, results_file_path, device):
 
 
 def test_model(arguments, results_file_path, device):
+    if arguments.train_results != 'none':
+        with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
+            lines = file.readlines()
+            exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
+        
+        print(f'Loaded model training configuration from: {arguments.train_results}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
+    else:
+        exclude_modality = arguments.exclude_modality
+
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
         loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
         loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
+    elif arguments.model_type == 'GMC':
+        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
 
     model.load_state_dict(torch.load(arguments.path_model))
+    if arguments.train_results != 'none':
+        model.set_modalities(arguments.exclude_modality)
     for param in model.parameters():
         param.requires_grad = False
 
@@ -541,12 +572,25 @@ def test_model(arguments, results_file_path, device):
     return
 
 def test_downstream_classifier(arguments, results_file_path, device):
+    if arguments.train_results != 'none':
+        with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
+            lines = file.readlines()
+            exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
+        
+        print(f'Loaded model training configuration from: {arguments.train_results}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
+    else:
+        exclude_modality = arguments.exclude_modality
+
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
+    elif arguments.model_type == 'GMC':
+        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
 
     model.load_state_dict(torch.load(arguments.path_model))
     for param in model.parameters():
@@ -557,6 +601,10 @@ def test_downstream_classifier(arguments, results_file_path, device):
     clf = classifier.MNISTClassifier(arguments.latent_dim, model)
     clf_path = os.path.join("saved_models", "clf_" + os.path.basename(arguments.path_model))
     clf.load_state_dict(torch.load(clf_path))
+    
+    if arguments.train_results != 'none':
+        clf.model.set_modalities(arguments.exclude_modality)
+
     for param in clf.parameters():
         param.requires_grad = False
 
@@ -591,14 +639,29 @@ def test_downstream_classifier(arguments, results_file_path, device):
     return
 
 def inference(arguments, results_file_path, device):
+    if arguments.train_results != 'none':
+        with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
+            lines = file.readlines()
+            exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
+        
+        print(f'Loaded model training configuration from: {arguments.train_results}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
+    else:
+        exclude_modality = arguments.exclude_modality
+
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
+    elif arguments.model_type == 'GMC':
+        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
 
     model.load_state_dict(torch.load(arguments.path_model))
+    if arguments.train_results != 'none':
+        model.set_modalities(arguments.exclude_modality)
     for param in model.parameters():
         param.requires_grad = False
 

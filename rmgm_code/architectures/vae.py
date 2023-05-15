@@ -27,14 +27,29 @@ class VAE(nn.Module):
         self.std = std
         self.kld = 0.
         if test:
-            self.kld_scale = self.scales['KLD betas'][1]
+            self.kld_scale = self.scales['kld beta'][1]
         else:
-            self.kld_scale = self.scales['KLD betas'][0]
-        self.kld_max = self.scales['KLD betas'][1]
+            self.kld_scale = self.scales['kld beta'][0]
+        self.kld_max = self.scales['kld beta'][1]
         self.exclude_modality = exclude_modality
 
     def update_kld_scale(self, kld_weight):
         self.kld_scale = min(kld_weight * self.kld_max, self.kld_max)
+
+    def set_modalities(self, exclude_modality):
+        if exclude_modality == 'image':
+            self.layer_dim = 200
+            self.modality_dims = [0, 200]
+        elif exclude_modality == 'trajectory':
+            self.layer_dim = 28 * 28
+            self.modality_dims = [0, 28 * 28]
+        else:
+            self.layer_dim = 28 * 28 + 200
+            self.modality_dims = [0, 28 * 28, 200]
+
+        self.exclude_modality = exclude_modality
+        self.encoder.set_first_layer(self.layer_dim)
+        self.decoder.set_last_layer(self.layer_dim)
 
     def forward(self, x):
         data_list = list(x.values())
@@ -82,6 +97,11 @@ class VAE(nn.Module):
         
         self.kld = self.kld / len(list(x.values())[0])
         elbo = self.kld + recon_loss
+
+        if recon_losses.get('trajectory') is None:
+            recon_losses['trajectory'] = 0.
+        elif recon_losses.get('image') is None:
+            recon_losses['image'] = 0.
 
         loss_dict = Counter({'Total loss': elbo, 'KLD': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
         self.kld = 0.
