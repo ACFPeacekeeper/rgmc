@@ -398,9 +398,11 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Datasets
-rmgm_code/datasets/pendulum/dataset
-rmgm_code/datasets/mhd/dataset
-rmgm_code/datasets/mosi_mosei/dataset
+rmgm_code/architectures/gmc_networks.py
+rmgm_code/architectures/gmc.py
+rmgm_code/datasets/pendulum/*.pt
+rmgm_code/datasets/mhd/*.pt
+rmgm_code/datasets/mosi_mosei/*.dt
 rmgm_code/checkpoints
 rmgm_code/saved_models
 rmgm_code/results
