@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
+# Code adapted from https://github.com/miguelsvasco/gmc
 class MHDCommonEncoder(nn.Module):
 
     def __init__(self, common_dim, latent_dim):

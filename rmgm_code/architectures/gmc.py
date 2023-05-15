@@ -2,7 +2,7 @@ from pytorch_lightning import LightningModule
 from architectures.gmc_networks import *
 
 
-
+# Code adapted from https://github.com/miguelsvasco/gmc
 class GMC(LightningModule):
     def __init__(self, name, common_dim, latent_dim, loss_type="infonce"):
         super(GMC, self).__init__()
