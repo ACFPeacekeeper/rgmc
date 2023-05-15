@@ -148,8 +148,12 @@ def process_arguments():
             file.write(f'Trajectory recon loss scale: {args.traj_scale}\n')
             print(f'Trajectory recon loss scale: {args.traj_scale}')
         if args.model_type == 'VAE':
-            file.write(f'KLD betas value: {args.kld_betas}\n')
-            print(f'KLD betas value: {args.kld_betas}')
+            if args.stage == 'train_model':
+                file.write(f'KLD betas value: {args.kld_betas}\n')
+                print(f'KLD betas value: {args.kld_betas}')
+            else:
+                file.write(f'KLD beta value: {args.kld_betas[1]}\n')
+                print(f'KLD beta value: {args.kld_betas[1]}')
 
         file.write(f'Dataset: {args.dataset}\n')
         print(f'Dataset: {args.dataset}')
@@ -360,7 +364,7 @@ def train_model(arguments, results_file_path):
 def train_downstream_classifier(arguments, results_file_path):
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
@@ -438,10 +442,6 @@ def train_downstream_classifier(arguments, results_file_path):
             loss.backward()
             if arguments.optimizer != 'none':
                 optimizer.step()
-
-            if clf.model.name == 'VAE':
-                kld_weight = 2 * batch_idx / batch_number
-                clf.model.update_kld_scale(kld_weight)
 
             loss_dict['Loss'] += loss
 
