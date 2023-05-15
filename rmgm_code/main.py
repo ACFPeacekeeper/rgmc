@@ -573,13 +573,19 @@ def test_model(arguments, results_file_path, device):
 
 def test_downstream_classifier(arguments, results_file_path, device):
     if arguments.train_results != 'none':
-        with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
-            lines = file.readlines()
-            exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
+        results_path = os.path.join(m_path, "results", "train_classifier", arguments.train_results)
+        with open(results_path, 'r+') as f:
+            lines = f.readlines()
+            train_model_file = [line for line in lines if "Loaded model training configuration from" in line][0].split(':')[1].strip()
+            with open(os.path.join(m_path, "results", "train_model", train_model_file)) as file:
+                file_lines = file.readlines()
+                exclude_modality = [line for line in file_lines if "Exclude modality" in line][0].split(':')[1].strip()
+
+            clf_exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
         
-        print(f'Loaded model training configuration from: {arguments.train_results}')
+        print(f'Loaded classifier training configuration from: {arguments.train_results}')
         with open(results_file_path, 'a') as file:
-            file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
+            file.write(f'Loaded classifier training configuration from: {arguments.train_results}\n')
     else:
         exclude_modality = arguments.exclude_modality
 
@@ -593,6 +599,8 @@ def test_downstream_classifier(arguments, results_file_path, device):
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
 
     model.load_state_dict(torch.load(arguments.path_model))
+    if arguments.train_results != 'none':
+        model.set_modalities(clf_exclude_modality)
     for param in model.parameters():
         param.requires_grad = False
 
@@ -601,10 +609,9 @@ def test_downstream_classifier(arguments, results_file_path, device):
     clf = classifier.MNISTClassifier(arguments.latent_dim, model)
     clf_path = os.path.join("saved_models", "clf_" + os.path.basename(arguments.path_model))
     clf.load_state_dict(torch.load(clf_path))
-    
+
     if arguments.train_results != 'none':
         clf.model.set_modalities(arguments.exclude_modality)
-
     for param in clf.parameters():
         param.requires_grad = False
 
