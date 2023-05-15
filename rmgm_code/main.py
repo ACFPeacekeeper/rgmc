@@ -3,6 +3,7 @@ import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 import tracemalloc
+import subprocess
 import traceback
 import argparse
 import random
@@ -11,6 +12,7 @@ import time
 import math
 import sys
 import os
+import re
 
 from architectures import vae, dae, classifier
 from input_transformations import gaussian_noise, fgsm
@@ -19,10 +21,6 @@ from torchvision import transforms
 from tqdm import tqdm
 from collections import Counter
 
-torch.manual_seed(42)
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}.")
-
 # Assign path to current directory
 m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
@@ -30,6 +28,7 @@ def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
     parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC'], help='Model type to be used in the experiment.')
     parser.add_argument('-p', '--path_model', type=str, default='none', help="Filename of the file where the model is to be loaded from.")
+    parser.add_argument('--torch_seed', '--seed', type=int, default=42, help='Value for pytorch seed for results replication.')
     parser.add_argument('--path_classifier', type=str, default='none', help="Filename of the file where the classifier is to be loaded from.")
     parser.add_argument('-m', '--model_out', type=str, default='none', help="Filename of the file where the model/classifier is to be saved to.")
     parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI_MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
@@ -89,6 +88,9 @@ def process_arguments():
     with open(file_path, 'w') as file:
         file.write(f'Model: {args.model_type}\n')
         print(f'Model: {args.model_type}')
+
+        file.write(f'Pytorch seed value: {args.torch_seed}\n')
+        print(f'Pytorch seed value: {args.torch_seed}')
 
         if args.model_type == 'VAE':
             file.write(f'Reparameterization trick mean: {args.vae_mean}\n')
@@ -160,7 +162,33 @@ def process_arguments():
 
     return args, file_path
 
-def dataset_setup(arguments, results_file_path, model, get_labels=False):
+def device_setup(file_path):
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        print(f"Using device: {torch.cuda.get_device_name(0)}.")
+        with open(file_path, 'r+') as file:
+            content = file.read()
+            file.seek(0, 0)
+            file.write(f"Using device: {torch.cuda.get_device_name(0)}.\n" + content)
+    else:
+        device = "cpu"
+        command = "cat /proc/cpuinfo"
+        all_info = subprocess.check_output(command, shell=True).decode().strip()
+        device_info = ""
+        for line in all_info.split("\n"):
+            if "model name" in line:
+                device_info = re.sub( ".*model name.*:", "", line,1)
+                break
+
+        print(f"Using device:{device_info}.")
+        with open(file_path, 'r+') as file:
+            content = file.read()
+            file.seek(0, 0)
+            file.write(f"Using device:{device_info}.\n" + content)
+
+    return torch.device(device)
+
+def dataset_setup(arguments, results_file_path, model, device, get_labels=False):
     if arguments.dataset == 'MHD':
         dataloader = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
     elif arguments.dataset == 'MOSI_MOSEI':
@@ -212,7 +240,7 @@ def dataset_setup(arguments, results_file_path, model, get_labels=False):
     return dataset
 
 
-def save_results(results_file_path, loss_dict=None):
+def save_results(results_file_path, device, loss_dict=None):
     if loss_dict is not None:
         with open(results_file_path, 'a') as file:
             for key, value in loss_dict.items():
@@ -257,7 +285,7 @@ def save_final_results(arguments, results_file_path, loss_list_dict):
     return
 
 
-def train_model(arguments, results_file_path):
+def train_model(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
@@ -267,7 +295,7 @@ def train_model(arguments, results_file_path):
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
 
-    model.cuda(device)
+    model.to(device)
 
     print(f'Optimizer: {arguments.optimizer}')
     print(f'Batch size: {arguments.batch_size}')
@@ -293,7 +321,7 @@ def train_model(arguments, results_file_path):
 
     checkpoint_counter = arguments.checkpoint 
 
-    dataset = dataset_setup(arguments, results_file_path, model)
+    dataset = dataset_setup(arguments, results_file_path, model, device)
 
     tracemalloc.start()
     for epoch in range(arguments.epochs):
@@ -336,7 +364,7 @@ def train_model(arguments, results_file_path):
         print(f'Runtime: {epoch_end - epoch_start} sec')
         with open(results_file_path, 'a') as file:
             file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
-        save_results(results_file_path, loss_dict)
+        save_results(results_file_path, device, loss_dict)
 
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
@@ -344,7 +372,8 @@ def train_model(arguments, results_file_path):
             torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", f'{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
             checkpoint_counter = arguments.checkpoint
 
-        torch.cuda.empty_cache()
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
         tracemalloc.reset_peak()
 
     tracemalloc.stop()
@@ -353,11 +382,12 @@ def train_model(arguments, results_file_path):
         torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
     else:
         torch.save(model.state_dict(), os.path.join(m_path, "saved_models", f'{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
-    torch.cuda.empty_cache()
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
     return model
 
 
-def train_downstream_classifier(arguments, results_file_path):
+def train_downstream_classifier(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
@@ -371,11 +401,11 @@ def train_downstream_classifier(arguments, results_file_path):
     for param in model.parameters():
         param.requires_grad = False
 
-    model.cuda(device)
+    model.to(device)
 
     clf = classifier.MNISTClassifier(arguments.latent_dim, model)
 
-    clf.cuda(device)
+    clf.to(device)
 
     print(f'Optimizer: {arguments.optimizer}')
     print(f'Batch size: {arguments.batch_size}')
@@ -401,7 +431,7 @@ def train_downstream_classifier(arguments, results_file_path):
 
     checkpoint_counter = arguments.checkpoint 
 
-    dataset = dataset_setup(arguments, results_file_path, model, get_labels=True)
+    dataset = dataset_setup(arguments, results_file_path, model, device, get_labels=True)
 
     tracemalloc.start()
     for epoch in range(arguments.epochs):
@@ -448,7 +478,7 @@ def train_downstream_classifier(arguments, results_file_path):
         print(f'Runtime: {epoch_end - epoch_start} sec')
         with open(results_file_path, 'a') as file:
             file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
-        save_results(results_file_path, loss_dict)
+        save_results(results_file_path, device, loss_dict)
 
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
@@ -456,7 +486,8 @@ def train_downstream_classifier(arguments, results_file_path):
             torch.save(clf.state_dict(), os.path.join(m_path, "checkpoints", f'clf_{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
             checkpoint_counter = arguments.checkpoint
 
-        torch.cuda.empty_cache()
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
         tracemalloc.reset_peak()
 
     tracemalloc.stop()
@@ -465,11 +496,12 @@ def train_downstream_classifier(arguments, results_file_path):
         torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
     else:
         torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", f'clf_{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
-    torch.cuda.empty_cache()
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
     return clf
 
 
-def test_model(arguments, results_file_path):
+def test_model(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
@@ -483,9 +515,9 @@ def test_model(arguments, results_file_path):
     for param in model.parameters():
         param.requires_grad = False
 
-    model.cuda(device)
+    model.to(device)
 
-    dataset = dataset_setup(arguments, results_file_path, model)
+    dataset = dataset_setup(arguments, results_file_path, model, device)
     
     tracemalloc.start()
     print('Testing model')
@@ -501,11 +533,13 @@ def test_model(arguments, results_file_path):
     print(f'Runtime: {test_end - test_start} sec')
     with open(results_file_path, 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
-    save_results(results_file_path, loss_dict)
+    save_results(results_file_path, device, loss_dict)
     tracemalloc.stop()
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
     return
 
-def test_downstream_classifier(arguments, results_file_path):
+def test_downstream_classifier(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
@@ -517,7 +551,7 @@ def test_downstream_classifier(arguments, results_file_path):
     for param in model.parameters():
         param.requires_grad = False
 
-    model.cuda(device)
+    model.to(device)
 
     clf = classifier.MNISTClassifier(arguments.latent_dim, model)
     clf_path = os.path.join("saved_models", "clf_" + os.path.basename(arguments.path_model))
@@ -525,9 +559,9 @@ def test_downstream_classifier(arguments, results_file_path):
     for param in clf.parameters():
         param.requires_grad = False
 
-    clf.cuda(device)
+    clf.to(device)
 
-    dataset = dataset_setup(arguments, results_file_path, model, get_labels=True)
+    dataset = dataset_setup(arguments, results_file_path, model, device, get_labels=True)
 
     tracemalloc.start()
     print('Testing classifier')
@@ -549,11 +583,13 @@ def test_downstream_classifier(arguments, results_file_path):
     print(f'Runtime: {test_end - test_start} sec')
     with open(results_file_path, 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
-    save_results(results_file_path, loss_dict)
+    save_results(results_file_path, device, loss_dict)
     tracemalloc.stop()
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
     return
 
-def inference(arguments, results_file_path):
+def inference(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
         model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
@@ -565,9 +601,9 @@ def inference(arguments, results_file_path):
     for param in model.parameters():
         param.requires_grad = False
 
-    model.cuda(device)
+    model.to(device)
 
-    dataset = dataset_setup(arguments, results_file_path, model)
+    dataset = dataset_setup(arguments, results_file_path, model, device)
     
     tracemalloc.start()
     print('Performing inference')
@@ -589,30 +625,34 @@ def inference(arguments, results_file_path):
     print(f'Runtime: {inference_stop - inference_start} sec')
     with open(results_file_path, 'a') as file:
         file.write(f'- Runtime: {inference_stop - inference_start} sec\n')
-    save_results(results_file_path)
+    save_results(results_file_path, device)
     tracemalloc.stop()
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
     return
 
 
 def main():
     os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
     arguments, file_path = process_arguments()
+    torch.manual_seed(arguments.torch_seed)
+    device = device_setup(file_path)
     try:
         if arguments.stage == 'train_model':
             os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
             os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-            train_model(arguments, file_path)
+            train_model(arguments, file_path, device)
         elif arguments.stage == 'train_classifier':
             os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
             os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-            train_downstream_classifier(arguments, file_path)
+            train_downstream_classifier(arguments, file_path, device)
         elif arguments.stage == 'test_model':
-            test_model(arguments, file_path)
+            test_model(arguments, file_path, device)
         elif arguments.stage == 'test_classifier':
-            test_downstream_classifier(arguments, file_path)
+            test_downstream_classifier(arguments, file_path, device)
         elif arguments.stage == 'inference':
             os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
-            inference(arguments, file_path)
+            inference(arguments, file_path, device)
 
     except:
         traceback.print_exception(*sys.exc_info())

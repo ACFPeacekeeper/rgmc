@@ -78,7 +78,7 @@ class VAE(nn.Module):
     
     
     def loss(self, x, x_hat):
-        loss_function = nn.MSELoss().cuda(self.device)
+        loss_function = nn.MSELoss().to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():

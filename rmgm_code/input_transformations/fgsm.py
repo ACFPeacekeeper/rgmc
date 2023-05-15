@@ -12,7 +12,7 @@ class FGSM(AdversarialAttack):
         self.target_modality = target_modality
 
     def example_generation(self, x, targets):
-        loss = nn.MSELoss().cuda(self.device)
+        loss = nn.MSELoss().to(self.device)
 
         for modality in x.keys():
             x[modality].requires_grad = True
