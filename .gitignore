@@ -397,9 +397,7 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-# Datasets
-rmgm_code/architectures/gmc_networks.py
-rmgm_code/architectures/gmc.py
+# Datasets, checkpoints and results
 rmgm_code/datasets/pendulum/*.pt
 rmgm_code/datasets/mhd/*.pt
 rmgm_code/datasets/mosi_mosei/*.dt

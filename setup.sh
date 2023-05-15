@@ -2,35 +2,17 @@
 CUR_DIR=$(pwd)
 DATA_DIR=${CUR_DIR}/rmgm_code/datasets
 GMC_DIR=${CUR_DIR}/rmgm_code/gmc/gmc_code
-MODELS_DIR=${CUR_DIR}/rmgm_code/architectures
-
-if ! [ -d "$GMC_DIR" ]; then
-    echo "Cloning GMC..."
-    git clone "https://github.com/miguelsvasco/gmc.git" ${CUR_DIR}/rmgm_code/gmc
-    echo "Completed! $GMC_DIR directory clone from repository."
-fi
-
-FILE=${MODELS_DIR}/gmc_networks.py
-if ! [ -f "$FILE" ]; then
-    echo "Copying gmc_networks.py to ${MODELS_DIR} directory..."
-    cp ${GMC_DIR}/unsupervised/architectures/models/gmc_networks.py ${FILE}
-    echo "Completed! ${FILE} created."
-fi
-
-FILE=${MODELS_DIR}/gmc.py
-if ! [ -f "$FILE" ]; then
-    echo "Copying gmc.py to ${MODELS_DIR} directory..."
-    cp ${GMC_DIR}/unsupervised/architectures/models/gmc.py ${FILE}
-    sed -i -e "s|^from gmc_code.*$|from architectures.gmc_networks import \*\n|g" ${MODELS_DIR}/gmc.py
-    echo "Completed! ${FILE} created."
-fi
-
 
 if ! [ -d "$DATA_DIR" ]; then
     echo "Setting up $DATA_DIR directory..."
     mkdir ${DATA_DIR}
     touch ${DATA_DIR}/__init__.py
     echo "Completed! $DATA_DIR directory created."
+    if ! [ -d "$GMC_DIR" ]; then
+        echo "Cloning GMC..."
+        git clone "https://github.com/miguelsvasco/gmc.git" ${CUR_DIR}/rmgm_code/gmc
+        echo "Completed! $GMC_DIR directory clone from repository."
+    fi
 fi
 
 COMMANDS='#!/bin/bash\nTARGET_DIR\=\$(pwd)\nTARGET_DIR=\${TARGET_DIR}/rmgm_code/gmc/gmc_code\n'
