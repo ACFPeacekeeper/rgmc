@@ -1,26 +1,22 @@
 import torch
 import torch.nn as nn
-import numpy as np
 
-from tqdm import tqdm
 from collections import Counter
 from architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, layer_dim=-1, verbose=False, test=False):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, test=False):
         super(VAE, self).__init__()
         self.name = name
-        self.layer_dim = layer_dim
-        if self.layer_dim == -1:
-            if exclude_modality == 'image':
-                self.layer_dim = 200
-                self.modality_dims = [0, 200]
-            elif exclude_modality == 'trajectory':
-                self.layer_dim = 28 * 28
-                self.modality_dims = [0, 28 * 28]
-            else:
-                self.layer_dim = 28 * 28 + 200
-                self.modality_dims = [0, 28 * 28, 200]
+        if exclude_modality == 'image':
+            self.layer_dim = 200
+            self.modality_dims = [0, 200]
+        elif exclude_modality == 'trajectory':
+            self.layer_dim = 28 * 28
+            self.modality_dims = [0, 28 * 28]
+        else:
+            self.layer_dim = 28 * 28 + 200
+            self.modality_dims = [0, 28 * 28, 200]
 
         self.encoder = Encoder(latent_dim, self.layer_dim)
         self.decoder = Decoder(latent_dim, self.layer_dim)
@@ -35,11 +31,7 @@ class VAE(nn.Module):
         else:
             self.kld_scale = self.scales['KLD betas'][0]
         self.kld_max = self.scales['KLD betas'][1]
-        self.verbose = verbose
         self.exclude_modality = exclude_modality
-
-    def set_verbose(self, verbose):
-        self.verbose = verbose
 
     def update_kld_scale(self, kld_weight):
         self.kld_scale = min(kld_weight * self.kld_max, self.kld_max)

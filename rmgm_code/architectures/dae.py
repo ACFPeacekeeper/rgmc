@@ -5,20 +5,18 @@ from collections import Counter
 from architectures.dae_networks import Encoder, Decoder
 
 class DAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, layer_dim=-1, noise_factor=0.3, test=False, verbose=False):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, noise_factor=0.3, test=False):
         super(DAE, self).__init__()
         self.name = name
-        self.layer_dim = layer_dim
-        if self.layer_dim == -1:
-            if exclude_modality == 'image':
-                self.layer_dim = 200
-                self.modality_dims = [0, 200]
-            elif exclude_modality == 'trajectory':
-                self.layer_dim = 28 * 28
-                self.modality_dims = [0, 28 * 28]
-            else:
-                self.layer_dim = 28 * 28 + 200
-                self.modality_dims = [0, 28 * 28, 200]
+        if exclude_modality == 'image':
+            self.layer_dim = 200
+            self.modality_dims = [0, 200]
+        elif exclude_modality == 'trajectory':
+            self.layer_dim = 28 * 28
+            self.modality_dims = [0, 28 * 28]
+        else:
+            self.layer_dim = 28 * 28 + 200
+            self.modality_dims = [0, 28 * 28, 200]
 
         self.encoder = Encoder(latent_dim, self.layer_dim)
         self.decoder = Decoder(latent_dim, self.layer_dim)
@@ -27,11 +25,7 @@ class DAE(nn.Module):
         self.scales = scales
         self.test = test
         self.noise_factor = noise_factor
-        self.verbose = verbose
         self.exclude_modality = exclude_modality
-
-    def set_verbose(self, verbose):
-        self.verbose = verbose
 
     def add_noise(self, x):
         x_noisy = []*len(x)

@@ -12,7 +12,7 @@ import sys
 import os
 import re
 
-from architectures import vae, dae, classifier
+from architectures import vae, dae, gmc, classifier
 from input_transformations import gaussian_noise, fgsm
 from matplotlib.ticker import StrMethodFormatter
 from tqdm import tqdm
@@ -28,7 +28,7 @@ def process_arguments():
     parser.add_argument('--torch_seed', '--seed', type=int, default=42, help='Value for pytorch seed for results replication.')
     parser.add_argument('--path_classifier', type=str, default='none', help="Filename of the file where the classifier is to be loaded from.")
     parser.add_argument('-m', '--model_out', type=str, default='none', help="Filename of the file where the model/classifier is to be saved to.")
-    parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI_MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
+    parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI', 'MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
     parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage of the pipeline to execute in the experiment.')
     parser.add_argument('-o', '--optimizer', type=str, default='SGD', choices=['adam', 'SGD', 'none'], help='Optimizer for the model training process.')
     parser.add_argument('-r', '--learning_rate', '--lr', type=float, default=0.01, help='Learning rate value for the optimizer.')
@@ -187,8 +187,10 @@ def device_setup(file_path):
 
 def dataset_setup(arguments, results_file_path, model, device, get_labels=False):
     if arguments.dataset == 'MHD':
-        dataloader = torch.load(os.path.join(m_path, "datasets", "mhd", "dataset", "mhd_train.pt"))
-    elif arguments.dataset == 'MOSI_MOSEI':
+        dataloader = torch.load(os.path.join(m_path, "datasets", "mhd", "mhd_train.pt"))
+    elif arguments.dataset == 'MOSI':
+        raise NotImplementedError
+    elif arguments.dataset == 'MOSEI':
         raise NotImplementedError
     elif arguments.dataset == 'PENDULUM':
         dataloader = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
@@ -291,6 +293,8 @@ def train_model(arguments, results_file_path, device):
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+    elif arguments.model_type == 'GMC':
+        model = gmc.MhdGMC(arguments.model_type, arguments.exclude_modality, arguments.latent_dim)
 
     model.to(device)
 
