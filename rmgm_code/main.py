@@ -32,23 +32,27 @@ def process_arguments():
     parser.add_argument('-p', '--path_model', type=str, default='none', help="Filename of the file where the model is to be loaded from.")
     parser.add_argument('-m', '--model_out', type=str, default='none', help="Filename of the file where the model is to be saved to.")
     parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI_MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
-    parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage(s) of the pipeline to execute in the experiment.')
-    parser.add_argument('-o', '--optimizer', type=str, default='adam', choices=['adam', 'none'], help='Define optimizer for the model.')
+    parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage of the pipeline to execute in the experiment.')
+    parser.add_argument('-o', '--optimizer', type=str, default='SGD', choices=['adam', 'SGD', 'none'], help='Optimizer for the model training process.')
+    parser.add_argument('-r', '--learning_rate', '--lr', type=float, default=0.01, help='Learning rate value for the optimizer.')
     parser.add_argument('-e', '--epochs', type=int, default=50, help='Number of epochs to train the model.')
     parser.add_argument('-c', '--checkpoint', type=int, default=50, help='Epoch interval between checkpoints of the model in training.')
     parser.add_argument('-b', '--batch_size', type=int, default=32, help='Number of samples processed for each model update.')
     parser.add_argument('-l', '--latent_dim', type=int, default=128, help='Dimension of the latent space of the models encodings.')
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
     parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
-    parser.add_argument('-t', '--target_modality', type=str, default='image', choices=['image', 'trajectory'], help='Define the modality to target with noisy and/or adversarial samples.')
+    parser.add_argument('-t', '--target_modality', type=str, default='image', choices=['image', 'trajectory'], help='Modality to target with noisy and/or adversarial samples.')
     parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
-    parser.add_argument('--image_scale', type=float, default=1., help='Define weight for the image reconstruction loss.')
-    parser.add_argument('--traj_scale', type=float, default=1., help='Define weight for the trajectory reconstruction loss.')
-    parser.add_argument('--kld_beta', type=float, default=0.1, help='Define beta value for KL divergence.')
-    parser.add_argument('--noise_mean', type=float, default=0., help='Define mean for noise distribution.')
-    parser.add_argument('--noise_std', type=float, default=1., help='Define standard deviation for noise distribution.')
-    parser.add_argument('--adv_eps', type=float, default=8/255, help='Define epsilon value for adversarial example generation.')
-    parser.add_argument('--idx', nargs="+", type=int)
+    parser.add_argument('--image_scale', type=float, default=1., help='Weight for the image reconstruction loss.')
+    parser.add_argument('--traj_scale', type=float, default=1., help='Weight for the trajectory reconstruction loss.')
+    parser.add_argument('--kld_betas', nargs=2, type=float, default=[0., 1.], help='Min and max beta values for KL divergence.')
+    parser.add_argument('--vae_mean', type=float, default=0., help='Mean value for the reparameterization trick for the VAE.')
+    parser.add_argument('--vae_std', type=float, default=1., help='Standard deviation value for the reparameterization trick for the VAE.')
+    parser.add_argument('--adam_betas', nargs=2, type=float, default=[0.9, 0.999], help='Beta values for the Adam optimizer.')
+    parser.add_argument('--momentum', type=float, default=0.9, help='Momentum for the SGD optimizer.')
+    parser.add_argument('--noise_mean', type=float, default=0., help='Mean for noise distribution.')
+    parser.add_argument('--noise_std', type=float, default=1., help='Standard deviation for noise distribution.')
+    parser.add_argument('--adv_eps', type=float, default=8/255, help='Epsilon value for adversarial example generation.')
     args = parser.parse_args()
 
     try:
@@ -84,6 +88,12 @@ def process_arguments():
     with open(file_path, 'w') as file:
         file.write(f'Model: {args.model_type}\n')
         print(f'Model: {args.model_type}')
+
+        if args.model_type == 'VAE':
+            file.write(f'Reparameterization trick mean: {args.vae_mean}\n')
+            print(f'Reparameterization trick mean: {args.vae_mean}')
+            file.write(f'Reparameterization trick standard deviation: {args.vae_std}\n')
+            print(f'Reparameterization trick standard deviation: {args.vae_std}')
 
         file.write(f'Exclude modality: {args.exclude_modality}\n')
         print(f'Exclude modality: {args.exclude_modality}')
@@ -134,8 +144,8 @@ def process_arguments():
             file.write(f'Trajectory recon loss scale: {args.traj_scale}\n')
             print(f'Trajectory recon loss scale: {args.traj_scale}')
         if args.model_type == 'VAE':
-            file.write(f'KLD beta value: {args.kld_beta}\n')
-            print(f'KLD beta value: {args.kld_beta}')
+            file.write(f'KLD betas value: {args.kld_betas}\n')
+            print(f'KLD betas value: {args.kld_betas}')
 
         file.write(f'Dataset: {args.dataset}\n')
         print(f'Dataset: {args.dataset}')
@@ -245,12 +255,12 @@ def save_final_results(arguments, results_file_path, loss_list_dict):
 
 def train_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
 
     model.cuda(device)
@@ -260,9 +270,22 @@ def train_model(arguments, results_file_path):
     with open(results_file_path, 'a') as file:
         file.write(f'Optimizer: {arguments.optimizer}\n')
         file.write(f'Batch size: {arguments.batch_size}\n')
-    
-    if arguments.optimizer == 'adam':
-        optimizer = optim.Adam(model.parameters())
+
+    if arguments.optimizer != 'none':
+        print(f'Learning rate: {arguments.learning_rate}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Learning rate: {arguments.learning_rate}\n')
+
+        if arguments.optimizer == 'adam':
+            optimizer = optim.Adam(model.parameters(), lr=arguments.learning_rate, betas=arguments.adam_betas)
+            print(f'Adam betas: {arguments.adam_betas}')
+            with open(results_file_path, 'a') as file:
+                file.write(f'Adam betas: {arguments.adam_betas}\n')
+        elif arguments.optimizer == 'SGD':
+            optimizer = optim.SGD(model.parameters(), lr=arguments.learning_rate)
+            print(f'SGD momentum: {arguments.momentum}')
+            with open(results_file_path, 'a') as file:
+                file.write(f'SGD momentum: {arguments.momentum}\n')
 
     checkpoint_counter = arguments.checkpoint 
 
@@ -288,14 +311,18 @@ def train_model(arguments, results_file_path):
 
             if arguments.optimizer != 'none':
                 optimizer.zero_grad()
-            
-            x_hat, _ = model(batch)
+        
+            x_hat, _ = model(batch)    
             loss, batch_loss_dict = model.loss(batch, x_hat)
             loss_dict = loss_dict + batch_loss_dict
             
             loss.backward()
             if arguments.optimizer != 'none':
                 optimizer.step()
+
+            if model.name == 'VAE':
+                kld_weight = 2 * batch_idx / batch_number
+                model.update_kld_scale(kld_weight)
         
         for key, value in loss_dict.items():
             loss_dict[key] = value / batch_number
@@ -328,11 +355,11 @@ def train_model(arguments, results_file_path):
 
 def train_downstream_classifier(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
 
     loss_list_dict = {'Loss': np.zeros(arguments.epochs)}
 
@@ -352,8 +379,21 @@ def train_downstream_classifier(arguments, results_file_path):
         file.write(f'Optimizer: {arguments.optimizer}\n')
         file.write(f'Batch size: {arguments.batch_size}\n')
     
-    if arguments.optimizer == 'adam':
-        optimizer = optim.Adam(clf.parameters())
+    if arguments.optimizer != 'none':
+        print(f'Learning rate: {arguments.learning_rate}')
+        with open(results_file_path, 'a') as file:
+            file.write(f'Learning rate: {arguments.learning_rate}\n')
+
+        if arguments.optimizer == 'adam':
+            optimizer = optim.Adam(clf.parameters(), lr=arguments.learning_rate, betas=arguments.adam_betas)
+            print(f'Adam betas: {arguments.adam_betas}')
+            with open(results_file_path, 'a') as file:
+                file.write(f'Adam betas: {arguments.adam_betas}\n')
+        elif arguments.optimizer == 'SGD':
+            optimizer = optim.SGD(clf.parameters(), lr=arguments.learning_rate)
+            print(f'SGD momentum: {arguments.momentum}')
+            with open(results_file_path, 'a') as file:
+                file.write(f'SGD momentum: {arguments.momentum}\n')
 
     checkpoint_counter = arguments.checkpoint 
 
@@ -395,6 +435,10 @@ def train_downstream_classifier(arguments, results_file_path):
             if arguments.optimizer != 'none':
                 optimizer.step()
 
+            if clf.model.name == 'VAE':
+                kld_weight = 2 * batch_idx / batch_number
+                clf.model.update_kld_scale(kld_weight)
+
             loss_dict['Loss'] += loss
 
         loss_dict['Loss'] = loss_dict['Loss'] / batch_number
@@ -409,7 +453,7 @@ def train_downstream_classifier(arguments, results_file_path):
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
             print('Saving model checkpoint to file...')
-            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", f'clf_{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
+            torch.save(clf.state_dict(), os.path.join(m_path, "checkpoints", f'clf_{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
             checkpoint_counter = arguments.checkpoint
 
         torch.cuda.empty_cache()
@@ -427,12 +471,12 @@ def train_downstream_classifier(arguments, results_file_path):
 
 def test_model(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
         loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
         loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
 
     model.load_state_dict(torch.load(arguments.path_model))
@@ -463,12 +507,12 @@ def test_model(arguments, results_file_path):
 
 def test_downstream_classifier(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
-        
+        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)
+
     model.load_state_dict(torch.load(arguments.path_model))
     for param in model.parameters():
         param.requires_grad = False
@@ -511,8 +555,8 @@ def test_downstream_classifier(arguments, results_file_path):
 
 def inference(arguments, results_file_path):
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD beta': arguments.kld_beta}
-        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'KLD betas': arguments.kld_betas}
+        model = vae.VAE(arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.latent_dim, device, arguments.exclude_modality, scales, test=True)

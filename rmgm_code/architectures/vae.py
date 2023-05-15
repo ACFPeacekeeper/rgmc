@@ -7,8 +7,9 @@ from collections import Counter
 from architectures.vae_networks import Encoder, Decoder
 
 class VAE(nn.Module):
-    def __init__(self, latent_dim, device, exclude_modality, scales, layer_dim=-1, verbose=False):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, layer_dim=-1, verbose=False, test=False):
         super(VAE, self).__init__()
+        self.name = name
         self.layer_dim = layer_dim
         if self.layer_dim == -1:
             if exclude_modality == 'image':
@@ -26,12 +27,22 @@ class VAE(nn.Module):
         
         self.device = device
         self.scales = scales
+        self.mean = mean
+        self.std = std
         self.kld = 0.
+        if test:
+            self.kld_scale = self.scales['KLD betas'][1]
+        else:
+            self.kld_scale = self.scales['KLD betas'][0]
+        self.kld_max = self.scales['KLD betas'][1]
         self.verbose = verbose
         self.exclude_modality = exclude_modality
 
     def set_verbose(self, verbose):
         self.verbose = verbose
+
+    def update_kld_scale(self, kld_weight):
+        self.kld_scale = min(kld_weight * self.kld_max, self.kld_max)
 
     def forward(self, x):
         data_list = list(x.values())
@@ -46,16 +57,16 @@ class VAE(nn.Module):
         z = torch.Tensor
 
         mean, logvar = self.encoder(data)
-        std = torch.exp(logvar/2)
+        std = torch.exp(torch.mul(logvar, 0.5))
     
         # Reparameterization trick
-        dist = torch.distributions.Normal(0, 1)
+        dist = torch.distributions.Normal(self.mean, self.std)
         eps = dist.sample(mean.shape).to(self.device)
 
-        z = mean + std * eps
+        z = torch.add(mean, torch.mul(std, eps))
         tmp = self.decoder(z)
         
-        self.kld += - self.scales['KLD beta'] * (1 + logvar - (mean)**2 - (std)**2).sum()
+        self.kld += - self.kld_scale * torch.sum(1 + logvar - mean.pow(2) - std.pow(2))
 
         x_hat = dict.fromkeys(x.keys())
         for id, key in enumerate(x_hat.keys()):

@@ -5,8 +5,9 @@ from collections import Counter
 from architectures.dae_networks import Encoder, Decoder
 
 class DAE(nn.Module):
-    def __init__(self, latent_dim, device, exclude_modality, scales, layer_dim=-1, noise_factor=0.3, test=False, verbose=False):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, layer_dim=-1, noise_factor=0.3, test=False, verbose=False):
         super(DAE, self).__init__()
+        self.name = name
         self.layer_dim = layer_dim
         if self.layer_dim == -1:
             if exclude_modality == 'image':
@@ -33,12 +34,9 @@ class DAE(nn.Module):
         self.verbose = verbose
 
     def add_noise(self, x):
-        if len(x) == 2:
-            img_noisy = x[0] + torch.randn_like(x[0]) * self.noise_factor
-            traj_noisy = x[1] + torch.randn_like(x[1]) * self.noise_factor
-            x_noisy = [torch.clip(img_noisy, 0., 1.), torch.clip(traj_noisy, 0., 1.)]
-        else:
-            x_noisy = torch.clip(x, 0., 1.) + torch.rand_like(x) * self.noise_factor
+        x_noisy = []*len(x)
+        for id, modality in enumerate(x):
+            x_noisy[id] = torch.clip(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), 0., 1.)
         return x_noisy
 
     def forward(self, x):
