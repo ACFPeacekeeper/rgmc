@@ -30,6 +30,7 @@ def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
     parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC'], help='Model type to be used in the experiment.')
     parser.add_argument('-p', '--path_model', type=str, default='none', help="Filename of the file where the model is to be loaded from.")
+    parser.add_argument('--path_classifier', type=str, default='none', help="Filename of the file where the classifier is to be loaded from.")
     parser.add_argument('-m', '--model_out', type=str, default='none', help="Filename of the file where the model is to be saved to.")
     parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI_MOSEI', 'PENDULUM'], help='Dataset to be used in the experiments.')
     parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage of the pipeline to execute in the experiment.')
@@ -102,8 +103,11 @@ def process_arguments():
             file.write(f'Load model file: {args.path_model}\n')
             print(f'Load model file: {args.path_model}')
             if args.stage == 'test_classifier':
-                file.write(f'Load classifier file: {args.path_model}\n')
-                print(f'Load classifier file: {args.path_model}')
+                if args.path_classifier == 'none':
+                    args.path_classifier = os.path.join(os.path.dirname(args.path_model), "clf_" + os.path.basename(args.path_model))
+                file.write(f'Load classifier file: {args.path_classifier}\n')
+                print(f'Load classifier file: {args.path_classifier}')
+            
         elif args.stage == 'inference':
             file.write(f'Load model file: {os.path.basename(args.path_model)}\n')
             print(f'Load model file: {os.path.basename(args.path_model)}')
