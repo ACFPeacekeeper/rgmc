@@ -1,12 +1,10 @@
 import matplotlib.pyplot as plt
 import torch.optim as optim
-import torch.nn as nn
 import numpy as np
 import tracemalloc
 import subprocess
 import traceback
 import argparse
-import random
 import torch
 import time
 import math
@@ -17,12 +15,11 @@ import re
 from architectures import vae, dae, classifier
 from input_transformations import gaussian_noise, fgsm
 from matplotlib.ticker import StrMethodFormatter
-from torchvision import transforms
 from tqdm import tqdm
 from collections import Counter
 
 # Assign path to current directory
-m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
+m_path = "<copy-output-of-pwd-here>"
 
 def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
