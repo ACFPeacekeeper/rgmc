@@ -107,10 +107,6 @@ def process_arguments():
                     args.path_classifier = os.path.join(os.path.dirname(args.path_model), "clf_" + os.path.basename(args.path_model))
                 file.write(f'Load classifier file: {args.path_classifier}\n')
                 print(f'Load classifier file: {args.path_classifier}')
-            
-        elif args.stage == 'inference':
-            file.write(f'Load model file: {os.path.basename(args.path_model)}\n')
-            print(f'Load model file: {os.path.basename(args.path_model)}')
 
         if args.model_out != 'none':
             if args.stage == 'train_model':
