@@ -187,14 +187,29 @@ def device_setup(file_path):
     return torch.device(device)
 
 def dataset_setup(arguments, results_file_path, model, device, get_labels=False):
-    if arguments.dataset == 'MHD':
-        dataloader = torch.load(os.path.join(m_path, "datasets", "mhd", "mhd_train.pt"))
-    elif arguments.dataset == 'MOSI':
-        raise NotImplementedError
-    elif arguments.dataset == 'MOSEI':
-        raise NotImplementedError
-    elif arguments.dataset == 'PENDULUM':
-        dataloader = torch.load(os.path.join(m_path, "datasets", "pendulum", "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
+    def load_dataset(arguments, data_stage):
+        if arguments.dataset == 'MHD':
+            dataloader = torch.load(os.path.join(m_path, "datasets", "mhd", f"mhd_{data_stage}.pt"))
+        elif arguments.dataset == 'MOSI':
+            raise NotImplementedError
+        elif arguments.dataset == 'MOSEI':
+            raise NotImplementedError
+        elif arguments.dataset == 'PENDULUM':
+            dataloader = torch.load(os.path.join(m_path, "datasets", "pendulum", f"{data_stage}_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt"))
+        
+        return dataloader
+    
+    if arguments.stage == 'train_model' or arguments.stage == 'train_classifier' or arguments.stage == 'inference':
+        dataloader = load_dataset(arguments, "train")
+    else:
+        dataloader = load_dataset(arguments, "test")
+    
+    if arguments.stage == 'inference':
+        tmp_dataloader = list(load_dataset(arguments, "test"))
+        for modal_id in range(len(dataloader)):
+            if torch.is_tensor(dataloader[modal_id]):
+                tmp_dataloader[modal_id] = torch.concat((dataloader[modal_id], tmp_dataloader[modal_id]), dim=0)
+        dataloader = tuple(tmp_dataloader)
 
     if arguments.exclude_modality == 'image':
         dataset = {'trajectory': dataloader[2].to(device)}
