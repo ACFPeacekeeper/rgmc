@@ -42,22 +42,24 @@ class DAE(nn.Module):
         self.decoder.set_last_layer(self.layer_dim)
 
     def add_noise(self, x):
-        x_noisy = []*len(x)
-        for id, modality in enumerate(x):
-            x_noisy[id] = torch.clip(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), 0., 1.)
+        x_noisy = dict.fromkeys(x.keys())
+        for key, modality in x.items():
+            x_noisy[key] = torch.clip(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), 0., 1.)
         return x_noisy
 
     def forward(self, x):
-        data_list = list(x.values())
         if not self.test:
-            data_list = self.add_noise(data_list)
+            x = self.add_noise(x)
 
+        data_list = list(x.values())
         if len(data_list[0].size()) > 2:
             data = torch.flatten(data_list[0], start_dim=1)
         else:
             data = data_list[0]
 
         for id in range(1, len(data_list)):
+            if len(data_list[id].size()) > 2:
+                data_list[id] = torch.flatten(data_list[id], start_dim=1)
             data = torch.concat((data, data_list[id]), dim=-1)
 
         z = self.encoder(data)
