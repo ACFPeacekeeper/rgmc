@@ -1,38 +1,36 @@
 from pytorch_lightning import LightningModule
 from architectures.gmc_networks import *
-
+from collections import Counter
 
 # Code adapted from https://github.com/miguelsvasco/gmc
 class GMC(LightningModule):
-    def __init__(self, name, common_dim, latent_dim, loss_type="infonce"):
+    def __init__(self, name, common_dim, exclude_modality, latent_dim, loss_type="infonce"):
         super(GMC, self).__init__()
 
         self.name = name
         self.common_dim = common_dim
         self.latent_dim = latent_dim
         self.loss_type = loss_type
+        self.exclude_modality = exclude_modality
 
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
-        self.processors = [
-            self.image_processor,
-            self.label_processor,
-            self.joint_processor,
-        ]
+        self.processors = {
+            'image': self.image_processor,
+            'trajectory': self.trajectory_processor,
+            'joint': self.joint_processor,
+        }
 
         self.encoder = None
 
     def encode(self, x, sample=False):
-
-        # If we have complete observations
-        if None not in x:
-            return self.encoder(self.processors[-1](x))
+        if self.exclude_modality == 'none':
+            return self.encoder(self.processors['joint'](x))
         else:
             latent_representations = []
-            for id_mod in range(len(x)):
-                if x[id_mod] is not None:
-                    latent_representations.append(self.encoder(self.processors[id_mod](x[id_mod])))
+            for key in x.keys():
+                latent_representations.append(self.encoder(self.processors[key](x[key])))
 
             # Take the average of the latent representations
             latent = torch.stack(latent_representations, dim=0).mean(0)
@@ -42,15 +40,16 @@ class GMC(LightningModule):
 
         # Forward pass through the modality specific encoders
         batch_representations = []
-        for processor_idx in range(len(self.processors) - 1):
+        for key in x.keys():
             mod_representations = self.encoder(
-                self.processors[processor_idx](x[processor_idx])
+                self.processors[key](x[key])
             )
             batch_representations.append(mod_representations)
 
         # Forward pass through the joint encoder
-        joint_representation = self.encoder(self.processors[-1](x))
-        batch_representations.append(joint_representation)
+        if self.exclude_modality == 'none':
+            joint_representation = self.encoder(self.processors['joint'](x))
+            batch_representations.append(joint_representation)
         return batch_representations
 
     def infonce(self, batch_representations, temperature, batch_size):
@@ -131,10 +130,9 @@ class GMC(LightningModule):
         tqdm_dict = {"loss": loss}
         return loss, tqdm_dict
 
-    def training_step(self, data, train_params):
+    def training_step(self, data, train_params, batch_size):
 
         temperature = train_params["temperature"]
-        batch_size = data[0].shape[0]
 
         # Forward pass through the encoders
         batch_representations = self.forward(data)
@@ -144,7 +142,7 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, temperature, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, temperature, batch_size)
-        return loss, tqdm_dict
+        return loss, Counter(tqdm_dict)
 
     def validation_step(self, data, train_params):
 
@@ -171,20 +169,18 @@ class MhdGMC(GMC):
         else:
             self.common_dim = 28 * 28 + 200
 
-        super(MhdGMC, self).__init__(name, self.common_dim, latent_dim, loss_type)
+        super(MhdGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dim, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         #self.sound_processor = MHDSoundProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         #self.label_processor = MHDLabelProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-        self.processors = [
-            self.image_processor,
-            #self.sound_processor,
-            self.trajectory_processor,
-            #self.label_processor,
-            self.joint_processor,
-        ]
+        self.processors = {
+            'image': self.image_processor,
+            'trajectory': self.trajectory_processor,
+            'joint': self.joint_processor,
+        }
         self.loss_type = loss_type
 
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dim=latent_dim)

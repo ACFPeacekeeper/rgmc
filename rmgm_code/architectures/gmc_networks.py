@@ -119,18 +119,6 @@ class MHDJointProcessor(nn.Module):
             Swish(),
         )
 
-        self.sound_features = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=128, kernel_size=(1, 128), stride=(1, 1), padding=0, bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=(4, 1), stride=(2, 1), padding=(1, 0), bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(4, 1), stride=(2, 1), padding=(1, 0), bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU()
-        )
-
         self.trajectory_features = nn.Sequential(
             nn.Linear(200, 512),
             Swish(),
@@ -138,23 +126,19 @@ class MHDJointProcessor(nn.Module):
             Swish(),
         )
 
-        self.projector = nn.Linear(128 * 7 * 7 + 2048 + 512 + 10, common_dim)
+        self.projector = nn.Linear(128 * 7 * 7 + 512, common_dim)
 
     def forward(self, x):
-        x_img, x_sound, x_trajectory, x_label = x[0], x[1], x[2], x[3]
+        x_img, x_trajectory = x['image'], x['trajectory']
 
         # Image
         h_img = self.img_features(x_img)
         h_img = h_img.view(h_img.size(0), -1)
 
-        # Sound
-        h_sound = self.sound_features(x_sound)
-        h_sound = h_sound.view(h_sound.size(0), -1)
-
         # Trajectory
         h_trajectory = self.trajectory_features(x_trajectory)
 
-        return self.projector(torch.cat((h_img, h_sound, h_trajectory, x_label), dim=-1))
+        return self.projector(torch.cat((h_img, h_trajectory), dim=-1))
 
 
 

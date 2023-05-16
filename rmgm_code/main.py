@@ -41,6 +41,7 @@ def process_arguments():
     parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
     parser.add_argument('-t', '--target_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Modality to target with noisy and/or adversarial samples.')
     parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
+    parser.add_argument('--infonce_temperature', '--infonce_temp', type=float, default=0.2, help='Temperature for the infonce loss.')
     parser.add_argument('--image_scale', type=float, default=1., help='Weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Weight for the trajectory reconstruction loss.')
     parser.add_argument('--kld_betas', nargs=2, type=float, default=[0., 1.], help='Min and max beta values for KL divergence.')
@@ -150,6 +151,9 @@ def process_arguments():
             else:
                 file.write(f'KLD beta loss scale: {args.kld_betas[1]}\n')
                 print(f'KLD beta loss scale: {args.kld_betas[1]}')
+        if args.model_type == 'GMC':
+            file.write(f'InfoNCE temperature loss scale: {args.infonce_temperature}\n')
+            print(f'InfoNCE temperature loss scale: {args.infonce_temperature}')
 
         file.write(f'Dataset: {args.dataset}\n')
         print(f'Dataset: {args.dataset}')
@@ -311,6 +315,7 @@ def train_model(arguments, results_file_path, device):
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, arguments.exclude_modality, arguments.latent_dim)
+        loss_list_dict = {'loss': np.zeros(arguments.epochs)}
 
     model.to(device)
 
@@ -360,10 +365,14 @@ def train_model(arguments, results_file_path, device):
 
             if arguments.optimizer != 'none':
                 optimizer.zero_grad()
-        
-            x_hat, _ = model(batch)    
-            loss, batch_loss_dict = model.loss(batch, x_hat)
-            loss_dict = loss_dict + batch_loss_dict
+
+            if model.name == 'GMC':
+                loss, batch_loss_dict = model.training_step(batch, {"temperature": arguments.infonce_temperature}, batch_end_idx - batch_idx * arguments.batch_size)
+                loss_dict = loss_dict + batch_loss_dict
+            else:
+                x_hat, _ = model(batch)    
+                loss, batch_loss_dict = model.loss(batch, x_hat)
+                loss_dict = loss_dict + batch_loss_dict
             
             loss.backward()
             if arguments.optimizer != 'none':
