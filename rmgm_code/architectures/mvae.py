@@ -6,7 +6,7 @@ from torch.autograd import Variable
 from architectures.mvae_networks import ImageEncoder, ImageDecoder, TrajectoryEncoder, TrajectoryDecoder
 
 class MVAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, test=False):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, expert_type, test=False):
         super(MVAE, self).__init__()
         self.name = name
         self.device = device
@@ -15,7 +15,7 @@ class MVAE(nn.Module):
         self.scales = scales
         self.exclude_modality = exclude_modality
         self.latent_dim = latent_dim
-        self.experts = PoE()
+        self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.image_encoder = None
         self.image_decoder = None
         self.trajectory_encoder = None

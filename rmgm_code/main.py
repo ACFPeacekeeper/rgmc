@@ -45,6 +45,7 @@ def process_arguments():
     parser.add_argument('--image_scale', type=float, default=1., help='Weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Weight for the trajectory reconstruction loss.')
     parser.add_argument('--kld_betas', nargs=2, type=float, default=[0., 1.], help='Min and max beta values for KL divergence.')
+    parser.add_argument('--experts_type', type=str, default='poe', choices=['poe', 'moe'], help='Type of experts to use in the fusion of the modalities for the MVAE.')
     parser.add_argument('--rep_mean', type=float, default=0., help='Mean value for the reparameterization trick for the VAE and MVAE.')
     parser.add_argument('--rep_std', type=float, default=1., help='Standard deviation value for the reparameterization trick for the VAE and MVAE.')
     parser.add_argument('--poe_mean', type=float, default=0., help='Mean value for the product of experts for the MVAE.')
@@ -92,6 +93,10 @@ def process_arguments():
 
         file.write(f'Pytorch seed value: {args.torch_seed}\n')
         print(f'Pytorch seed value: {args.torch_seed}')
+
+        if args.model_type == 'MVAE':
+            file.write(f'Type of experts: {args.experts_type}\n')
+            print(f'Type of experts: {args.experts_type}')
 
         if args.model_type == 'VAE' or args.model_type == 'MVAE':
             file.write(f'Reparameterization trick mean: {args.rep_mean}\n')
@@ -319,7 +324,7 @@ def train_model(arguments, results_file_path, device):
         loss_list_dict = {'InfoNCE': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'MVAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std)
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
 
     model.to(device)
@@ -440,7 +445,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
     elif arguments.model_type == 'MVAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
 
     loss_list_dict = {'Loss': np.zeros(arguments.epochs)}
 
@@ -574,7 +579,7 @@ def test_model(arguments, results_file_path, device):
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
     elif arguments.model_type == 'MVAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
         loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
 
     model.load_state_dict(torch.load(arguments.path_model))
@@ -639,7 +644,7 @@ def test_downstream_classifier(arguments, results_file_path, device):
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
     elif arguments.model_type == 'MVAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std)
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
 
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
