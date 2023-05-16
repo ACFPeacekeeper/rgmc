@@ -95,8 +95,8 @@ def process_arguments():
         print(f'Pytorch seed value: {args.torch_seed}')
 
         if args.model_type == 'MVAE':
-            file.write(f'Type of experts: {args.experts_type}\n')
-            print(f'Type of experts: {args.experts_type}')
+            file.write(f'Type of experts fusion: {args.experts_type}\n')
+            print(f'Type of experts fusion: {args.experts_type}')
 
         if args.model_type == 'VAE' or args.model_type == 'MVAE':
             file.write(f'Reparameterization trick mean: {args.rep_mean}\n')
@@ -716,6 +716,9 @@ def inference(arguments, results_file_path, device):
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
+    elif arguments.model_type == 'MVAE':
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type)
 
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
