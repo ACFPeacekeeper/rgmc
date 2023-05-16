@@ -12,7 +12,7 @@ import sys
 import os
 import re
 
-from architectures import vae, dae, gmc, classifier
+from architectures import vae, dae, gmc, mvae, classifier
 from input_transformations import gaussian_noise, fgsm
 from matplotlib.ticker import StrMethodFormatter
 from tqdm import tqdm
@@ -23,7 +23,7 @@ m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
 def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
-    parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC'], help='Model type to be used in the experiment.')
+    parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC', 'MVAE'], help='Model type to be used in the experiment.')
     parser.add_argument('-p', '--path_model', type=str, default='none', help="Filename of the file where the model is to be loaded from.")
     parser.add_argument('--torch_seed', '--seed', type=int, default=42, help='Value for pytorch seed for results replication.')
     parser.add_argument('--train_results', type=str, default='none', help='Filename of the results file of the model training, to load model config from.')
@@ -45,8 +45,10 @@ def process_arguments():
     parser.add_argument('--image_scale', type=float, default=1., help='Weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Weight for the trajectory reconstruction loss.')
     parser.add_argument('--kld_betas', nargs=2, type=float, default=[0., 1.], help='Min and max beta values for KL divergence.')
-    parser.add_argument('--vae_mean', type=float, default=0., help='Mean value for the reparameterization trick for the VAE.')
-    parser.add_argument('--vae_std', type=float, default=1., help='Standard deviation value for the reparameterization trick for the VAE.')
+    parser.add_argument('--rep_mean', type=float, default=0., help='Mean value for the reparameterization trick for the VAE and MVAE.')
+    parser.add_argument('--rep_std', type=float, default=1., help='Standard deviation value for the reparameterization trick for the VAE and MVAE.')
+    parser.add_argument('--poe_mean', type=float, default=0., help='Mean value for the product of experts for the MVAE.')
+    parser.add_argument('--poe_std', type=float, default=1., help='Standard deviation value for the product of experts for the MVAE.')
     parser.add_argument('--adam_betas', nargs=2, type=float, default=[0.9, 0.999], help='Beta values for the Adam optimizer.')
     parser.add_argument('--momentum', type=float, default=0.9, help='Momentum for the SGD optimizer.')
     parser.add_argument('--noise_mean', type=float, default=0., help='Mean for noise distribution.')
@@ -91,11 +93,11 @@ def process_arguments():
         file.write(f'Pytorch seed value: {args.torch_seed}\n')
         print(f'Pytorch seed value: {args.torch_seed}')
 
-        if args.model_type == 'VAE':
-            file.write(f'Reparameterization trick mean: {args.vae_mean}\n')
-            print(f'Reparameterization trick mean: {args.vae_mean}')
-            file.write(f'Reparameterization trick standard deviation: {args.vae_std}\n')
-            print(f'Reparameterization trick standard deviation: {args.vae_std}')
+        if args.model_type == 'VAE' or args.model_type == 'MVAE':
+            file.write(f'Reparameterization trick mean: {args.rep_mean}\n')
+            print(f'Reparameterization trick mean: {args.rep_mean}')
+            file.write(f'Reparameterization trick standard deviation: {args.rep_std}\n')
+            print(f'Reparameterization trick standard deviation: {args.rep_std}')
 
         file.write(f'Exclude modality: {args.exclude_modality}\n')
         print(f'Exclude modality: {args.exclude_modality}')
@@ -139,12 +141,12 @@ def process_arguments():
             args.image_scale /= 2.
             args.traj_scale /= 2.
 
-        if args.model_type == 'VAE' or args.model_type == 'DAE':
+        if args.model_type == 'VAE' or args.model_type == 'DAE' or args.model_type == 'MVAE':
             file.write(f'Image loss recon scale: {args.image_scale}\n')
             print(f'Image loss recon scale: {args.image_scale}')
             file.write(f'Trajectory loss recon scale: {args.traj_scale}\n')
             print(f'Trajectory loss recon scale: {args.traj_scale}')
-        if args.model_type == 'VAE':
+        if args.model_type == 'VAE' or args.model_type == 'MVAE':
             if args.stage == 'train_model':
                 file.write(f'KLD beta loss scale: {args.kld_betas}\n')
                 print(f'KLD beta loss scale: {args.kld_betas}')
@@ -306,7 +308,7 @@ def save_final_results(arguments, results_file_path, loss_list_dict):
 def train_model(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.vae_mean, arguments.vae_std)
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std)
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
@@ -315,6 +317,10 @@ def train_model(arguments, results_file_path, device):
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, arguments.exclude_modality, arguments.latent_dim)
         loss_list_dict = {'InfoNCE': np.zeros(arguments.epochs)}
+    elif arguments.model_type == 'MVAE':
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std)
+        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
 
     model.to(device)
 
@@ -377,7 +383,7 @@ def train_model(arguments, results_file_path, device):
             if arguments.optimizer != 'none':
                 optimizer.step()
 
-            if model.name == 'VAE':
+            if model.name == 'VAE' or model.name == 'MVAE':
                 kld_weight = 2 * batch_idx / batch_number
                 model.update_kld_scale(kld_weight)
         
@@ -426,7 +432,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
 
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
@@ -555,7 +561,7 @@ def test_model(arguments, results_file_path, device):
 
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
         loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
@@ -618,7 +624,7 @@ def test_downstream_classifier(arguments, results_file_path, device):
 
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
@@ -689,7 +695,7 @@ def inference(arguments, results_file_path, device):
 
     if arguments.model_type == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.vae_mean, arguments.vae_std, test=True)
+        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
