@@ -572,6 +572,10 @@ def test_model(arguments, results_file_path, device):
         loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
+    elif arguments.model_type == 'MVAE':
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
+        loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
 
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
@@ -633,6 +637,9 @@ def test_downstream_classifier(arguments, results_file_path, device):
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
+    elif arguments.model_type == 'MVAE':
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std)
 
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
