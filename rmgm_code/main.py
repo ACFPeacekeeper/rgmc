@@ -19,7 +19,7 @@ from tqdm import tqdm
 from collections import Counter
 
 # Assign path to current directory
-m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
+m_path = "<copy-output-of-pwd-here>"
 
 def process_arguments():
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
