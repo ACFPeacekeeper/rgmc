@@ -144,10 +144,9 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce(batch_representations, temperature, batch_size)
         return loss, Counter(tqdm_dict)
 
-    def validation_step(self, data, train_params):
+    def validation_step(self, data, train_params, batch_size):
 
         temperature = train_params["temperature"]
-        batch_size = data[0].shape[0]
 
         # Forward pass through the encoders
         batch_representations = self.forward(data)
@@ -156,7 +155,7 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, temperature, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, temperature, batch_size)
-        return tqdm_dict
+        return Counter(tqdm_dict)
 
 
 

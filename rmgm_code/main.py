@@ -582,8 +582,12 @@ def test_model(arguments, results_file_path, device):
 
 
     test_start = time.time()
-    x_hat, _ = model(dataset)
-    _, loss_dict = model.loss(dataset, x_hat)
+    if model.name == 'GMC':
+        dataset_size = list(dataset.values())[0].size(dim=0)
+        loss_dict = model.validation_step(dataset, {"temperature": arguments.infonce_temperature}, dataset_size)
+    else:
+        x_hat, _ = model(dataset)
+        _, loss_dict = model.loss(dataset, x_hat)
     test_end = time.time()
 
     print(f'Runtime: {test_end - test_start} sec')
