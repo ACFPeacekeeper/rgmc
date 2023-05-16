@@ -438,6 +438,9 @@ def train_downstream_classifier(arguments, results_file_path, device):
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
+    elif arguments.model_type == 'MVAE':
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
 
     loss_list_dict = {'Loss': np.zeros(arguments.epochs)}
 
