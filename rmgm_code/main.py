@@ -314,7 +314,7 @@ def train_model(arguments, results_file_path, device):
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, arguments.exclude_modality, arguments.latent_dim)
-        loss_list_dict = {'infonce': np.zeros(arguments.epochs)}
+        loss_list_dict = {'InfoNCE': np.zeros(arguments.epochs)}
 
     model.to(device)
 
