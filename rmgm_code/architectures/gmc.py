@@ -41,7 +41,7 @@ class GMC(LightningModule):
             if len(latent_representations) > 1:
                 latent = torch.stack(latent_representations, dim=0).mean(0)
             else:
-                latent_representations = latent_representations[0]
+                latent = latent_representations[0]
             return latent
 
     def forward(self, x):
@@ -97,7 +97,7 @@ class GMC(LightningModule):
             joint_mod_loss_sum += loss_joint_mod
 
         loss = torch.mean(joint_mod_loss_sum)
-        tqdm_dict = {"loss": loss}
+        tqdm_dict = {"infonce": loss}
         return loss, tqdm_dict
 
     def infonce_with_joints_as_negatives(
@@ -136,7 +136,7 @@ class GMC(LightningModule):
             joint_mod_loss_sum += loss_joint_mod
 
         loss = torch.mean(joint_mod_loss_sum)
-        tqdm_dict = {"loss": loss}
+        tqdm_dict = {"infonce": loss}
         return loss, tqdm_dict
 
     def training_step(self, data, train_params, batch_size):

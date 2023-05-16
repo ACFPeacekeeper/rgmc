@@ -297,10 +297,9 @@ def save_final_results(arguments, results_file_path, loss_list_dict):
         print('Average epoch results:')
         file.write('Average epoch results:\n')
         for key, values in loss_list_dict.items():
-            print(f'- {key}: {np.mean(values)}')
+            print(f'{key}: {np.mean(values)}')
             file.write(f'- {key}: {np.mean(values)}\n')
             
-
     return
 
 
@@ -315,7 +314,7 @@ def train_model(arguments, results_file_path, device):
         loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, arguments.exclude_modality, arguments.latent_dim)
-        loss_list_dict = {'loss': np.zeros(arguments.epochs)}
+        loss_list_dict = {'infonce': np.zeros(arguments.epochs)}
 
     model.to(device)
 
@@ -503,7 +502,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
             if arguments.optimizer != 'none':
                 optimizer.zero_grad()
 
-            _, classification, _ = clf(batch)
+            classification, _, _ = clf(batch)
             loss = clf.loss(classification, batch_labels)
 
             loss.backward()
@@ -657,8 +656,11 @@ def test_downstream_classifier(arguments, results_file_path, device):
     labels = dataset['label']
 
     test_start = time.time()
-    x_hat, classification, _ = clf(features)
-    _, loss_dict = clf.model.loss(features, x_hat)
+    classification, repr, _ = clf(features)
+    if clf.model.name == 'GMC':
+        loss_dict = clf.model.validation_step(features, {"temperature": arguments.infonce_temperature}, labels.size(dim=0))
+    else:
+        _, loss_dict = clf.model.loss(features, repr)
     clf_loss = clf.loss(classification, labels)
     test_end = time.time()
 

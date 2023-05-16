@@ -10,14 +10,18 @@ class MNISTClassifier(nn.Module):
         self.fc3 = nn.Linear(128, 10)
 
     def forward(self, x):
-        x_hat, encoding = self.model(x)
+        if self.model.name == 'GMC':
+            encoding = self.model.encode(x)
+            repr = encoding.detach().clone()
+        else:
+            repr, encoding = self.model(x)
         encoding = self.fc1(encoding)
         encoding = F.relu(encoding)
         encoding = self.fc2(encoding)
         encoding = F.relu(encoding)
         encoding = self.fc3(encoding)
         classification = F.log_softmax(encoding, dim=-1)
-        return x_hat, classification, encoding
+        return classification, repr, encoding
     
     def loss(self, y_preds, labels):
         batch_size = labels.size()[0]
