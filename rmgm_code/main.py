@@ -33,8 +33,8 @@ def process_arguments():
     parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage of the pipeline to execute in the experiment.')
     parser.add_argument('-o', '--optimizer', type=str, default='SGD', choices=['adam', 'SGD', 'none'], help='Optimizer for the model training process.')
     parser.add_argument('-r', '--learning_rate', '--lr', type=float, default=0.01, help='Learning rate value for the optimizer.')
-    parser.add_argument('-e', '--epochs', type=int, default=50, help='Number of epochs to train the model.')
-    parser.add_argument('-c', '--checkpoint', type=int, default=50, help='Epoch interval between checkpoints of the model in training.')
+    parser.add_argument('-e', '--epochs', type=int, default=2, help='Number of epochs to train the model.')
+    parser.add_argument('-c', '--checkpoint', type=int, default=2, help='Epoch interval between checkpoints of the model in training.')
     parser.add_argument('-b', '--batch_size', type=int, default=32, help='Number of samples processed for each model update.')
     parser.add_argument('-l', '--latent_dim', '--latent_dimension', type=int, default=128, help='Dimension of the latent space of the models encodings.')
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
@@ -285,7 +285,7 @@ def save_results(results_file_path, device, loss_dict=None):
 
     return
 
-def save_final_results(arguments, results_file_path, loss_list_dict):
+def save_train_results(arguments, results_file_path, loss_list_dict):
     for idx, (key, values) in enumerate(loss_list_dict.items()):
         plt.figure(idx, figsize=(20, 20))
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
@@ -303,6 +303,34 @@ def save_final_results(arguments, results_file_path, loss_list_dict):
             print(f'{key}: {np.mean(values)}')
             file.write(f'- {key}: {np.mean(values)}\n')
             
+    return
+
+
+def save_test_results(results_file_path, loss_dict):
+    plt.figure(figsize=(20, 10))
+    plt.bar(list(loss_dict.keys()), [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_dict.values())], width=0.5, color='purple')
+    plt.xlabel('Metrics')
+    plt.ylabel('Values')
+    plt.title("Loss values of model")
+    plt.savefig(f'{os.path.splitext(results_file_path)[0]}_metrics.png')
+    return
+
+
+def save_preds(results_file_path, preds, labels):
+    print(f'Prediction count: {preds}')
+    with open(results_file_path, 'a') as file:
+        file.write(f'- Prediction count: {preds}\n')
+    if preds is not None and labels is not None:
+        X_axis = np.arange(len(preds))
+        diff = [x if x >= 0 else -x for x in torch.bincount(labels).detach().cpu().numpy() - preds]
+        plt.figure(figsize=(20, 10))
+        plt.bar(X_axis - 0.2, preds, width=0.4, label='Predictions', color='blue')
+        plt.bar(X_axis + 0.2, diff, width=0.4, label='Incorrect predictions', color='red')
+        plt.xlabel('MNIST Digit')
+        plt.ylabel('Number of examples')
+        plt.title('Classifier predictions and number of incorrect predictions')
+        plt.legend()
+        plt.savefig(f'{os.path.splitext(results_file_path)[0]}_predictions.png')
     return
 
 
@@ -410,7 +438,7 @@ def train_model(arguments, results_file_path, device):
     print(f'Total runtime: {total_end - total_start} sec')
     with open(results_file_path, 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_final_results(arguments, results_file_path, loss_list_dict)
+    save_train_results(arguments, results_file_path, loss_list_dict)
     if arguments.model_out != 'none':
         torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
     else:
@@ -484,6 +512,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
 
     dataset = dataset_setup(arguments, results_file_path, model, device, get_labels=True)
 
+    preds = [0.] * dataset['label'].size(dim=-1)
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(arguments.epochs):
@@ -526,6 +555,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
             loss_dict['Accuracy'] += accuracy
             epoch_preds = [sum(x) for x in zip(epoch_preds, num_preds)]
 
+        preds += epoch_preds
         loss_dict['NLL loss'] = loss_dict['NLL loss'] / batch_number
         loss_dict['Accuracy'] = loss_dict['Accuracy'] / batch_number
         loss_list_dict['NLL loss'][epoch] = loss_dict['NLL loss']
@@ -551,10 +581,12 @@ def train_downstream_classifier(arguments, results_file_path, device):
 
     tracemalloc.stop()
     total_end = time.time()
+    preds = [epoch_pred / arguments.epochs for epoch_pred in epoch_preds]
     print(f'Total runtime: {total_end - total_start} sec')
     with open(results_file_path, 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_final_results(arguments, results_file_path, loss_list_dict)
+    save_train_results(arguments, results_file_path, loss_list_dict)
+    save_preds(results_file_path, preds, dataset['label'])
     if arguments.model_out != 'none':
         torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
     else:
@@ -616,6 +648,7 @@ def test_model(arguments, results_file_path, device):
         _, loss_dict = model.loss(dataset, x_hat)
     test_end = time.time()
 
+    save_test_results(results_file_path, loss_dict)
     print(f'Runtime: {test_end - test_start} sec')
     with open(results_file_path, 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
@@ -654,6 +687,8 @@ def test_downstream_classifier(arguments, results_file_path, device):
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
 
+    loss_dict = {'NLL loss': 0., 'Accuracy': 0.}
+
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
         model.set_modalities(exclude_modality)
@@ -684,22 +719,17 @@ def test_downstream_classifier(arguments, results_file_path, device):
     labels = dataset['label']
 
     test_start = time.time()
-    classification, repr, _ = clf(features)
-    if clf.model.name == 'GMC':
-        loss_dict = clf.model.validation_step(features, {"temperature": arguments.infonce_temperature}, labels.size(dim=0))
-    else:
-        _, loss_dict = clf.model.loss(features, repr)
-    clf_loss, accuracy, num_preds = clf.loss(classification, labels)
+    classification, _, _ = clf(features)
+    clf_loss, accuracy, preds = clf.loss(classification, labels)
     test_end = time.time()
-
 
     loss_dict['NLL loss'] = clf_loss
     loss_dict['Accuracy'] = accuracy
+    save_test_results(results_file_path, loss_dict)
+    save_preds(results_file_path, preds, labels)
     print(f'Runtime: {test_end - test_start} sec')
-    print(f'Prediction count: {num_preds}')
     with open(results_file_path, 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
-        file.write(f'- Prediction count: {num_preds}\n')
     save_results(results_file_path, device, loss_dict)
     tracemalloc.stop()
     if device.type == 'cuda':
