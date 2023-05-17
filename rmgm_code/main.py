@@ -306,7 +306,7 @@ def save_train_results(arguments, results_file_path, loss_list_dict):
     return
 
 
-def save_test_results(results_file_path, loss_dict):
+def save_final_metrics(results_file_path, loss_dict):
     plt.figure(figsize=(20, 10))
     plt.bar(list(loss_dict.keys()), [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_dict.values())], width=0.5, color='purple')
     plt.xlabel('Metrics')
@@ -378,7 +378,6 @@ def train_model(arguments, results_file_path, device):
     checkpoint_counter = arguments.checkpoint 
 
     dataset = dataset_setup(arguments, results_file_path, model, device)
-
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(arguments.epochs):
@@ -439,6 +438,7 @@ def train_model(arguments, results_file_path, device):
     with open(results_file_path, 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
     save_train_results(arguments, results_file_path, loss_list_dict)
+    save_final_metrics(results_file_path, loss_dict)
     if arguments.model_out != 'none':
         torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
     else:
@@ -586,6 +586,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
     with open(results_file_path, 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
     save_train_results(arguments, results_file_path, loss_list_dict)
+    save_final_metrics(results_file_path, loss_dict)
     save_preds(results_file_path, preds, dataset['label'])
     if arguments.model_out != 'none':
         torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
@@ -648,7 +649,7 @@ def test_model(arguments, results_file_path, device):
         _, loss_dict = model.loss(dataset, x_hat)
     test_end = time.time()
 
-    save_test_results(results_file_path, loss_dict)
+    save_final_metrics(results_file_path, loss_dict)
     print(f'Runtime: {test_end - test_start} sec')
     with open(results_file_path, 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
@@ -725,7 +726,7 @@ def test_downstream_classifier(arguments, results_file_path, device):
 
     loss_dict['NLL loss'] = clf_loss
     loss_dict['Accuracy'] = accuracy
-    save_test_results(results_file_path, loss_dict)
+    save_final_metrics(results_file_path, loss_dict)
     save_preds(results_file_path, preds, labels)
     print(f'Runtime: {test_end - test_start} sec')
     with open(results_file_path, 'a') as file:
