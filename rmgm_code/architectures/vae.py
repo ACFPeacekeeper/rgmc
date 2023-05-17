@@ -65,7 +65,7 @@ class VAE(nn.Module):
         z = torch.add(mean, torch.mul(std, eps))
         tmp = self.decoder(z)
         
-        self.kld += - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) / data_list[0].size(dim=0)
+        self.kld = - self.scales['kld beta'] * (torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) / data_list[0].size(dim=0))
 
         x_hat = dict.fromkeys(x.keys())
         for id, key in enumerate(x_hat.keys()):
