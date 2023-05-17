@@ -26,15 +26,7 @@ class VAE(nn.Module):
         self.mean = mean
         self.std = std
         self.kld = 0.
-        if test:
-            self.kld_scale = self.scales['kld beta'][1]
-        else:
-            self.kld_scale = self.scales['kld beta'][0]
-        self.kld_max = self.scales['kld beta'][1]
         self.exclude_modality = exclude_modality
-
-    def update_kld_scale(self, kld_weight):
-        self.kld_scale = min(kld_weight * self.kld_max, self.kld_max)
 
     def set_modalities(self, exclude_modality):
         if exclude_modality == 'image':
@@ -73,7 +65,7 @@ class VAE(nn.Module):
         z = torch.add(mean, torch.mul(std, eps))
         tmp = self.decoder(z)
         
-        self.kld += - self.kld_scale * torch.sum(1 + logvar - mean.pow(2) - std.pow(2))
+        self.kld += - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2))
 
         x_hat = dict.fromkeys(x.keys())
         for id, key in enumerate(x_hat.keys()):
@@ -90,20 +82,15 @@ class VAE(nn.Module):
 
         for key in x.keys():
             recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key])
-
-        recon_loss = 0
-        for value in recon_losses.values():
-            recon_loss += value
         
-        self.kld = self.kld / len(list(x.values())[0])
-        elbo = self.kld + recon_loss
+        elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        if recon_losses.get('trajectory') is None:
+        if self.exclude_modality == 'trajectory':
             recon_losses['trajectory'] = 0.
-        elif recon_losses.get('image') is None:
+        elif self.exclude_modality == 'image':
             recon_losses['image'] = 0.
 
-        loss_dict = Counter({'Total loss': elbo, 'KLD': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
+        loss_dict = Counter({'ELBO loss': elbo, 'KLD loss': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
         

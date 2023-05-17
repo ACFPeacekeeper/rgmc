@@ -15,6 +15,7 @@ class MVAE(nn.Module):
         self.scales = scales
         self.exclude_modality = exclude_modality
         self.latent_dim = latent_dim
+        self.kld = 0.
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.image_encoder = None
         self.image_decoder = None
@@ -39,16 +40,6 @@ class MVAE(nn.Module):
             self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
             self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
 
-        self.kld = 0.
-        self.kld_max = self.scales['kld beta'][1]
-        if test:
-            self.kld_scale = self.scales['kld beta'][1]
-        else:
-            self.kld_scale = self.scales['kld beta'][0]
-
-
-    def update_kld_scale(self, kld_weight):
-        self.kld_scale = min(kld_weight * self.kld_max, self.kld_max)
 
     def set_modalities(self, exclude_modality):
         if self.exclude_modality == 'image':
@@ -89,7 +80,7 @@ class MVAE(nn.Module):
 
         z = torch.add(mean, torch.mul(std, eps))
 
-        self.kld += - self.kld_scale * torch.sum(1 + logvar - mean.pow(2) - std.pow(2))
+        self.kld += - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2))
 
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():
@@ -104,19 +95,16 @@ class MVAE(nn.Module):
         for key in x.keys():
             recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key])
 
-        recon_loss = 0
-        for value in recon_losses.values():
-            recon_loss += value
+        elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        self.kld = self.kld / len(list(x.values())[0])
-        elbo = self.kld + recon_loss
-
-        if recon_losses.get('trajectory') is None:
+        if self.exclude_modality == 'trajectory':
             recon_losses['trajectory'] = 0.
-        elif recon_losses.get('image') is None:
+        elif self.exclude_modality == 'image':
             recon_losses['image'] = 0.
 
-        loss_dict = Counter({'Total loss': elbo, 'KLD': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
+        print(self.exclude_modality)
+
+        loss_dict = Counter({'ELBO loss': elbo, 'KLD loss': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
             

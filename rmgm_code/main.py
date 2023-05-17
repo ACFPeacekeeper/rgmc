@@ -44,7 +44,7 @@ def process_arguments():
     parser.add_argument('--infonce_temperature', '--infonce_temp', type=float, default=0.2, help='Temperature for the infonce loss.')
     parser.add_argument('--image_scale', type=float, default=1., help='Weight for the image reconstruction loss.')
     parser.add_argument('--traj_scale', type=float, default=1., help='Weight for the trajectory reconstruction loss.')
-    parser.add_argument('--kld_betas', nargs=2, type=float, default=[0., 1.], help='Min and max beta values for KL divergence.')
+    parser.add_argument('--kld_beta', type=float, default=0.5, help='Beta value for KL divergence.')
     parser.add_argument('--experts_type', type=str, default='poe', choices=['poe', 'moe'], help='Type of experts to use in the fusion of the modalities for the MVAE.')
     parser.add_argument('--rep_mean', type=float, default=0., help='Mean value for the reparameterization trick for the VAE and MVAE.')
     parser.add_argument('--rep_std', type=float, default=1., help='Standard deviation value for the reparameterization trick for the VAE and MVAE.')
@@ -152,12 +152,8 @@ def process_arguments():
             file.write(f'Trajectory loss recon scale: {args.traj_scale}\n')
             print(f'Trajectory loss recon scale: {args.traj_scale}')
         if args.model_type == 'VAE' or args.model_type == 'MVAE':
-            if args.stage == 'train_model':
-                file.write(f'KLD beta loss scale: {args.kld_betas}\n')
-                print(f'KLD beta loss scale: {args.kld_betas}')
-            else:
-                file.write(f'KLD beta loss scale: {args.kld_betas[1]}\n')
-                print(f'KLD beta loss scale: {args.kld_betas[1]}')
+            file.write(f'KLD beta loss scale: {args.kld_beta}\n')
+            print(f'KLD beta loss scale: {args.kld_beta}')
         if args.model_type == 'GMC':
             file.write(f'InfoNCE temperature loss scale: {args.infonce_temperature}\n')
             print(f'InfoNCE temperature loss scale: {args.infonce_temperature}')
@@ -229,9 +225,6 @@ def dataset_setup(arguments, results_file_path, model, device, get_labels=False)
     else:
         dataset = {'image': dataloader[1].to(device), 'trajectory': dataloader[2].to(device)}
 
-    if get_labels:
-        dataset['label'] = dataloader[0].to(device)
-
     print(f'Noise: {arguments.noise}')
     with open(results_file_path, 'a') as file:
         file.write(f'Noise: {arguments.noise}\n')
@@ -262,6 +255,9 @@ def dataset_setup(arguments, results_file_path, model, device, get_labels=False)
         print(f'Target modality: {arguments.target_modality}')
         with open(results_file_path, 'a') as file:
             file.write(f'Target modality: {arguments.target_modality}\n')
+
+    if get_labels:
+        dataset['label'] = dataloader[0].to(device)
 
     return dataset
 
@@ -312,9 +308,9 @@ def save_final_results(arguments, results_file_path, loss_list_dict):
 
 def train_model(arguments, results_file_path, device):
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+        loss_list_dict = {'ELBO loss': np.zeros(arguments.epochs), 'KLD loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales)
@@ -323,9 +319,9 @@ def train_model(arguments, results_file_path, device):
         model = gmc.MhdGMC(arguments.model_type, arguments.exclude_modality, arguments.latent_dim)
         loss_list_dict = {'InfoNCE': np.zeros(arguments.epochs)}
     elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'KLD': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
+        loss_list_dict = {'ELBO loss': np.zeros(arguments.epochs), 'KLD loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
 
     model.to(device)
 
@@ -384,14 +380,10 @@ def train_model(arguments, results_file_path, device):
                 x_hat, _ = model(batch)    
                 loss, batch_loss_dict = model.loss(batch, x_hat)
                 loss_dict = loss_dict + batch_loss_dict
-            
+
             loss.backward()
             if arguments.optimizer != 'none':
                 optimizer.step()
-
-            if model.name == 'VAE' or model.name == 'MVAE':
-                kld_weight = 2 * batch_idx / batch_number
-                model.update_kld_scale(kld_weight)
         
         for key, value in loss_dict.items():
             loss_dict[key] = value / batch_number
@@ -434,14 +426,14 @@ def train_downstream_classifier(arguments, results_file_path, device):
             lines = file.readlines()
             exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
         
-        print(f'Loaded model training configuration from: {arguments.train_results}')
+        print(f'Loaded model training configuration from: results/train_model/{arguments.train_results}')
         with open(results_file_path, 'a') as file:
-            file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
+            file.write(f'Loaded model training configuration from: results/train_model/{arguments.train_results}\n')
     else:
         exclude_modality = arguments.exclude_modality
 
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
@@ -449,10 +441,10 @@ def train_downstream_classifier(arguments, results_file_path, device):
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
     elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
 
-    loss_list_dict = {'Loss': np.zeros(arguments.epochs)}
+    loss_list_dict = {'NLL loss': np.zeros(arguments.epochs), 'Accuracy': np.zeros(arguments.epochs)}
 
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
@@ -508,6 +500,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
 
         epoch_start = time.time()
 
+        epoch_preds = [0]*dataset['label'].size(dim=-1)
         for batch_idx in tqdm(range(batch_number)):
             # Adjust batch size if its the last batch
             batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size if batch_idx*arguments.batch_size+arguments.batch_size < len(list(dataset.values())[0]) else len(list(dataset.values())[0])
@@ -523,21 +516,27 @@ def train_downstream_classifier(arguments, results_file_path, device):
                 optimizer.zero_grad()
 
             classification, _, _ = clf(batch)
-            loss = clf.loss(classification, batch_labels)
+            loss, accuracy, num_preds = clf.loss(classification, batch_labels)
 
             loss.backward()
             if arguments.optimizer != 'none':
                 optimizer.step()
 
-            loss_dict['Loss'] += loss
+            loss_dict['NLL loss'] += loss
+            loss_dict['Accuracy'] += accuracy
+            epoch_preds = [sum(x) for x in zip(epoch_preds, num_preds)]
 
-        loss_dict['Loss'] = loss_dict['Loss'] / batch_number
-        loss_list_dict['Loss'][epoch] = loss_dict['Loss']
+        loss_dict['NLL loss'] = loss_dict['NLL loss'] / batch_number
+        loss_dict['Accuracy'] = loss_dict['Accuracy'] / batch_number
+        loss_list_dict['NLL loss'][epoch] = loss_dict['NLL loss']
+        loss_list_dict['Accuracy'][epoch] = loss_dict['Accuracy']
 
         epoch_end = time.time()
         print(f'Runtime: {epoch_end - epoch_start} sec')
+        print(f'Prediction count: {epoch_preds}')
         with open(results_file_path, 'a') as file:
             file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
+            file.write(f'- Prediction count: {epoch_preds}\n')
         save_results(results_file_path, device, loss_dict)
 
         checkpoint_counter -= 1
@@ -571,16 +570,16 @@ def test_model(arguments, results_file_path, device):
             lines = file.readlines()
             exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
         
-        print(f'Loaded model training configuration from: {arguments.train_results}')
+        print(f'Loaded model training configuration from: results/train_model/{arguments.train_results}')
         with open(results_file_path, 'a') as file:
-            file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
+            file.write(f'Loaded model training configuration from: results/train_model/{arguments.train_results}\n')
     else:
         exclude_modality = arguments.exclude_modality
 
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
-        loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
+        loss_dict = {'ELBO loss': 0., 'KLD loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
         model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
@@ -588,9 +587,9 @@ def test_model(arguments, results_file_path, device):
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
     elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
-        loss_dict = {'Total loss': 0., 'KLD': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
+        loss_dict = {'ELBO loss': 0., 'KLD loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
 
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
@@ -632,20 +631,19 @@ def test_downstream_classifier(arguments, results_file_path, device):
         with open(results_path, 'r+') as f:
             lines = f.readlines()
             train_model_file = [line for line in lines if "Loaded model training configuration from" in line][0].split(':')[1].strip()
-            with open(os.path.join(m_path, "results", "train_model", train_model_file)) as file:
+            with open(os.path.join(m_path, train_model_file)) as file:
                 file_lines = file.readlines()
                 exclude_modality = [line for line in file_lines if "Exclude modality" in line][0].split(':')[1].strip()
 
-            clf_exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
-        
-        print(f'Loaded classifier training configuration from: {arguments.train_results}')
-        with open(results_file_path, 'a') as file:
-            file.write(f'Loaded classifier training configuration from: {arguments.train_results}\n')
+            print(f'Loaded model training configuration from: {train_model_file}')
+            f.write(f'Loaded model training configuration from: {train_model_file}\n')
+            print(f'Loaded classifier training configuration from: results/train_classifier/{arguments.train_results}')
+            f.write(f'Loaded classifier training configuration from: results/train_classifier/{arguments.train_results}\n')
     else:
         exclude_modality = arguments.exclude_modality
 
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
@@ -653,12 +651,12 @@ def test_downstream_classifier(arguments, results_file_path, device):
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
     elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
+        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
 
     model.load_state_dict(torch.load(arguments.path_model))
     if arguments.train_results != 'none':
-        model.set_modalities(clf_exclude_modality)
+        model.set_modalities(exclude_modality)
     for param in model.parameters():
         param.requires_grad = False
 
@@ -668,8 +666,7 @@ def test_downstream_classifier(arguments, results_file_path, device):
     clf_path = os.path.join("saved_models", "clf_" + os.path.basename(arguments.path_model))
     clf.load_state_dict(torch.load(clf_path))
 
-    if arguments.train_results != 'none':
-        clf.model.set_modalities(arguments.exclude_modality)
+    clf.model.set_modalities(arguments.exclude_modality)
     for param in clf.parameters():
         param.requires_grad = False
 
@@ -692,14 +689,17 @@ def test_downstream_classifier(arguments, results_file_path, device):
         loss_dict = clf.model.validation_step(features, {"temperature": arguments.infonce_temperature}, labels.size(dim=0))
     else:
         _, loss_dict = clf.model.loss(features, repr)
-    clf_loss = clf.loss(classification, labels)
+    clf_loss, accuracy, num_preds = clf.loss(classification, labels)
     test_end = time.time()
 
 
-    loss_dict['Classifier loss'] = clf_loss
+    loss_dict['NLL loss'] = clf_loss
+    loss_dict['Accuracy'] = accuracy
     print(f'Runtime: {test_end - test_start} sec')
+    print(f'Prediction count: {num_preds}')
     with open(results_file_path, 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
+        file.write(f'- Prediction count: {num_preds}\n')
     save_results(results_file_path, device, loss_dict)
     tracemalloc.stop()
     if device.type == 'cuda':
@@ -719,7 +719,7 @@ def inference(arguments, results_file_path, device):
         exclude_modality = arguments.exclude_modality
 
     if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
     elif arguments.model_type == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
@@ -727,7 +727,7 @@ def inference(arguments, results_file_path, device):
     elif arguments.model_type == 'GMC':
         model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
     elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_betas}
+        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
         model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type)
 
     model.load_state_dict(torch.load(arguments.path_model))

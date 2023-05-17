@@ -44,7 +44,7 @@ class DAE(nn.Module):
     def add_noise(self, x):
         x_noisy = dict.fromkeys(x.keys())
         for key, modality in x.items():
-            x_noisy[key] = torch.clip(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), 0., 1.)
+            x_noisy[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
         return x_noisy
 
     def forward(self, x):

@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from torch.nn import functional as F
 
@@ -25,10 +26,14 @@ class MNISTClassifier(nn.Module):
     
     def loss(self, y_preds, labels):
         batch_size = labels.size()[0]
-        loss = 0.
+        num_preds = [0] * 10
+        loss_function = nn.CrossEntropyLoss()
+        loss = loss_function(y_preds, labels)
+        accuracy = 0.
         for pred, label in zip(y_preds, labels):
-            one_hot_label = F.one_hot(label, num_classes=pred.size(dim=-1))
-            loss += F.nll_loss(pred, one_hot_label)
+            num_pred = torch.argmax(torch.exp(pred))
+            accuracy += int(num_pred == label)
+            num_preds[num_pred] += 1
 
-        loss /= batch_size
-        return loss
+        accuracy = 100 * accuracy / batch_size
+        return loss, accuracy, num_preds
