@@ -36,7 +36,7 @@ def process_arguments():
     parser.add_argument('-e', '--epochs', type=int, default=50, help='Number of epochs to train the model.')
     parser.add_argument('-c', '--checkpoint', type=int, default=50, help='Epoch interval between checkpoints of the model in training.')
     parser.add_argument('-b', '--batch_size', type=int, default=32, help='Number of samples processed for each model update.')
-    parser.add_argument('-l', '--latent_dim', type=int, default=128, help='Dimension of the latent space of the models encodings.')
+    parser.add_argument('-l', '--latent_dim', '--latent_dimension', type=int, default=128, help='Dimension of the latent space of the models encodings.')
     parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
     parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
     parser.add_argument('-t', '--target_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Modality to target with noisy and/or adversarial samples.')
@@ -355,6 +355,7 @@ def train_model(arguments, results_file_path, device):
 
     dataset = dataset_setup(arguments, results_file_path, model, device)
 
+    total_start = time.time()
     tracemalloc.start()
     for epoch in range(arguments.epochs):
         print(f'Epoch {epoch}')
@@ -413,6 +414,10 @@ def train_model(arguments, results_file_path, device):
         tracemalloc.reset_peak()
 
     tracemalloc.stop()
+    total_end = time.time()
+    print(f'Total runtime: {total_end - total_start} sec')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Total runtime: {total_end - total_start} sec\n')
     save_final_results(arguments, results_file_path, loss_list_dict)
     if arguments.model_out != 'none':
         torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
@@ -487,6 +492,7 @@ def train_downstream_classifier(arguments, results_file_path, device):
 
     dataset = dataset_setup(arguments, results_file_path, model, device, get_labels=True)
 
+    total_start = time.time()
     tracemalloc.start()
     for epoch in range(arguments.epochs):
         print(f'Epoch {epoch}')
@@ -545,6 +551,10 @@ def train_downstream_classifier(arguments, results_file_path, device):
         tracemalloc.reset_peak()
 
     tracemalloc.stop()
+    total_end = time.time()
+    print(f'Total runtime: {total_end - total_start} sec')
+    with open(results_file_path, 'a') as file:
+        file.write(f'Total runtime: {total_end - total_start} sec\n')
     save_final_results(arguments, results_file_path, loss_list_dict)
     if arguments.model_out != 'none':
         torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
