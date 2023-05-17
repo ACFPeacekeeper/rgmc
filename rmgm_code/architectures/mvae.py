@@ -80,7 +80,7 @@ class MVAE(nn.Module):
 
         z = torch.add(mean, torch.mul(std, eps))
 
-        self.kld += - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2))
+        self.kld += - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) / batch_size
 
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():
