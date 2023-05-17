@@ -102,8 +102,6 @@ class MVAE(nn.Module):
         elif self.exclude_modality == 'image':
             recon_losses['image'] = 0.
 
-        print(self.exclude_modality)
-
         loss_dict = Counter({'ELBO loss': elbo, 'KLD loss': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
