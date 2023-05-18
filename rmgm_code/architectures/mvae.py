@@ -23,40 +23,40 @@ class MVAE(nn.Module):
         self.trajectory_decoder = None
 
         if self.exclude_modality == 'image':
-            self.trajectory_encoder = TrajectoryEncoder(latent_dim, 200)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dim, 200)
+            self.trajectory_encoder = TrajectoryEncoder(latent_dim)
+            self.trajectory_decoder = TrajectoryDecoder(latent_dim)
             self.encoders = {'trajectory': self.trajectory_encoder}
             self.decoders = {'trajectory': self.trajectory_decoder}
         elif self.exclude_modality == 'trajectory':
-            self.image_encoder = ImageEncoder(latent_dim, 28 * 28)
-            self.image_decoder = ImageDecoder(latent_dim, 28 * 28)
+            self.image_encoder = ImageEncoder(latent_dim)
+            self.image_decoder = ImageDecoder(latent_dim)
             self.encoders = {'image': self.image_encoder}
             self.decoders = {'image': self.image_decoder}
         else:
-            self.trajectory_encoder = TrajectoryEncoder(latent_dim, 200)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dim, 200)
-            self.image_encoder = ImageEncoder(latent_dim, 28 * 28)
-            self.image_decoder = ImageDecoder(latent_dim, 28 * 28)
+            self.trajectory_encoder = TrajectoryEncoder(latent_dim)
+            self.trajectory_decoder = TrajectoryDecoder(latent_dim)
+            self.image_encoder = ImageEncoder(latent_dim)
+            self.image_decoder = ImageDecoder(latent_dim)
             self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
             self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
 
 
     def set_modalities(self, exclude_modality):
         if self.exclude_modality == 'image':
-            self.trajectory_encoder = TrajectoryEncoder(self.latent_dim, 200)
-            self.trajectory_decoder = TrajectoryDecoder(self.latent_dim, 200)
+            self.trajectory_encoder = TrajectoryEncoder(self.latent_dim)
+            self.trajectory_decoder = TrajectoryDecoder(self.latent_dim)
             self.encoders = {'trajectory': self.trajectory_encoder}
             self.decoders = {'trajectory': self.trajectory_decoder}
         elif self.exclude_modality == 'trajectory':
-            self.image_encoder = ImageEncoder(self.latent_dim, 28 * 28)
-            self.image_decoder = ImageDecoder(self.latent_dim, 28 * 28)
+            self.image_encoder = ImageEncoder(self.latent_dim)
+            self.image_decoder = ImageDecoder(self.latent_dim)
             self.encoders = {'image': self.image_encoder}
             self.decoders = {'image': self.image_decoder}
         else:
-            self.trajectory_encoder = TrajectoryEncoder(self.latent_dim, 200)
-            self.trajectory_decoder = TrajectoryDecoder(self.latent_dim, 200)
-            self.image_encoder = ImageEncoder(self.latent_dim, 28 * 28)
-            self.image_decoder = ImageDecoder(self.latent_dim, 28 * 28)
+            self.trajectory_encoder = TrajectoryEncoder(self.latent_dim)
+            self.trajectory_decoder = TrajectoryDecoder(self.latent_dim)
+            self.image_encoder = ImageEncoder(self.latent_dim)
+            self.image_decoder = ImageDecoder(self.latent_dim)
             self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
             self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
 
