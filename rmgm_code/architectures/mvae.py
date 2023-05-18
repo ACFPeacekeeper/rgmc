@@ -1,9 +1,8 @@
 import torch
-import torch.nn as nn
 
 from collections import Counter
 from torch.autograd import Variable
-from architectures.mvae_networks import ImageEncoder, ImageDecoder, TrajectoryEncoder, TrajectoryDecoder
+from architectures.mvae_networks import *
 
 class MVAE(nn.Module):
     def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, expert_type, test=False):

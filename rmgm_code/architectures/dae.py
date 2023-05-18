@@ -1,8 +1,7 @@
 import torch
-import torch.nn as nn
 
 from collections import Counter
-from architectures.dae_networks import Encoder, Decoder
+from architectures.dae_networks import *
 
 class DAE(nn.Module):
     def __init__(self, name, latent_dim, device, exclude_modality, scales, noise_factor=0.3, test=False):

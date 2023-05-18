@@ -1,8 +1,7 @@
 import torch
-import torch.nn as nn
 
 from collections import Counter
-from architectures.vae_networks import Encoder, Decoder
+from architectures.vae_networks import *
 
 class VAE(nn.Module):
     def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, test=False):
