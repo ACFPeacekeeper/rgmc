@@ -4,7 +4,7 @@ from collections import Counter
 from architectures.dae_networks import *
 
 class DAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, noise_factor=0.3, test=False):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, noise_factor=0.3):
         super(DAE, self).__init__()
         self.name = name
         if exclude_modality == 'image':
@@ -22,7 +22,6 @@ class DAE(nn.Module):
 
         self.device = device
         self.scales = scales
-        self.test = test
         self.noise_factor = noise_factor
 
     def set_modalities(self, exclude_modality):
@@ -46,8 +45,8 @@ class DAE(nn.Module):
             x_noisy[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
         return x_noisy
 
-    def forward(self, x):
-        if not self.test:
+    def forward(self, x, sample=False):
+        if sample is False:
             x = self.add_noise(x)
 
         data_list = list(x.values())

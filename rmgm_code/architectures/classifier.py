@@ -10,12 +10,12 @@ class MNISTClassifier(nn.Module):
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 10)
 
-    def forward(self, x):
+    def forward(self, x, sample=True):
         if self.model.name == 'GMC':
             encoding = self.model.encode(x)
             repr = encoding.detach().clone()
         else:
-            repr, encoding = self.model(x)
+            repr, encoding = self.model(x, sample)
         encoding = self.fc1(encoding)
         encoding = F.relu(encoding)
         encoding = self.fc2(encoding)
@@ -35,5 +35,5 @@ class MNISTClassifier(nn.Module):
             accuracy += int(num_pred == label)
             num_preds[num_pred] += 1
 
-        accuracy = 100 * accuracy / batch_size
+        accuracy = accuracy / batch_size
         return loss, accuracy, num_preds
