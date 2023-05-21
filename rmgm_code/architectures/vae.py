@@ -64,7 +64,7 @@ class VAE(nn.Module):
         std = torch.exp(torch.mul(logvar, 0.5))
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dim / self.layer_dim)#* (data_list[0].size(dim=0) / self.dataset_len)
+            self.kld = - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) / self.dataset_len
         else:
             z = mean
         
@@ -79,11 +79,11 @@ class VAE(nn.Module):
     
     
     def loss(self, x, x_hat):
-        loss_function = nn.MSELoss(reduction='mean').to(self.device)
+        loss_function = nn.MSELoss(reduction='sum').to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key]) #* (x[key].size(dim=0) / self.dataset_len)
+            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key]) / self.dataset_len
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
