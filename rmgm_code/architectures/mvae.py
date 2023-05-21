@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from architectures.mvae_networks import *
 
 class MVAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, expert_type, test=False):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, expert_type, dataset_len):
         super(MVAE, self).__init__()
         self.name = name
         self.device = device
@@ -15,6 +15,7 @@ class MVAE(nn.Module):
         self.exclude_modality = exclude_modality
         self.latent_dim = latent_dim
         self.kld = 0.
+        self.dataset_len = dataset_len
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.image_encoder = None
         self.image_decoder = None
@@ -61,7 +62,13 @@ class MVAE(nn.Module):
 
         self.exclude_modality = exclude_modality
 
-    def forward(self, x):
+    def reparameterization(self, mean, std):
+        dist = torch.distributions.Normal(self.mean, self.std)
+        eps = dist.sample(std.shape).to(self.device)
+        z = torch.add(mean, torch.mul(std, eps))
+        return z
+
+    def forward(self, x, sample=False):
         batch_size = list(x.values())[0].size(dim=0)
         mean, logvar = self.experts.prior_expert((1, batch_size, self.latent_dim), self.device)
 
@@ -71,15 +78,13 @@ class MVAE(nn.Module):
             logvar = torch.cat((logvar, tmp_logvar.unsqueeze(0)), dim=0)
 
         mean, logvar = self.experts(mean, logvar)
-
-        # Reparameterization trick
         std = torch.exp(torch.mul(logvar, 0.5))
-        dist = torch.distributions.Normal(self.mean, self.std)
-        eps = dist.sample(mean.shape).to(self.device)
 
-        z = torch.add(mean, torch.mul(std, eps))
-
-        self.kld = - self.scales['kld beta'] * (torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) / batch_size)
+        if sample is False:
+            z = self.reparameterization(mean, std)
+            self.kld = - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (batch_size / self.dataset_len)
+        else:
+            z = mean
 
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():
@@ -88,12 +93,12 @@ class MVAE(nn.Module):
         return x_hat, z
     
     def loss(self, x, x_hat):
-        loss_function = nn.MSELoss().to(self.device)
+        loss_function = nn.MSELoss(reduction='sum').to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key])
-
+            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key]) * (x[key].size(dim=0) / self.dataset_len)
+        
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
         if self.exclude_modality == 'trajectory':

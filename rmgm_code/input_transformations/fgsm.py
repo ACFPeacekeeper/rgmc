@@ -11,22 +11,28 @@ class FGSM(AdversarialAttack):
         self.device = device
         self.target_modality = target_modality
 
-    def example_generation(self, x, targets):
+    def __call__(self, x, y=None):
         loss = nn.MSELoss().to(self.device)
 
-        x[self.target_modality].requires_grad = True
+        for key in x.keys():
+            x[key].requires_grad = True
             
-        x_adv = torch.empty(targets.size())
+        x_adv = torch.empty(x[self.target_modality].size())
         print("Generating adversarial examples...")
-        x_hat, _ = self.model(x)
+        if y is not None:
+            y.requires_grad = True
+            classification, _, _ = self.model(x)
+            cost = loss(classification, y)
+        else:
+            x_hat, _ = self.model(x)
+            cost = loss(x_hat[self.target_modality], x[self.target_modality])
 
-        cost = loss(x_hat[self.target_modality], targets)
         
         grad = torch.autograd.grad(cost, x[self.target_modality], retain_graph=False, create_graph=False)[0]
 
         x_adv = torch.clamp(x[self.target_modality] + self.eps * grad.sign(), torch.min(x[self.target_modality]), torch.max(x[self.target_modality]))
-
-        return x_adv
+        x[self.target_modality] = x_adv
+        return x
     
     def __repr__(self):
         return self.__class__.__name__ + '(epsilon={0})'.format(self.eps)
