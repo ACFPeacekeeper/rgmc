@@ -404,6 +404,7 @@ rmgm_code/datasets/mosi/*.pt
 rmgm_code/datasets/mhd/*.pt
 rmgm_code/saved_models
 rmgm_code/checkpoints
+rmgm_code/*.pickle
 rmgm_code/configs
 rmgm_code/results
 rmgm_code/images
