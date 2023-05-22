@@ -1,9 +1,11 @@
 import time
 import traceback
 
-from utils import *
 from tqdm import tqdm
 from collections import Counter, defaultdict
+
+from rmgm_code.utils.logger import *
+from rmgm_code.utils.config_parser import *
 
 # Assign path to current directory
 m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
