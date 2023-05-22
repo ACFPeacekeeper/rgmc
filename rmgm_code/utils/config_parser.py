@@ -581,10 +581,15 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
 
         print(notes)
 
-    wandb.init(project="rmgm", 
+    run = wandb.init(project="rmgm", 
                name=config['model_out'],
                config={key: value for key, value in config.items() if value is not None}, 
-               notes=notes)
+               notes=notes,
+               allow_val_change=True,
+               magic=True,
+               mode="offline",
+               reinit=True,
+               tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)
 
-    return device, dataset, model, loss_list_dict, batch_number, optimizer
+    return device, dataset, model, loss_list_dict, batch_number, optimizer, run

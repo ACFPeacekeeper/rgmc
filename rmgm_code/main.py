@@ -22,12 +22,9 @@ def nan_hook(self, input, output):
 
     for i, out in enumerate(outputs):
         if isinstance(out, dict):
-            for value in list(out.values()):
-                nan_mask = torch.isnan(value)    
-                if nan_mask.any():
-                    print("In", self.__class__.__name__)
-                    raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
-        elif isinstance(out, list):
+            out = list(out.values())
+            
+        if isinstance(out, list):
             for value in out:
                 nan_mask = torch.isnan(value)    
                 if nan_mask.any():
@@ -43,6 +40,8 @@ def nan_hook(self, input, output):
 def train_model(config):
     device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config)
     checkpoint_counter = config['checkpoint'] 
+    for module in model.modules():
+        module.register_forward_hook(nan_hook)
 
     bt_loss = defaultdict(list)
     total_start = time.time()
@@ -118,6 +117,7 @@ def train_model(config):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
+    wandb.save()
     wandb.finish()
     return model
 
@@ -125,6 +125,8 @@ def train_model(config):
 def train_downstream_classifier(config):
     device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config, train=True, get_labels=True)
     checkpoint_counter = config['checkpoint'] 
+    for module in model.modules():
+        module.register_forward_hook(nan_hook)
 
     bt_loss = defaultdict(list)
     total_start = time.time()
@@ -205,6 +207,7 @@ def train_downstream_classifier(config):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     
+    wandb.save()
     wandb.finish()
     return model
 
@@ -235,6 +238,9 @@ def test_model(config):
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
+
+    wandb.save()
+    wandb.finish()
     return
 
 def test_downstream_classifier(config):
@@ -260,6 +266,7 @@ def test_downstream_classifier(config):
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
+    wandb.save()
     wandb.finish()
     return
 
@@ -290,6 +297,7 @@ def inference(config):
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
+    wandb.save()
     wandb.finish()
     return
 
@@ -332,7 +340,7 @@ def run_experiment(**kwargs):
             finally:
                 inference(config)
     except:
-        wandb.finish()
+        wandb.finish(exit_code=1)
         traceback.print_exception(*sys.exc_info())
         os.remove(os.path.join(m_path, "experiments_idx.pickle"))
         os.rename(os.path.join(m_path, "experiments_idx_copy.pickle"), os.path.join(m_path, "experiments_idx.pickle"))
