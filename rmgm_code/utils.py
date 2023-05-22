@@ -120,7 +120,9 @@ def process_arguments(m_path):
         if args['clear_wandb']:
             shutil.rmtree(os.path.join(m_path, "wandb"), ignore_errors=True)
         if args['clear_idx']:
-            os.remove(os.path.join(m_path, "experiments_idx.pickle"))
+            path = os.path.join(m_path, "experiments_idx.pickle")
+            if os.path.exists(path):
+                os.remove(path)
         if args['clear_configs']:
             for dir in os.listdir(os.path.join(m_path, "configs")):
                 if os.path.isdir(os.path.join(m_path, "configs", dir)):
@@ -569,6 +571,8 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
         termios.tcflush(sys.stdin, termios.TCIOFLUSH)
     else:
         notes = config["notes"]
+
+        print(notes)
 
     wandb.init(project="rmgm", 
                name=config['model_out'],

@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 # Assign path to current directory
 m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
-WAIT_TIME = 15 # Seconds to wait between sequential experiments
+WAIT_TIME = 5 # Seconds to wait between sequential experiments
 
 def nan_hook(self, input, output):
     if isinstance(output, dict):
@@ -32,7 +32,8 @@ def nan_hook(self, input, output):
                 print("In", self.__class__.__name__)
                 raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
-
+def zero_loss_hook(self, input, output):
+    raise NotImplementedError
 
 def train_model(config):
     device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config)
