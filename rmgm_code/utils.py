@@ -146,6 +146,8 @@ def setup_env(m_path, config):
     if os.path.isfile(experiments_idx_path):
         with open(experiments_idx_path, 'rb') as idx_pickle:
             idx_dict = pickle.load(idx_pickle)
+            with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
+                pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
             idx_dict[config['architecture']][config['dataset']] += 1
             exp_id = idx_dict[config['architecture']][config['dataset']]
         with open(os.path.join(m_path, "experiments_idx.pickle"), "wb") as idx_pickle:
@@ -157,6 +159,8 @@ def setup_env(m_path, config):
                 idx_dict[architecture] = {}
                 for dataset in DATASETS:
                     idx_dict[architecture][dataset] = 0
+            with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
+                pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
             idx_dict[config['architecture']][config['dataset']] = 1
             pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
             exp_id = 1
@@ -388,6 +392,10 @@ def config_validation(m_path, config):
         if config["optimizer"] is None:
             config["learning_rate"] = None
             config["momentum"] = None
+            config["adam_betas"] = None
+        elif config["optimizer"] != 'sgd':
+            config["momentum"] = None
+        elif config["optimizer"] != 'adam':
             config["adam_betas"] = None
 
     return config

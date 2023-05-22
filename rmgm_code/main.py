@@ -349,12 +349,8 @@ def run_experiment(**kwargs):
     except:
         wandb.finish()
         traceback.print_exception(*sys.exc_info())
-        with open(os.path.join(m_path, "experiments_idx.pickle"), 'rb') as idx_pickle:
-            idx_dict = pickle.load(idx_pickle)
-            idx_dict[config['architecture']][config['dataset']] -= 1
-        with open(os.path.join(m_path, "experiments_idx.pickle"), "wb") as idx_pickle:
-            pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
-            
+        os.remove(os.path.join(m_path, "experiments_idx.pickle"))
+        os.rename(os.path.join(m_path, "experiments_idx.pickle"), os.path.join(m_path, "experiments_idx_copy.pickle"))
         sys.exit(1)
 
 
@@ -365,6 +361,7 @@ def main():
     os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
     configs = process_arguments(m_path)
     call_with_configs(config_ls=configs)(run_experiment)()
+    os.remove(os.path.join(m_path, "experiments_idx_copy.pickle"))
         
 
 if __name__ == "__main__":
