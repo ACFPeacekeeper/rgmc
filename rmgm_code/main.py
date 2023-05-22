@@ -309,6 +309,7 @@ def call_with_configs(config_ls):
                 except ValueError as ve:
                     traceback.print_exception(*sys.exc_info())
                 finally:
+                    traceback.print_exception(*sys.exc_info())
                     print('Finishing up run...')
                     time.sleep(WAIT_TIME)
                     continue
