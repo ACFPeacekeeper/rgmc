@@ -329,8 +329,12 @@ def run_experiment(**kwargs):
         elif config['stage'] == 'test_classifier':
             test_downstream_classifier(config)
         elif config['stage'] == 'inference':
-            os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
-            inference(config)
+            try:
+                os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
+            except IOError as e:
+                print(e)
+            finally:
+                inference(config)
     except:
         wandb.finish()
         traceback.print_exception(*sys.exc_info())
@@ -345,13 +349,13 @@ def main():
         os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
     except IOError as e:
-        pass
-    
-    configs = process_arguments(m_path)
-    call_with_configs(config_ls=configs)(run_experiment)()
-    path_pickle_copy = os.path.join(m_path, "experiments_idx_copy.pickle")
-    if os.path.isfile(path_pickle_copy):
-        os.remove(path_pickle_copy)
+        print(e)
+    finally:
+        configs = process_arguments(m_path)
+        call_with_configs(config_ls=configs)(run_experiment)()
+        path_pickle_copy = os.path.join(m_path, "experiments_idx_copy.pickle")
+        if os.path.isfile(path_pickle_copy):
+            os.remove(path_pickle_copy)
         
 
 if __name__ == "__main__":

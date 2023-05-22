@@ -206,211 +206,211 @@ def config_validation(m_path, config):
         os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
         os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
     except IOError as e:
-        pass
+        print()
+    finally:
+        if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
+            if config['stage'] == 'train_model' and config['model_out'] is None:
+                raise argparse.ArgumentError('Argument error: the --model_out argument must be set when the --stage argument is ' + config['stage'] + '.')
+            if config['epochs'] < 1:
+                raise argparse.ArgumentError("Argument error: number of epochs must be a positive and non-zero integer.")
+            elif config['batch_size'] < 1:
+                raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
+            elif config['latent_dimension'] < 1:
+                raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
+            elif config['checkpoint'] < 0:
+                raise argparse.ArgumentError("Argument error: checkpoint value must be an integer greater than or equal to 0.")
+            elif config['checkpoint'] > config['epochs']:
+                raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
+    
+        if "seed" not in config:
+            config["seed"] = SEED
 
-    if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
-        if config['stage'] == 'train_model' and config['model_out'] is None:
-            raise argparse.ArgumentError('Argument error: the --model_out argument must be set when the --stage argument is ' + config['stage'] + '.')
-        if config['epochs'] < 1:
-            raise argparse.ArgumentError("Argument error: number of epochs must be a positive and non-zero integer.")
-        elif config['batch_size'] < 1:
-            raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
-        elif config['latent_dimension'] < 1:
-            raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
-        elif config['checkpoint'] < 0:
-            raise argparse.ArgumentError("Argument error: checkpoint value must be an integer greater than or equal to 0.")
-        elif config['checkpoint'] > config['epochs']:
-            raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
- 
-    if "seed" not in config:
-        config["seed"] = SEED
+        if "latent_dimension" not in config:
+            config['latent_dimension'] = LATENT_DIM_DEFAULT
 
-    if "latent_dimension" not in config:
-        config['latent_dimension'] = LATENT_DIM_DEFAULT
+        if "exclude_modality" not in config:
+            config["exclude_modality"] = None
 
-    if "exclude_modality" not in config:
-        config["exclude_modality"] = None
+        if "target_modality" not in config:
+            config['target_modality'] = None
 
-    if "target_modality" not in config:
-        config['target_modality'] = None
+        if config['exclude_modality'] is not None and config['target_modality'] is not None and config['exclude_modality'] == config['target_modality']:
+            raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
 
-    if config['exclude_modality'] is not None and config['target_modality'] is not None and config['exclude_modality'] == config['target_modality']:
-        raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
+        if config['stage'] == 'train_model':
+            if "load_config" in config and config["load_config"] is not None:
+                config["load_config"] = None
 
-    if config['stage'] == 'train_model':
-        if "load_config" in config and config["load_config"] is not None:
-            config["load_config"] = None
+        if "download" not in config:
+            config["download"] = False
 
-    if "download" not in config:
-        config["download"] = False
+        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'w') as file:
+            architecture = config['architecture']
+            seed = config['seed']
+            dataset = config['dataset']
+            stage = config['stage']
+            latent_dimension = config['latent_dimension']
+            exclude_modality = config['exclude_modality']
+            file.write(f'Model: {architecture}\n')
+            print(f'Model: {architecture}')
 
-    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'w') as file:
-        architecture = config['architecture']
-        seed = config['seed']
-        dataset = config['dataset']
-        stage = config['stage']
-        latent_dimension = config['latent_dimension']
-        exclude_modality = config['exclude_modality']
-        file.write(f'Model: {architecture}\n')
-        print(f'Model: {architecture}')
+            file.write(f'seed: {seed}\n')
+            print(f'seed: {seed}')
 
-        file.write(f'seed: {seed}\n')
-        print(f'seed: {seed}')
+            file.write(f'dataset: {dataset}\n')
+            print(f'dataset: {dataset}')
 
-        file.write(f'dataset: {dataset}\n')
-        print(f'dataset: {dataset}')
+            file.write(f'stage: {stage}\n')
+            print(f'stage: {stage}')
 
-        file.write(f'stage: {stage}\n')
-        print(f'stage: {stage}')
+            file.write(f'latent_dimension: {latent_dimension}\n')
+            print(f'latent_dimension: {latent_dimension}')
 
-        file.write(f'latent_dimension: {latent_dimension}\n')
-        print(f'latent_dimension: {latent_dimension}')
+            file.write(f'exclude_modality: {exclude_modality}\n')
+            print(f'exclude_modality: {exclude_modality}')
 
-        file.write(f'exclude_modality: {exclude_modality}\n')
-        print(f'exclude_modality: {exclude_modality}')
-
-        if stage == 'train_model' or stage == 'train_classifier':
-            if "epochs" not in config:
-                config['epochs'] = EPOCHS_DEFAULT
-            epochs = config['epochs']
-            file.write(f'epochs: {epochs}\n')
-            print(f'epochs: {epochs}')
-        else:
-            config['epochs'] = None
-
-        if architecture == 'mvae':
-            experts_fusion = config['experts_fusion'] 
-            file.write(f'experts_fusion: {experts_fusion}\n')
-            print(f'experts_fusion: {experts_fusion}')
-            if experts_fusion == 'poe':
-                if "poe_eps" not in config or config["poe_eps"] is None:
-                    config["poe_eps"] = POE_EPS_DEFAULT
-
-                poe_eps = config['poe_eps']
-                file.write(f'poe_eps: {poe_eps}\n')
-                print(f'poe_eps: {poe_eps}')
-        else:
-            config['experts_fusion'] = None
-            config['poe_eps'] = None
-
-        if architecture == 'vae' or architecture == 'mvae':
-            if "rep_trick_mean" not in config:
-                config['rep_trick_mean'] = REPARAMETERIZATION_MEAN_DEFAULT
-            if "rep_trick_std" not in config:
-                config['rep_trick_std'] = REPARAMETERIZATION_STD_DEFAULT
-
-            rep_trick_mean = config['rep_trick_mean']
-            rep_trick_std = config['rep_trick_std']
-            file.write(f'rep_trick_mean: {rep_trick_mean}\n')
-            print(f'rep_trick_mean: {rep_trick_mean}')
-            file.write(f'rep_trick_std: {rep_trick_std}\n')
-            print(f'rep_trick_std: {rep_trick_std}')
-        else:
-            config['rep_trick_mean'] = None
-            config['rep_trick_std'] = None
-
-        if "path_model" not in config:
-            config["path_model"] = None
-
-        if "path_model" not in config or config['path_model'] is not None:
-            path_model = config['path_model']
-            file.write(f'load_model_file: {path_model}\n')
-            print(f'load_model_file: {path_model}')
-            if stage == 'test_classifier':
-                if "path_classifier" not in config or config['path_classifier'] is None:
-                    config['path_classifier'] = os.path.join(os.path.dirname(config['path_model']), "clf_" + os.path.basename(config['path_model']))
-                
-                path_clf = config['path_classifier']
-                file.write(f'load_classifier_file: {path_clf}\n')
-                print(f'load_classifier_file: {path_clf}')
-
-        if "model_out" not in config:
-            config['model_out'] = None
-
-        if config['model_out'] is not None:
-            path = config['model_out']
-            if stage == 'train_model':
-                file.write(f'store_classifier_file: saved_models/{path}.pt\n')
-                print(f'store_model_file: saved_models/{path}.pt')
-            elif stage == 'train_classifier':
-                file.write(f'store_classifier_file: saved_models/{path}.pt\n')
-                print(f'store_classifier_file: saved_models/{path}.pt')
-
-
-        if stage == 'train_model' or stage == 'train_classifier' or stage == 'inference':
-            checkpoint = config['checkpoint']
-            file.write(f'checkpoint: {checkpoint}\n')
-            print(f'checkpoint: {checkpoint}')
-        
-
-        if exclude_modality == 'image':
-            config['image_recon_scale'] = 0.
-            if config['target_modality'] == 'image':
-                config['target_modality'] = None
-        elif exclude_modality == 'trajectory':
-            config['traj_recon_scale'] = 0.
-            if config['target_modality'] == 'trajectory':
-                config['target_modality'] = None
-
-        if architecture == 'vae' or architecture == 'dae' or architecture == 'mvae':
-            if "image_recon_scale" not in config:
-                config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
-            if "traj_recon_scale" not in config:
-                config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
-            img_scale = config['image_recon_scale']
-            traj_recon_scale = config['traj_recon_scale']
-            file.write(f'image_recon_scale: {img_scale}\n')
-            print(f'image_recon_scale: {img_scale}')
-            file.write(f'traj_recon_scale: {traj_recon_scale}\n')
-            print(f'traj_recon_scale: {traj_recon_scale}')
-            if architecture == 'vae' or architecture == 'mvae':
-                if "kld_beta" not in config:
-                    config['kld_beta'] = KLD_BETA_DEFAULT
-                kld_beta = config['kld_beta']
-                file.write(f'kld_beta: {kld_beta}\n')
-                print(f'kld_beta: {kld_beta}')
+            if stage == 'train_model' or stage == 'train_classifier':
+                if "epochs" not in config:
+                    config['epochs'] = EPOCHS_DEFAULT
+                epochs = config['epochs']
+                file.write(f'epochs: {epochs}\n')
+                print(f'epochs: {epochs}')
             else:
+                config['epochs'] = None
+
+            if architecture == 'mvae':
+                experts_fusion = config['experts_fusion'] 
+                file.write(f'experts_fusion: {experts_fusion}\n')
+                print(f'experts_fusion: {experts_fusion}')
+                if experts_fusion == 'poe':
+                    if "poe_eps" not in config or config["poe_eps"] is None:
+                        config["poe_eps"] = POE_EPS_DEFAULT
+
+                    poe_eps = config['poe_eps']
+                    file.write(f'poe_eps: {poe_eps}\n')
+                    print(f'poe_eps: {poe_eps}')
+            else:
+                config['experts_fusion'] = None
+                config['poe_eps'] = None
+
+            if architecture == 'vae' or architecture == 'mvae':
+                if "rep_trick_mean" not in config:
+                    config['rep_trick_mean'] = REPARAMETERIZATION_MEAN_DEFAULT
+                if "rep_trick_std" not in config:
+                    config['rep_trick_std'] = REPARAMETERIZATION_STD_DEFAULT
+
+                rep_trick_mean = config['rep_trick_mean']
+                rep_trick_std = config['rep_trick_std']
+                file.write(f'rep_trick_mean: {rep_trick_mean}\n')
+                print(f'rep_trick_mean: {rep_trick_mean}')
+                file.write(f'rep_trick_std: {rep_trick_std}\n')
+                print(f'rep_trick_std: {rep_trick_std}')
+            else:
+                config['rep_trick_mean'] = None
+                config['rep_trick_std'] = None
+
+            if "path_model" not in config:
+                config["path_model"] = None
+
+            if "path_model" not in config or config['path_model'] is not None:
+                path_model = config['path_model']
+                file.write(f'load_model_file: {path_model}\n')
+                print(f'load_model_file: {path_model}')
+                if stage == 'test_classifier':
+                    if "path_classifier" not in config or config['path_classifier'] is None:
+                        config['path_classifier'] = os.path.join(os.path.dirname(config['path_model']), "clf_" + os.path.basename(config['path_model']))
+                    
+                    path_clf = config['path_classifier']
+                    file.write(f'load_classifier_file: {path_clf}\n')
+                    print(f'load_classifier_file: {path_clf}')
+
+            if "model_out" not in config:
+                config['model_out'] = None
+
+            if config['model_out'] is not None:
+                path = config['model_out']
+                if stage == 'train_model':
+                    file.write(f'store_classifier_file: saved_models/{path}.pt\n')
+                    print(f'store_model_file: saved_models/{path}.pt')
+                elif stage == 'train_classifier':
+                    file.write(f'store_classifier_file: saved_models/{path}.pt\n')
+                    print(f'store_classifier_file: saved_models/{path}.pt')
+
+
+            if stage == 'train_model' or stage == 'train_classifier' or stage == 'inference':
+                checkpoint = config['checkpoint']
+                file.write(f'checkpoint: {checkpoint}\n')
+                print(f'checkpoint: {checkpoint}')
+            
+
+            if exclude_modality == 'image':
+                config['image_recon_scale'] = 0.
+                if config['target_modality'] == 'image':
+                    config['target_modality'] = None
+            elif exclude_modality == 'trajectory':
+                config['traj_recon_scale'] = 0.
+                if config['target_modality'] == 'trajectory':
+                    config['target_modality'] = None
+
+            if architecture == 'vae' or architecture == 'dae' or architecture == 'mvae':
+                if "image_recon_scale" not in config:
+                    config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
+                if "traj_recon_scale" not in config:
+                    config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
+                img_scale = config['image_recon_scale']
+                traj_recon_scale = config['traj_recon_scale']
+                file.write(f'image_recon_scale: {img_scale}\n')
+                print(f'image_recon_scale: {img_scale}')
+                file.write(f'traj_recon_scale: {traj_recon_scale}\n')
+                print(f'traj_recon_scale: {traj_recon_scale}')
+                if architecture == 'vae' or architecture == 'mvae':
+                    if "kld_beta" not in config:
+                        config['kld_beta'] = KLD_BETA_DEFAULT
+                    kld_beta = config['kld_beta']
+                    file.write(f'kld_beta: {kld_beta}\n')
+                    print(f'kld_beta: {kld_beta}')
+                else:
+                    config['kld_beta'] = None
+            else:
+                config['image_recon_scale'] = None
+                config['traj_recon_scale'] = None
                 config['kld_beta'] = None
-        else:
-            config['image_recon_scale'] = None
-            config['traj_recon_scale'] = None
-            config['kld_beta'] = None
 
-        if architecture == 'gmc':
-            if "infonce_temperature" not in config:
-                config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
-            temp = config['infonce_temperature']
-            file.write(f'infonce_temperature: {temp}\n')
-            print(f'infonce_temperature: {temp}')
-        else:
-            config['infonce_temperature'] = None
+            if architecture == 'gmc':
+                if "infonce_temperature" not in config:
+                    config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
+                temp = config['infonce_temperature']
+                file.write(f'infonce_temperature: {temp}\n')
+                print(f'infonce_temperature: {temp}')
+            else:
+                config['infonce_temperature'] = None
 
-        if "noise" not in config:
-            config["noise"] = None
+            if "noise" not in config:
+                config["noise"] = None
 
-        if config['noise'] is None:
-            config["noise_mean"] = None
-            config["noise_std"] = None
+            if config['noise'] is None:
+                config["noise_mean"] = None
+                config["noise_std"] = None
 
-        if "adversarial_attack" not in config:
-            config["adversarial_attack"] = None
+            if "adversarial_attack" not in config:
+                config["adversarial_attack"] = None
 
-        if config["adversarial_attack"] is None:
-            config['adv_epsilon'] = None
+            if config["adversarial_attack"] is None:
+                config['adv_epsilon'] = None
 
-        if "optimizer" not in config:
-            config["optimizer"] = None
-        
-        if config["optimizer"] is None:
-            config["learning_rate"] = None
-            config["momentum"] = None
-            config["adam_betas"] = None
-        elif config["optimizer"] != 'sgd':
-            config["momentum"] = None
-        elif config["optimizer"] != 'adam':
-            config["adam_betas"] = None
+            if "optimizer" not in config:
+                config["optimizer"] = None
+            
+            if config["optimizer"] is None:
+                config["learning_rate"] = None
+                config["momentum"] = None
+                config["adam_betas"] = None
+            elif config["optimizer"] != 'sgd':
+                config["momentum"] = None
+            elif config["optimizer"] != 'adam':
+                config["adam_betas"] = None
 
-    return config
+        return config
 
 
 def setup_experiment(m_path, config, train=True, get_labels=False):
