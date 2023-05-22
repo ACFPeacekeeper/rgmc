@@ -77,12 +77,14 @@ class MVAE(nn.Module):
             mean = torch.cat((mean, tmp_mean.unsqueeze(0)), dim=0)
             logvar = torch.cat((logvar, tmp_logvar.unsqueeze(0)), dim=0)
 
-        mean, logvar = self.experts(mean, logvar)
+
+        mean = torch.mean(mean, dim=0)
+        logvar = torch.mean(logvar, dim=0)
         std = torch.exp(torch.mul(logvar, 0.5))
 
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (batch_size / self.dataset_len)
+            self.kld = - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * self.latent_dim / batch_size
         else:
             z = mean
 
@@ -93,11 +95,11 @@ class MVAE(nn.Module):
         return x_hat, z
     
     def loss(self, x, x_hat):
-        loss_function = nn.MSELoss(reduction='sum').to(self.device)
+        mse_loss = nn.MSELoss(reduction="sum").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key]) * (x[key].size(dim=0) / self.dataset_len)
+            recon_losses[key] = self.scales[key] * mse_loss(x_hat[key], x[key]) / x[key].size(dim=0)
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 

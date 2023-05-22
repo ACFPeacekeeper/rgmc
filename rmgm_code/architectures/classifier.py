@@ -2,6 +2,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from collections import Counter
+
 class MNISTClassifier(nn.Module):
     def __init__(self, latent_dim, model):
         super().__init__()
@@ -36,4 +38,5 @@ class MNISTClassifier(nn.Module):
             num_preds[num_pred] += 1
 
         accuracy = accuracy / batch_size
-        return loss, accuracy, num_preds
+        loss_dict = Counter({'nll_loss': loss, 'accuracy': accuracy})
+        return loss, loss_dict, num_preds

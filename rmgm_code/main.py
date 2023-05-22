@@ -1,450 +1,25 @@
-import os
-import re
-import sys
 import time
-import math
-import torch
-import wandb
-import argparse
 import traceback
-import subprocess
-import tracemalloc
 
-import numpy as np
-import torch.optim as optim
-import matplotlib.pyplot as plt
-
+from utils import *
 from tqdm import tqdm
-from datasets.mhd.MHDDataset import MHDDataset
-from datasets.mosi.MOSIDataset import MOSIDataset
-from datasets.mosei.MOSEIDataset import MOSEIDataset
-from datasets.pendulum.PendulumDataset import PendulumDataset
 from collections import Counter, defaultdict
-from matplotlib.ticker import StrMethodFormatter
-from input_transformations import gaussian_noise, fgsm
-from architectures import vae, dae, gmc, mvae, classifier
 
 # Assign path to current directory
 m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
-def process_arguments():
-    parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
-    parser.add_argument('model_type', choices=['VAE', 'DAE', 'GMC', 'MVAE'], help='Model type to be used in the experiment.')
-    parser.add_argument('-p', '--path_model', type=str, default='none', help="Filename of the file where the model is to be loaded from.")
-    parser.add_argument('--torch_seed', '--seed', type=int, default=42, help='Value for pytorch seed for results replication.')
-    parser.add_argument('--train_results', type=str, default='none', help='Filename of the results file of the model training, to load model config from.')
-    parser.add_argument('--path_classifier', type=str, default='none', help="Filename of the file where the classifier is to be loaded from.")
-    parser.add_argument('-m', '--model_out', type=str, default='none', help="Filename of the file where the model/classifier is to be saved to.")
-    parser.add_argument('-d', '--dataset', type=str, default='MHD', choices=['MHD', 'MOSI', 'MOSEI', 'Pendulum'], help='Dataset to be used in the experiments.')
-    parser.add_argument('-s', '--stage', type=str, default='train_model', choices=['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference'], help='Stage of the pipeline to execute in the experiment.')
-    parser.add_argument('-o', '--optimizer', type=str, default='SGD', choices=['Adam', 'SGD', 'none'], help='Optimizer for the model training process.')
-    parser.add_argument('-r', '--learning_rate', '--lr', type=float, default=0.01, help='Learning rate value for the optimizer.')
-    parser.add_argument('-e', '--epochs', type=int, default=200, help='Number of epochs to train the model.')
-    parser.add_argument('-c', '--checkpoint', type=int, default=0, help='Epoch interval between checkpoints of the model in training.')
-    parser.add_argument('-b', '--batch_size', type=int, default=256, help='Number of samples processed for each model update.')
-    parser.add_argument('-l', '--latent_dim', '--latent_dimension', type=int, default=128, help='Dimension of the latent space of the models encodings.')
-    parser.add_argument('-n', '--noise', type=str, default='none', choices=['none', 'gaussian'], help='Apply a type of noise to the model\'s input.')
-    parser.add_argument('-a', '--adversarial_attack', '--attack', type=str, default='none', choices=['none', 'FGSM'], help='Execute an adversarial attack against the model.')
-    parser.add_argument('-t', '--target_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Modality to target with noisy and/or adversarial samples.')
-    parser.add_argument('--exclude_modality', type=str, default='none', choices=['none', 'image', 'trajectory'], help='Exclude a modality from the training/testing process.')
-    parser.add_argument('--infonce_temperature', '--infonce_temp', type=float, default=0.2, help='Temperature for the infonce loss.')
-    parser.add_argument('--image_scale', type=float, default=.5, help='Weight for the image reconstruction loss.')
-    parser.add_argument('--traj_scale', type=float, default=.5, help='Weight for the trajectory reconstruction loss.')
-    parser.add_argument('--kld_beta', type=float, default=0.5, help='Beta value for KL divergence.')
-    parser.add_argument('--experts_type', type=str, default='poe', choices=['poe', 'moe'], help='Type of experts to use in the fusion of the modalities for the MVAE.')
-    parser.add_argument('--rep_mean', type=float, default=0., help='Mean value for the reparameterization trick for the VAE and MVAE.')
-    parser.add_argument('--rep_std', type=float, default=1., help='Standard deviation value for the reparameterization trick for the VAE and MVAE.')
-    parser.add_argument('--poe_mean', type=float, default=0., help='Mean value for the product of experts for the MVAE.')
-    parser.add_argument('--poe_std', type=float, default=1., help='Standard deviation value for the product of experts for the MVAE.')
-    parser.add_argument('--adam_betas', nargs=2, type=float, default=[0.9, 0.999], help='Beta values for the Adam optimizer.')
-    parser.add_argument('--momentum', type=float, default=0.9, help='Momentum for the SGD optimizer.')
-    parser.add_argument('--noise_mean', type=float, default=0., help='Mean for noise distribution.')
-    parser.add_argument('--noise_std', type=float, default=1., help='Standard deviation for noise distribution.')
-    parser.add_argument('--adv_eps', type=float, default=8/255, help='Epsilon value for adversarial example generation.')
-    parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
-    args = parser.parse_args()
 
-    try:
-        if args.stage == 'train_model' or args.stage == 'train_classifier':
-            if args.epochs < 1:
-                raise argparse.ArgumentError("Argument error: number of epochs must be a positive and non-zero integer.")
-            elif args.batch_size < 1:
-                raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
-            elif args.latent_dim < 1:
-                raise argparse.ArgumentError("Argument error: latent_dim value must be a positive and non-zero integer.")
-            elif args.checkpoint < 0:
-                raise argparse.ArgumentError("Argument error: checkpoint value must be an integer greater than or equal to 0.")
-            elif args.checkpoint > args.epochs:
-                raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
-        else:
-            if args.path_model == 'none':
-                raise argparse.ArgumentError(f"Argument error: the --path_model argument cannot be none when the --stage argument is {args.stage}.")
-        if args.exclude_modality != 'none' and args.target_modality != 'none' and args.exclude_modality == args.target_modality:
-            raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
+def train_model(config):
+    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config)
+
+    checkpoint_counter = config['checkpoint'] 
     
-    except argparse.ArgumentError:
-        parser.print_help()
-        sys.exit(1)
-
-    os.makedirs(os.path.join(m_path, "results", args.stage), exist_ok=True)
-
-    counter = 1
-    file_path = os.path.join(m_path, "results", args.stage, f"{args.model_type.lower()}_{args.dataset.lower()}_{counter}.txt")
-    while os.path.exists(file_path):
-        counter += 1
-        file_path = os.path.join(m_path, "results", args.stage, f"{args.model_type.lower()}_{args.dataset.lower()}_{counter}.txt")
-
-    wandb_dict = {
-        "architecture": args.model_type,
-        "seed": args.torch_seed,
-        "dataset": args.dataset,
-        "stage": args.stage,
-        "checkpoint": args.checkpoint,
-        "latent_dimension": args.latent_dim,
-        "exclude_modality": args.exclude_modality,
-    }
-
-    with open(file_path, 'w') as file:
-        file.write(f'Model: {args.model_type}\n')
-        print(f'Model: {args.model_type}')
-
-        file.write(f'Pytorch seed value: {args.torch_seed}\n')
-        print(f'Pytorch seed value: {args.torch_seed}')
-
-        file.write(f'Dataset: {args.dataset}\n')
-        print(f'Dataset: {args.dataset}')
-
-        file.write(f'Pipeline stage: {args.stage}\n')
-        print(f'Pipeline stage: {args.stage}')
-
-        file.write(f'Latent dimension: {args.latent_dim}\n')
-        print(f'Latent dimension: {args.latent_dim}')
-
-        file.write(f'Exclude modality: {args.exclude_modality}\n')
-        print(f'Exclude modality: {args.exclude_modality}')
-
-        if args.stage == 'train_model' or args.stage == 'train_classifier':
-            file.write(f'Training epochs number: {args.epochs}\n')
-            print(f'Training epochs number: {args.epochs}')
-            wandb_dict['epochs'] = args.epochs
-
-
-        if args.model_type == 'MVAE':
-            file.write(f'Type of experts fusion: {args.experts_type}\n')
-            print(f'Type of experts fusion: {args.experts_type}')
-            wandb_dict['experts_fusion'] = args.experts_type
-
-        if args.model_type == 'VAE' or args.model_type == 'MVAE':
-            file.write(f'Reparameterization trick mean: {args.rep_mean}\n')
-            print(f'Reparameterization trick mean: {args.rep_mean}')
-            wandb_dict['reparameterization_mean'] = args.rep_mean
-            file.write(f'Reparameterization trick standard deviation: {args.rep_std}\n')
-            print(f'Reparameterization trick standard deviation: {args.rep_std}')
-            wandb_dict['reparameterization std'] = args.rep_std
-
-        if args.path_model != 'none':
-            file.write(f'Load model file: {args.path_model}\n')
-            print(f'Load model file: {args.path_model}')
-            if args.stage == 'test_classifier':
-                if args.path_classifier == 'none':
-                    args.path_classifier = os.path.join(os.path.dirname(args.path_model), "clf_" + os.path.basename(args.path_model))
-                file.write(f'Load classifier file: {args.path_classifier}\n')
-                print(f'Load classifier file: {args.path_classifier}')
-
-        if args.model_out != 'none':
-            if args.stage == 'train_model':
-                file.write(f'Store model file: saved_models/{args.model_out}\n')
-                print(f'Store model file: saved_models/{args.model_out}')
-            elif args.stage == 'train_classifier':
-                file.write(f'Store classifier file: saved_models/{args.model_out}\n')
-                print(f'Store classifier file: saved_models/{args.model_out}')
-        elif args.stage == 'train_classifier':
-            file.write(f'Store classifier file: saved_models/clf_{os.path.basename(args.path_model)}\n')
-            print(f'Store classifier file: saved_models/clf_{os.path.basename(args.path_model)}')
-
-
-        if args.stage == 'train_model' or args.stage == 'train_classifier' or args.stage == 'inference':
-            file.write(f'Checkpoint save counter: {args.checkpoint}\n')
-            print(f'Checkpoint save counter: {args.checkpoint}')
-        
-
-        if args.exclude_modality == 'image':
-            args.image_scale = 0.
-            if args.target_modality == 'image':
-                args.target_modality = 'none'
-        elif args.exclude_modality == 'trajectory':
-            args.traj_scale = 0.
-            if args.target_modality == 'trajectory':
-                args.target_modality = 'none'
-
-        if args.model_type == 'VAE' or args.model_type == 'DAE' or args.model_type == 'MVAE':
-            file.write(f'Image loss recon scale: {args.image_scale}\n')
-            print(f'Image loss recon scale: {args.image_scale}')
-            wandb_dict['img_recon_loss_scale'] = args.image_scale
-            file.write(f'Trajectory loss recon scale: {args.traj_scale}\n')
-            print(f'Trajectory loss recon scale: {args.traj_scale}')
-            wandb_dict['traj_recon_loss_scale'] = args.traj_scale
-        if args.model_type == 'VAE' or args.model_type == 'MVAE':
-            file.write(f'KLD beta loss scale: {args.kld_beta}\n')
-            print(f'KLD beta loss scale: {args.kld_beta}')
-            wandb_dict['kld_loss_beta'] = args.kld_beta
-        if args.model_type == 'GMC':
-            file.write(f'InfoNCE temperature loss scale: {args.infonce_temperature}\n')
-            print(f'InfoNCE temperature loss scale: {args.infonce_temperature}')
-            wandb_dict['infonce_temperature'] = args.infonce_temperature
-
-    return args, file_path, wandb_dict
-
-def device_setup(file_path, wandb_dict):
-    if torch.cuda.is_available():
-        device = "cuda:0"
-        print(f"Using device: {torch.cuda.get_device_name(0)}.")
-        wandb_dict['device'] = torch.cuda.get_device_name(0)
-        with open(file_path, 'r+') as file:
-            content = file.read()
-            file.seek(0, 0)
-            file.write(f"Using device: {torch.cuda.get_device_name(0)}.\n" + content)
-    else:
-        device = "cpu"
-        command = "cat /proc/cpuinfo"
-        all_info = subprocess.check_output(command, shell=True).decode().strip()
-        device_info = ""
-        for line in all_info.split("\n"):
-            if "model name" in line:
-                device_info = re.sub( ".*model name.*:", "", line,1)
-                break
-
-        print(f"Using device:{device_info}.")
-        wandb_dict['device'] = device_info
-        with open(file_path, 'r+') as file:
-            content = file.read()
-            file.seek(0, 0)
-            file.write(f"Using device:{device_info}.\n" + content)
-
-    return torch.device(device), wandb_dict
-
-def dataset_setup(arguments, results_file_path, device, wandb_dict, get_labels=False):
-    def load_dataset(arguments, train, transform=None):
-        if arguments.dataset == 'MHD':
-            dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, arguments.download, arguments.exclude_modality, arguments.target_modality, train, get_labels, transform)
-        elif arguments.dataset == 'MOSI':
-            dataset = MOSIDataset(os.path.join(m_path, "datasets", "mosi"), device, arguments.download, arguments.exclude_modality, arguments.target_modality, train, get_labels, transform)
-        elif arguments.dataset == 'MOSEI':
-            dataset = MOSEIDataset(os.path.join(m_path, "datasets", "mosei"), device, arguments.download, arguments.exclude_modality, arguments.target_modality, train, get_labels, transform)
-        elif arguments.dataset == 'Pendulum':
-            dataset = PendulumDataset(os.path.join(m_path, "datasets", "pendulum"), device, arguments.download, arguments.exclude_modality, arguments.target_modality, train, get_labels, transform)
-        
-        return dataset
-    
-    print(f'Noise: {arguments.noise}')
-    wandb_dict['noise'] = arguments.noise
-    with open(results_file_path, 'a') as file:
-        file.write(f'Noise: {arguments.noise}\n')
-    
-    if arguments.noise == "gaussian":
-        transform = gaussian_noise.GaussianNoise(device, arguments.noise_mean, arguments.noise_std)
-        
-        print(f'Noise mean: {arguments.noise_mean}')
-        print(f'Noise standard deviation: {arguments.noise_std}')
-        wandb_dict['noise_mean'] = arguments.noise_mean
-        wandb_dict['noise_std'] = arguments.noise_std
-        with open(results_file_path, 'a') as file:
-            file.write(f'Noise mean: {arguments.noise_mean}\n')
-            file.write(f'Noise standard deviation: {arguments.noise_std}\n')
-    else:
-        transform = None
-
-    if arguments.stage == 'train_model' or arguments.stage == 'train_classifier' or arguments.stage == 'inference':
-        dataset = load_dataset(arguments, True, transform)
-    else:
-        dataset = load_dataset(arguments, False, transform)
-
-    return dataset, wandb_dict
-
-
-def set_adversarial_env(arguments, results_file_path, model, device, wandb_dict, dataset):
-    print(f'Adversarial attack: {arguments.adversarial_attack}')
-    wandb_dict['adversarial_attack'] = arguments.adversarial_attack
-    with open(results_file_path, 'a') as file:
-        file.write(f'Adversarial attack: {arguments.adversarial_attack}\n')
-
-    if arguments.adversarial_attack == 'FGSM':
-        adv_attack = fgsm.FGSM(device, model, arguments.target_modality, eps=arguments.adv_eps,)
-
-        print(f'FGSM epsilon value: {arguments.adv_eps}')
-        wandb_dict['fgsm_epsilon'] = arguments.adv_eps
-        with open(results_file_path, 'a') as file:
-            file.write(f'FGSM epsilon value: {arguments.adv_eps}\n')
-    else:
-        adv_attack = None
-
-    dataset._set_adv_attack(adv_attack)
-
-    if arguments.adversarial_attack != 'none' or arguments.noise != 'none':
-        print(f'Target modality: {arguments.target_modality}')
-        wandb_dict['target_modality'] = arguments.target_modality
-        with open(results_file_path, 'a') as file:
-            file.write(f'Target modality: {arguments.target_modality}\n')
-
-    return dataset, wandb_dict
-
-
-def save_results(results_file_path, device, loss_dict=None):
-    if loss_dict is not None:
-        with open(results_file_path, 'a') as file:
-            for key, value in loss_dict.items():
-                wandb.log({f'Epoch {key.lower()}': value})
-                print(f'{key}: {value}')
-                file.write(f'- {key}: {value}\n')
-    
-    print('Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
-    print('Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
-    if device.type == 'cuda':
-        print("Torch CUDA memory allocated: %f GB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-        print("Torch CUDA memory reserved: %f GB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-        print("Torch CUDA max memory reserved: %f GB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
-    with open(results_file_path, 'a') as file:
-        file.write('- Current RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
-        file.write('- Peak RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
-        if device.type == 'cuda':
-            file.write("- Torch CUDA memory allocated: %f GB\n"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-            file.write("- Torch CUDA memory reserved: %f GB\n"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-            file.write("- Torch CUDA max memory reserved: %f GB\n"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
-
-    return
-
-def save_train_results(arguments, results_file_path, loss_list_dict, bt_loss_dict):
-    for idx, (key, values) in enumerate(loss_list_dict.items()):
-        plt.figure(idx, figsize=(20, 20))
-        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
-        plt.plot(range(arguments.epochs), values, label='loss values')
-        plt.xlabel("Epoch")
-        plt.ylabel(key)
-        plt.title(f'{key} per epoch')
-        plt.legend()
-        plt.savefig(f'{os.path.splitext(results_file_path)[0]}_{key}.png')
-
-    for idx, (key, values) in enumerate(bt_loss_dict.items()):
-        plt.figure(idx+len(list(loss_list_dict.keys())), figsize=(20, 20))
-        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
-        plt.plot(range(len(values)), values, label='loss values')
-        plt.xlabel("Batch")
-        plt.ylabel(key)
-        plt.title(f'{key} per batch')
-        plt.legend()
-        plt.savefig(f'{os.path.splitext(results_file_path)[0]}_bt_{key}.png')
-
-    with open(results_file_path, 'a') as file:
-        print('Average epoch results:')
-        file.write('Average epoch results:\n')
-        for key, values in loss_list_dict.items():
-            print(f'{key}: {np.mean(values)}')
-            file.write(f'- {key}: {np.mean(values)}\n')
-            
-    return
-
-
-def save_final_metrics(results_file_path, loss_dict, first_loss_dict, loss_list_dict):
-    keys = list(loss_dict.keys())
-    loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_dict.values())]
-    first_loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(first_loss_dict.values())]
-    X_axis = np.arange(len(keys))
-    plt.figure(figsize=(20, 10))
-    plt.bar(X_axis - 0.2, loss_dict, width=0.4, label='Loss values', color='purple')
-    if 'classifier' in results_file_path:
-        plt.bar(X_axis + 0.2, [abs(fl_i - ls_i) for fl_i, ls_i in zip(first_loss_dict, loss_dict)], width=0.4, label='Loss improvement', color='powderblue')
-    else:
-        plt.bar(X_axis + 0.2, [fl_i - ls_i for fl_i, ls_i in zip(first_loss_dict, loss_dict)], width=0.4, label='Loss improvement', color='powderblue')
-    for X_value, (key, value) in zip(X_axis, loss_list_dict.items()):
-        plt.plot(X_value , np.mean(np.asarray([value_i for value_i in value])), marker="o", markersize=10, label=f'Avg {key.lower()}')
-    plt.xticks(X_axis, keys)
-    plt.xlabel('Metrics')
-    plt.ylabel('Values')
-    plt.title("Loss values and improvements of model")
-    plt.legend()
-    plt.savefig(f'{os.path.splitext(results_file_path)[0]}_metrics.png')
-    return
-
-
-def save_preds(results_file_path, preds, labels):
-    print(f'Prediction count: {preds}')
-    with open(results_file_path, 'a') as file:
-        file.write(f'Prediction count: {preds}\n')
-    if preds is not None and labels is not None:
-        X_axis = np.arange(len(preds))
-        diff = [x if x >= 0 else -x for x in torch.bincount(labels).detach().cpu().numpy() - preds]
-        plt.figure(figsize=(20, 10))
-        plt.bar(X_axis - 0.2, preds, width=0.4, label='Predictions', color='blue')
-        plt.bar(X_axis + 0.2, diff, width=0.4, label='Incorrect predictions', color='red')
-        plt.xlabel('MNIST Digit')
-        plt.ylabel('Number of examples')
-        plt.title('Classifier predictions and number of incorrect predictions')
-        plt.legend()
-        plt.savefig(f'{os.path.splitext(results_file_path)[0]}_predictions.png')
-    return
-
-
-def train_model(arguments, results_file_path, device, wandb_dict):
-    dataset, wandb_dict = dataset_setup(arguments, results_file_path, device, wandb_dict)
-
-    if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std, dataset.dataset_len - dataset.dataset_len % arguments.batch_size)
-        loss_list_dict = {'ELBO loss': np.zeros(arguments.epochs), 'KLD loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-    elif arguments.model_type == 'DAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales)
-        loss_list_dict = {'Total loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-    elif arguments.model_type == 'GMC':
-        model = gmc.MhdGMC(arguments.model_type, arguments.exclude_modality, arguments.latent_dim)
-        loss_list_dict = {'InfoNCE': np.zeros(arguments.epochs)}
-    elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, arguments.exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, dataset.dataset_len - dataset.dataset_len % arguments.batch_size)
-        loss_list_dict = {'ELBO loss': np.zeros(arguments.epochs), 'KLD loss': np.zeros(arguments.epochs), 'Img recon loss': np.zeros(arguments.epochs), 'Traj recon loss': np.zeros(arguments.epochs)}
-
-    model.to(device)
-
-    dataset, wandb_dict = set_adversarial_env(arguments, results_file_path, model, device, wandb_dict, dataset)
-
-    print(f'Optimizer: {arguments.optimizer}')
-    wandb_dict['optimizer'] = arguments.optimizer
-    print(f'Batch size: {arguments.batch_size}')
-    wandb_dict['batch_size'] = arguments.batch_size
-    with open(results_file_path, 'a') as file:
-        file.write(f'Optimizer: {arguments.optimizer}\n')
-        file.write(f'Batch size: {arguments.batch_size}\n')
-
-    if arguments.optimizer != 'none':
-        print(f'Learning rate: {arguments.learning_rate}')
-        wandb_dict['learning_rate'] = arguments.learning_rate
-        with open(results_file_path, 'a') as file:
-            file.write(f'Learning rate: {arguments.learning_rate}\n')
-
-        if arguments.optimizer == 'Adam':
-            optimizer = optim.Adam(model.parameters(), lr=arguments.learning_rate, betas=arguments.adam_betas)
-            print(f'Adam betas: {arguments.adam_betas}')
-            wandb_dict['adam_betas'] = arguments.adam_betas
-            with open(results_file_path, 'a') as file:
-                file.write(f'Adam betas: {arguments.adam_betas}\n')
-        elif arguments.optimizer == 'SGD':
-            optimizer = optim.SGD(model.parameters(), lr=arguments.learning_rate, momentum=arguments.momentum)
-            print(f'SGD momentum: {arguments.momentum}')
-            wandb_dict['sgd_momentum'] = arguments.momentum
-            with open(results_file_path, 'a') as file:
-                file.write(f'SGD momentum: {arguments.momentum}\n')
-
-    checkpoint_counter = arguments.checkpoint 
-    batch_number = math.floor(dataset.dataset_len/arguments.batch_size)
-    wandb_dict['number_batches'] = batch_number
-    wandb.init(project="rmgm", config=wandb_dict)
     bt_loss = defaultdict(list)
-    wandb.watch(model)
     total_start = time.time()
     tracemalloc.start()
-    for epoch in range(arguments.epochs):
+    for epoch in range(config['epochs']):
         print(f'Epoch {epoch}')
-        with open(results_file_path, 'a') as file:
+        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             file.write(f'Epoch {epoch}:\n')
 
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
@@ -452,21 +27,21 @@ def train_model(arguments, results_file_path, device, wandb_dict):
         epoch_start = time.time()
         for batch_idx in tqdm(range(batch_number)):
             # Skip last batch
-            batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size
+            batch_end_idx = batch_idx * config['batch_size'] + config['batch_size']
             if batch_end_idx > dataset.dataset_len:
                 break
             batch = dict.fromkeys(dataset.dataset.keys())
             for key, value in dataset.dataset.items():
-                batch[key] = value[batch_idx*arguments.batch_size:batch_end_idx, :]
+                batch[key] = value[batch_idx * config['batch_size'] : batch_end_idx, :]
 
             if model.name == 'GMC':
-                loss, batch_loss_dict = model.training_step(batch, {"temperature": arguments.infonce_temperature}, batch_end_idx - batch_idx * arguments.batch_size)
+                loss, batch_loss_dict = model.training_step(batch, {"temperature": config['infonce_loss_temperature_scale']}, batch_end_idx - batch_idx * config['batch_size'])
             else:
                 x_hat, _ = model(batch)    
                 loss, batch_loss_dict = model.loss(batch, x_hat)      
 
             loss.backward()
-            if arguments.optimizer != 'none':
+            if config['optimizer'] is not None:
                 optimizer.step()
                 optimizer.zero_grad()
 
@@ -481,17 +56,18 @@ def train_model(arguments, results_file_path, device, wandb_dict):
             loss_dict[key] = value / batch_number
             loss_list_dict[key][epoch] = loss_dict[key]
             
+        wandb.log({**loss_dict})
         epoch_end = time.time()
         print(f'Runtime: {epoch_end - epoch_start} sec')
-        with open(results_file_path, 'a') as file:
+        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
-        save_results(results_file_path, device, loss_dict)
+        save_results(m_path, config, device, loss_dict)
 
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
             print('Saving model checkpoint to file...')
-            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", f'{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
-            checkpoint_counter = arguments.checkpoint
+            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", config['model_out'] + f'_{epoch}.pt'))
+            checkpoint_counter = config['checkpoint']
 
         if device.type == 'cuda':
             torch.cuda.empty_cache()
@@ -500,14 +76,16 @@ def train_model(arguments, results_file_path, device, wandb_dict):
     tracemalloc.stop()
     total_end = time.time()
     print(f'Total runtime: {total_end - total_start} sec')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(arguments, results_file_path, loss_list_dict, bt_loss)
-    save_final_metrics(results_file_path, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
-    if arguments.model_out != 'none':
-        torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
-    else:
-        torch.save(model.state_dict(), os.path.join(m_path, "saved_models", f'{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
+    save_train_results(m_path, config, loss_list_dict, bt_loss)
+    save_final_metrics(m_path, config, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
+    torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
+    json_object = json.dumps(config, indent=4)
+    print(config["config_out"])
+    with open(os.path.join(m_path, "configs", config['stage'], config["config_out"]), "w") as json_file:
+        json_file.write(json_object)
+
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
@@ -515,7 +93,7 @@ def train_model(arguments, results_file_path, device, wandb_dict):
     return model
 
 
-def train_downstream_classifier(arguments, results_file_path, device, wandb_dict):
+def train_downstream_classifier(config):
     if arguments.train_results != 'none':
         with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
             lines = file.readlines()
@@ -523,137 +101,71 @@ def train_downstream_classifier(arguments, results_file_path, device, wandb_dict
         
         print(f'Loaded model training configuration from: results/train_model/{arguments.train_results}')
         wandb_dict['model_train_config'] = arguments.train_results
-        with open(results_file_path, 'a') as file:
+        with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
             file.write(f'Loaded model training configuration from: results/train_model/{arguments.train_results}\n')
     else:
         exclude_modality = arguments.exclude_modality
 
-    if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, 50000 - 50000 % arguments.batch_size)
-    elif arguments.model_type == 'DAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales)
-    elif arguments.model_type == 'GMC':
-        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
-    elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, 50000 - 50000 % arguments.batch_size)
-
-    loss_list_dict = {'NLL loss': np.zeros(arguments.epochs), 'Accuracy': np.zeros(arguments.epochs)}
-
-    model.load_state_dict(torch.load(arguments.path_model))
-    if arguments.train_results != 'none':
-        model.set_modalities(arguments.exclude_modality)
-    for param in model.parameters():
-        param.requires_grad = False
-
-    model.to(device)
-
-    clf = classifier.MNISTClassifier(arguments.latent_dim, model)
-
-    clf.to(device)
-
-    print(f'Optimizer: {arguments.optimizer}')
-    wandb_dict['optimizer'] = arguments.optimizer
-    print(f'Batch size: {arguments.batch_size}')
-    wandb_dict['batch_size'] = arguments.batch_size
-    with open(results_file_path, 'a') as file:
-        file.write(f'Optimizer: {arguments.optimizer}\n')
-        file.write(f'Batch size: {arguments.batch_size}\n')
-    
-    if arguments.optimizer != 'none':
-        print(f'Learning rate: {arguments.learning_rate}')
-        wandb_dict['learning_rate'] = arguments.learning_rate
-        with open(results_file_path, 'a') as file:
-            file.write(f'Learning rate: {arguments.learning_rate}\n')
-
-        if arguments.optimizer == 'Adam':
-            optimizer = optim.Adam(clf.parameters(), lr=arguments.learning_rate, betas=arguments.adam_betas)
-            print(f'Adam betas: {arguments.adam_betas}')
-            wandb_dict['adam_betas'] = arguments.adam_betas
-            with open(results_file_path, 'a') as file:
-                file.write(f'Adam betas: {arguments.adam_betas}\n')
-        elif arguments.optimizer == 'SGD':
-            optimizer = optim.SGD(clf.parameters(), lr=arguments.learning_rate, momentum=arguments.momentum)
-            print(f'SGD momentum: {arguments.momentum}')
-            wandb_dict['sgd_momentum'] = arguments.momentum
-            with open(results_file_path, 'a') as file:
-                file.write(f'SGD momentum: {arguments.momentum}\n')
-
+    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, arguments, wandb_dict, exclude_modality, latent_dim=-1, train=True, get_labels=True)
     checkpoint_counter = arguments.checkpoint 
-
-    dataset, wandb_dict = dataset_setup(arguments, results_file_path, model, device, wandb_dict, get_labels=True)
-    batch_number = math.floor(len(list(dataset.values())[0])/arguments.batch_size)
-    wandb_dict['number_batches'] = batch_number
-    wandb.init(project="rmgm", config=wandb_dict)
     bt_loss = defaultdict(list)
-    wandb.watch(model)
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(arguments.epochs):
         print(f'Epoch {epoch}')
-        with open(results_file_path, 'a') as file:
+        with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
             file.write(f'Epoch {epoch}:\n')
-            
-        batch_number = math.ceil(len(list(dataset.values())[0])/arguments.batch_size)
 
-        if arguments.optimizer != 'none':
-                optimizer.zero_grad()
-
-        loss_dict = dict.fromkeys(loss_list_dict.keys(), 0.)
+        loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
 
         epoch_start = time.time()
 
-        epoch_preds = [0]*dataset['label'].size(dim=-1)
+        epoch_preds = [0]*dataset.labels.size(dim=-1)
         for batch_idx in tqdm(range(batch_number)):
             # Skip last batch
             batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size
-            if batch_end_idx > len(list(dataset.values())[0]):
+            if batch_end_idx > dataset.dataset_len:
                 break
-            batch = dict.fromkeys(dataset.keys())
-            batch.pop('label', None)
-            for key, value in dataset.items():
-                if key != 'label':
+            batch = dict.fromkeys(dataset.dataset.keys())
+            batch.pop('labels', None)
+            for key, value in dataset.dataset.items():
                     batch[key] = value[batch_idx*arguments.batch_size:batch_end_idx, :]
-                else:
-                    batch_labels = value[batch_idx*arguments.batch_size:batch_end_idx]
+                
+            
+            batch_labels = dataset.labels[batch_idx*arguments.batch_size:batch_end_idx]
 
-            classification, _, _ = clf(batch)
-            loss, accuracy, num_preds = clf.loss(classification, batch_labels)
+            classification, _, _ = model(batch)
+            loss, batch_loss_dict, num_preds = model.loss(classification, batch_labels)
 
             loss.backward()
             if arguments.optimizer != 'none':
                 optimizer.step()
                 optimizer.zero_grad()
             
+            wandb.log({**batch_loss_dict})
+            for key, value in batch_loss_dict.items():
+                bt_loss[key].append(float(value))
 
-            bt_loss['NLL loss'].append(float(loss))
-            bt_loss['Accuracy'].append(float(accuracy))
-            wandb.log({'NLL loss': loss, 'Accuracy': accuracy})
-
-            loss_dict['NLL loss'] += loss
-            loss_dict['Accuracy'] += accuracy
+            loss_dict = loss_dict + batch_loss_dict
             epoch_preds = [sum(x) for x in zip(epoch_preds, num_preds)]
 
-        loss_dict['NLL loss'] = loss_dict['NLL loss'] / batch_number
-        loss_dict['Accuracy'] = loss_dict['Accuracy'] / batch_number
-        loss_list_dict['NLL loss'][epoch] = loss_dict['NLL loss']
-        loss_list_dict['Accuracy'][epoch] = loss_dict['Accuracy']
-        wandb.log({'Epoch nll loss': loss_dict['NLL loss'], 'Epoch accuracy': loss_dict['Accuracy']})
+        for key in loss_dict.keys():
+            loss_dict[key] = loss_dict[key] / batch_number
+            loss_list_dict[key][epoch] = loss_dict[key]
 
+        wandb.log({**loss_dict})
         epoch_end = time.time()
         print(f'Runtime: {epoch_end - epoch_start} sec')
         print(f'Prediction count: {epoch_preds}')
-        with open(results_file_path, 'a') as file:
+        with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
             file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
             file.write(f'- Prediction count: {epoch_preds}\n')
-        save_results(results_file_path, device, loss_dict)
+        save_results(m_path, arguments, device, loss_dict)
 
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
             print('Saving model checkpoint to file...')
-            torch.save(clf.state_dict(), os.path.join(m_path, "checkpoints", f'clf_{arguments.model_type.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
+            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", f'clf_{arguments.architecture.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
             checkpoint_counter = arguments.checkpoint
 
         if device.type == 'cuda':
@@ -663,62 +175,40 @@ def train_downstream_classifier(arguments, results_file_path, device, wandb_dict
     tracemalloc.stop()
     total_end = time.time()
     print(f'Total runtime: {total_end - total_start} sec')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(arguments, results_file_path, loss_list_dict, bt_loss)
-    save_preds(results_file_path, epoch_preds, dataset['label'])
-    save_final_metrics(results_file_path, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
-    if arguments.model_out != 'none':
-        torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out))
-    else:
-        torch.save(clf.state_dict(), os.path.join(m_path, "saved_models", f'clf_{os.path.basename(os.path.splitext(results_file_path)[0])}.pt'))
+    save_train_results(m_path, arguments, loss_list_dict, bt_loss)
+    save_preds(m_path, arguments, epoch_preds, dataset.labels)
+    save_final_metrics(m_path, arguments, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
+    torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out + '.pt'))
+    json_object = json.dumps(config, indent=4)
+    with open(os.path.join(m_path, "configs", config['stage'], config["config_out"]), "w") as json_file:
+        json_file.write(json_object)
+
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     
     wandb.finish()
-    return clf
+    return model
 
 
-def test_model(arguments, results_file_path, device, wandb_dict):
+def test_model(arguments, device, wandb_dict):
     if arguments.train_results != 'none':
         with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
             lines = file.readlines()
             exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
         
         print(f'Loaded model training configuration from: results/train_model/{arguments.train_results}')
-        with open(results_file_path, 'a') as file:
+        with open(os.path.join(m_path, "results", arguments.model_out + ".txt"), 'a') as file:
             file.write(f'Loaded model training configuration from: results/train_model/{arguments.train_results}\n')
     else:
         exclude_modality = arguments.exclude_modality
 
-    if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
-        loss_dict = {'ELBO loss': 0., 'KLD loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
-    elif arguments.model_type == 'DAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
-        loss_dict = {'Total loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
-    elif arguments.model_type == 'GMC':
-        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
-    elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
-        loss_dict = {'ELBO loss': 0., 'KLD loss': 0., 'Img recon loss': 0., 'Traj recon loss': 0.}
-
-    model.load_state_dict(torch.load(arguments.path_model))
-    if arguments.train_results != 'none':
-        model.set_modalities(arguments.exclude_modality)
-    for param in model.parameters():
-        param.requires_grad = False
-
-    model.to(device)
-
-    dataset, wandb_dict = dataset_setup(arguments, results_file_path, model, device, wandb_dict)
+    device, dataset, model, loss_dict, _, _ = setup_experiment(m_path, arguments, wandb_dict, exclude_modality, latent_dim=-1, train=False)
     
     tracemalloc.start()
     print('Testing model')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", arguments.model_out + ".txt"), 'a') as file:
         file.write('Testing model:\n')
 
 
@@ -731,17 +221,17 @@ def test_model(arguments, results_file_path, device, wandb_dict):
         _, loss_dict = model.loss(dataset, x_hat)
     test_end = time.time()
 
-    save_final_metrics(results_file_path, loss_dict)
+    save_final_metrics(arguments, loss_dict)
     print(f'Runtime: {test_end - test_start} sec')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", arguments.model_out + ".txt"), 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
-    save_results(results_file_path, device, loss_dict)
+    save_results(arguments, device, loss_dict)
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     return
 
-def test_downstream_classifier(arguments, results_file_path, device, wandb_dict):
+def test_downstream_classifier(arguments, device, wandb_dict):
     if arguments.train_results != 'none':
         results_path = os.path.join(m_path, "results", "train_classifier", arguments.train_results)
         with open(results_path, 'r+') as f:
@@ -758,92 +248,56 @@ def test_downstream_classifier(arguments, results_file_path, device, wandb_dict)
     else:
         exclude_modality = arguments.exclude_modality
 
-    if arguments.model_type == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
-    elif arguments.model_type == 'DAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
-    elif arguments.model_type == 'GMC':
-        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
-    elif arguments.model_type == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type, test=True)
-
-    loss_dict = {'NLL loss': 0., 'Accuracy': 0.}
-
-    model.load_state_dict(torch.load(arguments.path_model))
-    if arguments.train_results != 'none':
-        model.set_modalities(exclude_modality)
-    for param in model.parameters():
-        param.requires_grad = False
-
-    model.to(device)
-
-    clf = classifier.MNISTClassifier(arguments.latent_dim, model)
-    clf_path = os.path.join("saved_models", "clf_" + os.path.basename(arguments.path_model))
-    clf.load_state_dict(torch.load(clf_path))
-
-    clf.model.set_modalities(arguments.exclude_modality)
-    for param in clf.parameters():
-        param.requires_grad = False
-
-    clf.to(device)
-
-    dataset, wandb_dict = dataset_setup(arguments, results_file_path, model, device, wandb_dict, get_labels=True)
+    device, dataset, clf, loss_dict, batch_number, optimizer = setup_experiment(m_path, arguments, wandb_dict, exclude_modality, latent_dim=-1, train=False, get_labels=True)
 
     tracemalloc.start()
     print('Testing classifier')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", arguments.model_out + ".txt"), 'a') as file:
         file.write('Testing classifier:\n')
 
-    features =  dataset.copy()
-    features.pop('label', None)
-    labels = dataset['label']
-
     test_start = time.time()
-    classification, _, _ = clf(features)
-    clf_loss, accuracy, preds = clf.loss(classification, labels)
+    classification, _, _ = clf(dataset.dataset)
+    clf_loss, accuracy, preds = clf.loss(classification, dataset.labels)
     test_end = time.time()
 
     loss_dict['NLL loss'] = clf_loss
     loss_dict['Accuracy'] = accuracy
-    save_final_metrics(results_file_path, loss_dict)
-    save_preds(results_file_path, preds, labels)
+    save_final_metrics(os.path.join(m_path, "results", arguments.model_out + ".txt"), loss_dict)
+    save_preds(os.path.join(m_path, "results", arguments.model_out + ".txt"), preds, dataset.labels)
     print(f'Runtime: {test_end - test_start} sec')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", arguments.model_out + ".txt"), 'a') as file:
         file.write(f'- Runtime: {test_end - test_start} sec\n')
-    save_results(results_file_path, device, loss_dict)
+    save_results(os.path.join(m_path, "results", arguments.model_out + ".txt"), device, loss_dict)
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     return
 
-def inference(arguments, results_file_path, device):
+def inference(arguments, device):
     if arguments.train_results != 'none':
         with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
             lines = file.readlines()
             exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
         
         print(f'Loaded model training configuration from: {arguments.train_results}')
-        with open(results_file_path, 'a') as file:
+        with open(os.path.join(m_path, "results", arguments.model_out + ".txt"), 'a') as file:
             file.write(f'Loaded model training configuration from: {arguments.train_results}\n')
     else:
         exclude_modality = arguments.exclude_modality
 
-    if arguments.model_type == 'VAE':
+    if arguments.architecture == 'VAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = vae.VAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
-    elif arguments.model_type == 'DAE':
+        model = vae.VAE(arguments.architecture, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
+    elif arguments.architecture == 'DAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
-        model = dae.DAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, test=True)
-    elif arguments.model_type == 'GMC':
-        model = gmc.MhdGMC(arguments.model_type, exclude_modality, arguments.latent_dim)
-    elif arguments.model_type == 'MVAE':
+        model = dae.DAE(arguments.architecture, arguments.latent_dim, device, exclude_modality, scales, test=True)
+    elif arguments.architecture == 'GMC':
+        model = gmc.MhdGMC(arguments.architecture, exclude_modality, arguments.latent_dim)
+    elif arguments.architecture == 'MVAE':
         scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
-        model = mvae.MVAE(arguments.model_type, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type)
+        model = mvae.MVAE(arguments.architecture, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type)
 
-    model.load_state_dict(torch.load(arguments.path_model))
+    model.load_state_dict(torch.load(os.path.join(m_path, arguments.path_model)))
     if arguments.train_results != 'none':
         model.set_modalities(arguments.exclude_modality)
     for param in model.parameters():
@@ -851,11 +305,11 @@ def inference(arguments, results_file_path, device):
 
     model.to(device)
 
-    dataset = dataset_setup(arguments, results_file_path, model, device)
+    dataset = dataset_setup(arguments, model, device)
     
     tracemalloc.start()
     print('Performing inference')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(arguments.path_model))[0] + ".txt"), 'a') as file:
         file.write('Performing inference:\n')
 
 
@@ -864,51 +318,68 @@ def inference(arguments, results_file_path, device):
     counter = 0
     for idx, (img, recon) in tqdm(enumerate(zip(dataset['image'], x_hat['image'])), total=x_hat['image'].size(dim=0)):
         if counter % arguments.checkpoint == 0: 
-            img_path = os.path.basename(os.path.splitext(results_file_path)[0])
-            plt.imsave(os.path.join("images", f'{img_path}_{idx}_orig.png'), torch.reshape(img, (28,28)).detach().clone().cpu())
-            plt.imsave(os.path.join("images", f'{img_path}_{idx}_recon.png'), torch.reshape(recon, (28,28)).detach().clone().cpu())
+            plt.imsave(os.path.join("images", f'{arguments.model_out}_{idx}_orig.png'), torch.reshape(img, (28,28)).detach().clone().cpu())
+            plt.imsave(os.path.join("images", f'{arguments.model_out}_{idx}_recon.png'), torch.reshape(recon, (28,28)).detach().clone().cpu())
         counter += 1
 
     inference_stop = time.time()
     print(f'Runtime: {inference_stop - inference_start} sec')
-    with open(results_file_path, 'a') as file:
+    with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(arguments.path_model))[0] + ".txt"), 'a') as file:
         file.write(f'- Runtime: {inference_stop - inference_start} sec\n')
-    save_results(results_file_path, device)
+    arguments.model_out = os.path.splitext(os.path.basename(arguments.path_model))[0]
+    save_results(arguments, device)
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     return
 
 
-def main():
-    os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
-    arguments, file_path, wandb_dict = process_arguments()
-    torch.manual_seed(arguments.torch_seed)
-    device, wandb_dict = device_setup(file_path, wandb_dict)
-    try:
-        if arguments.stage == 'train_model':
-            os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
-            os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-            train_model(arguments, file_path, device, wandb_dict)
-        elif arguments.stage == 'train_classifier':
-            os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
-            os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-            train_downstream_classifier(arguments, file_path, device, wandb_dict)
-        elif arguments.stage == 'test_model':
-            test_model(arguments, file_path, device, wandb_dict)
-        elif arguments.stage == 'test_classifier':
-            test_downstream_classifier(arguments, file_path, device, wandb_dict)
-        elif arguments.stage == 'inference':
-            os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
-            inference(arguments, file_path, device)
+def call_with_configs(config_ls):
+    def decorate(run_experiment):
+        def wrapper(*args, **kwargs):
+            for config in config_ls:
+                config = setup_env(m_path, config)
+                kwargs['config'] = config
+                run_experiment(**kwargs)
+        return wrapper
+    return decorate
 
+
+def run_experiment(**kwargs):
+    config = kwargs['config']
+
+    try:
+        if config['stage'] == 'train_model':
+            train_model(config)
+        elif config['stage'] == 'train_classifier':
+            train_downstream_classifier(config)
+        elif config['stage'] == 'test_model':
+            test_model(config)
+        elif config['stage'] == 'test_classifier':
+            test_downstream_classifier(config)
+        elif config['stage'] == 'inference':
+            os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
+            inference(config)
     except:
         wandb.finish()
         traceback.print_exception(*sys.exc_info())
-        for fname in os.listdir(os.path.dirname(file_path)):
-            if fname.startswith(os.path.splitext(os.path.basename(file_path))[0]):
-                os.remove(os.path.join(os.path.dirname(file_path), fname))
+        with open(os.path.join(m_path, "experiments_idx.pickle"), 'rb') as idx_pickle:
+            idx_dict = pickle.load(idx_pickle)
+            idx_dict[config['architecture']][config['dataset']] -= 1
+        with open(os.path.join(m_path, "experiments_idx.pickle"), "wb") as idx_pickle:
+            pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+            
         sys.exit(1)
+
+
+def main():
+    os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "configs"), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
+    configs = process_arguments(m_path)
+    call_with_configs(config_ls=configs)(run_experiment)()
+        
 
 if __name__ == "__main__":
     main()

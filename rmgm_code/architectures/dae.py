@@ -72,11 +72,11 @@ class DAE(nn.Module):
         return x_hat, z
     
     def loss(self, x, x_hat):
-        loss_function = nn.MSELoss().to(self.device)
+        mse_loss = nn.MSELoss(reduction="sum").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = self.scales[key] * loss_function(x_hat[key], x[key])
+            recon_losses[key] = self.scales[key] * mse_loss(x_hat[key], x[key]) / x[key].size(dim=0)
 
         recon_loss = 0
         for value in recon_losses.values():
@@ -87,5 +87,5 @@ class DAE(nn.Module):
         elif recon_losses.get('image') is None:
             recon_losses['image'] = 0.
 
-        loss_dict = Counter({'Total loss': recon_loss, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
+        loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         return recon_loss, loss_dict
