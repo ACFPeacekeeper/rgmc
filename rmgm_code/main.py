@@ -388,13 +388,13 @@ def run_experiment(**kwargs):
 
 
 def main():
-    os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
-    os.makedirs(os.path.join(m_path, "configs"), exist_ok=True)
-    os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
-    os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
+    #os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
+    #os.makedirs(os.path.join(m_path, "configs"), exist_ok=True)
+    #os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
+    #os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
     configs = process_arguments(m_path)
     call_with_configs(config_ls=configs)(run_experiment)()
-    os.remove(os.path.join(m_path, "experiments_idx_copy.pickle"))
+    #os.remove(os.path.join(m_path, "experiments_idx_copy.pickle"))
         
 
 if __name__ == "__main__":
