@@ -48,8 +48,7 @@ RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5}
 KLD_BETA_DEFAULT = 0.0001
 REPARAMETERIZATION_MEAN_DEFAULT = 0.0
 REPARAMETERIZATION_STD_DEFAULT = 1.0
-POE_MEAN_DEFAULT = 0.0
-POE_STD_DEFAULT = 1.0
+POE_EPS_DEFAULT = 1e-8
 MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
 NOISE_MEAN_DEFAULT = 0.0
@@ -99,8 +98,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('--experts_fusion', type=str, default='poe', choices=EXPERTS_FUSION_TYPES, help='Type of experts to use in the fusion of the modalities for the mvae.')
     exp_parser.add_argument('--rep_trick_mean', type=float, default=REPARAMETERIZATION_MEAN_DEFAULT, help='Mean value for the reparameterization trick for the vae and mvae.')
     exp_parser.add_argument('--rep_trick_std', type=float, default=REPARAMETERIZATION_STD_DEFAULT, help='Standard deviation value for the reparameterization trick for the vae and mvae.')
-    exp_parser.add_argument('--poe_mean', type=float, default=POE_MEAN_DEFAULT, help='Mean value for the product of experts for the mvae.')
-    exp_parser.add_argument('--poe_std', type=float, default=POE_STD_DEFAULT, help='Standard deviation value for the product of experts for the mvae.')
+    exp_parser.add_argument('--poe_eps', type=float, default=POE_EPS_DEFAULT, help='Epsilon value for the product of experts fusion for the mvae.')
     exp_parser.add_argument('--adam_betas', nargs=2, type=float, default=ADAM_BETAS_DEFAULTS, help='Beta values for the Adam optimizer.')
     exp_parser.add_argument('--momentum', type=float, default=MOMENTUM_DEFAULT, help='Momentum for the SGD optimizer.')
     exp_parser.add_argument('--noise_mean', type=float, default=NOISE_MEAN_DEFAULT, help='Mean for noise distribution.')
@@ -157,8 +155,12 @@ def setup_env(m_path, config):
             idx_dict = pickle.load(idx_pickle)
             with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
                 pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
-            idx_dict[config['architecture']][config['dataset']] += 1
-            exp_id = idx_dict[config['architecture']][config['dataset']]
+            if "classifier" in config['stage']: 
+                idx_dict[config['architecture']][config['dataset']]['classifier'] += 1
+                exp_id = idx_dict[config['architecture']][config['dataset']]['classifier']
+            elif "model" in config['stage']:
+                idx_dict[config['architecture']][config['dataset']]['model'] += 1
+                exp_id = idx_dict[config['architecture']][config['dataset']]['model']
         with open(os.path.join(m_path, "experiments_idx.pickle"), "wb") as idx_pickle:
             pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
     else:
@@ -167,10 +169,13 @@ def setup_env(m_path, config):
             for architecture in ARCHITECTURES:
                 idx_dict[architecture] = {}
                 for dataset in DATASETS:
-                    idx_dict[architecture][dataset] = 0
+                    idx_dict[architecture][dataset] = {'model': 0, 'classifier': 0}
             with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
                 pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
-            idx_dict[config['architecture']][config['dataset']] = 1
+            if "classifier" in config['stage']: 
+                idx_dict[config['architecture']][config['dataset']]['classifier'] = 1
+            elif "model" in config['stage']:
+                idx_dict[config['architecture']][config['dataset']]['model'] = 1
             pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
             exp_id = 1
     
@@ -196,8 +201,8 @@ def config_validation(m_path, config):
     if "dataset" not in config or config["dataset"] not in DATASETS:
         raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
     
-    #os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
-    #os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
 
     if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
         if config['stage'] == 'train_model' and config['model_out'] is None:
@@ -274,21 +279,15 @@ def config_validation(m_path, config):
             file.write(f'experts_fusion: {experts_fusion}\n')
             print(f'experts_fusion: {experts_fusion}')
             if experts_fusion == 'poe':
-                if "poe_mean" not in config or config["poe_mean"] is None:
-                    config["poe_mean"] = POE_MEAN_DEFAULT
-                if "poe_std" not in config or config["poe_std"] is None:
-                    config["poe_std"] = POE_STD_DEFAULT
+                if "poe_eps" not in config or config["poe_eps"] is None:
+                    config["poe_eps"] = POE_EPS_DEFAULT
 
-                poe_mean = config['poe_mean']
-                poe_std = config["poe_std"]
-                file.write(f'poe_mean: {poe_mean}\n')
-                print(f'poe_mean: {poe_mean}')
-                file.write(f'poe_std: {poe_std}\n')
-                print(f'poe_std: {poe_std}')
+                poe_eps = config['poe_eps']
+                file.write(f'poe_eps: {poe_eps}\n')
+                print(f'poe_eps: {poe_eps}')
         else:
             config['experts_fusion'] = None
-            config['poe_mean'] = None
-            config['poe_std'] = None
+            config['poe_eps'] = None
 
         if architecture == 'vae' or architecture == 'mvae':
             if "rep_trick_mean" not in config:
@@ -461,7 +460,7 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
         loss_list_dict = {'infonce_loss': None}
     elif config['architecture'] == 'mvae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = mvae.MVAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
+        model = mvae.MVAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
         loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
 
     if "load_config" in config and config['load_config'] is not None:
@@ -587,7 +586,7 @@ def save_results(m_path, config, device, loss_dict=None):
     if loss_dict is not None:
         with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             for key, value in loss_dict.items():
-                wandb.log({f'Epoch {key.lower()}': value})
+                wandb.log({f'epoch_{key}': value})
                 print(f'{key}: {value}')
                 file.write(f'- {key}: {value}\n')
     

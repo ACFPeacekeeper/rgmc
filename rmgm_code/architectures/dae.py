@@ -72,11 +72,13 @@ class DAE(nn.Module):
         return x_hat, z
     
     def loss(self, x, x_hat):
-        mse_loss = nn.MSELoss(reduction="sum").to(self.device)
+        mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = self.scales[key] * mse_loss(x_hat[key], x[key]) / x[key].size(dim=0)
+            loss = mse_loss(x_hat[key], x[key])
+            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
+            
 
         recon_loss = 0
         for value in recon_losses.values():

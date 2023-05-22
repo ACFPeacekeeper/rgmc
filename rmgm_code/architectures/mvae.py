@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from architectures.mvae_networks import *
 
 class MVAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, expert_type, dataset_len):
+    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, expert_type, poe_eps, dataset_len):
         super(MVAE, self).__init__()
         self.name = name
         self.device = device
@@ -17,6 +17,7 @@ class MVAE(nn.Module):
         self.kld = 0.
         self.dataset_len = dataset_len
         self.experts = PoE() if expert_type == 'PoE' else PoE()
+        self.poe_eps = poe_eps
         self.image_encoder = None
         self.image_decoder = None
         self.trajectory_encoder = None
@@ -78,8 +79,7 @@ class MVAE(nn.Module):
             logvar = torch.cat((logvar, tmp_logvar.unsqueeze(0)), dim=0)
 
 
-        mean = torch.mean(mean, dim=0)
-        logvar = torch.mean(logvar, dim=0)
+        mean, logvar = self.experts(mean, logvar, self.poe_eps)
         std = torch.exp(torch.mul(logvar, 0.5))
 
         if sample is False:
@@ -95,11 +95,12 @@ class MVAE(nn.Module):
         return x_hat, z
     
     def loss(self, x, x_hat):
-        mse_loss = nn.MSELoss(reduction="sum").to(self.device)
+        mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
-            recon_losses[key] = self.scales[key] * mse_loss(x_hat[key], x[key]) / x[key].size(dim=0)
+            loss = mse_loss(x_hat[key], x[key])
+            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
