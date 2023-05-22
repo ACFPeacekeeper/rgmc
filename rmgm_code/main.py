@@ -329,11 +329,7 @@ def run_experiment(**kwargs):
         elif config['stage'] == 'test_classifier':
             test_downstream_classifier(config)
         elif config['stage'] == 'inference':
-            try:
-                orig_umask = os.umask(0)
-                os.makedirs(os.path.join(m_path, "images"), exist_ok=True, mode=0o777)
-            finally:
-                os.umask(orig_umask)
+            os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
             inference(config)
     except:
         wandb.finish()
@@ -343,14 +339,10 @@ def run_experiment(**kwargs):
 
 
 def main():
-    try:
-        orig_umask = os.umask(0)
-        os.makedirs(os.path.join(m_path, "results"), exist_ok=True, mode=0o777)
-        os.makedirs(os.path.join(m_path, "configs"), exist_ok=True, mode=0o777)
-        os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True, mode=0o777)
-        os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True, mode=0o777)
-    finally:
-        os.umask(orig_umask)
+    os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "configs"), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
     configs = process_arguments(m_path)
     call_with_configs(config_ls=configs)(run_experiment)()
     path_pickle_copy = os.path.join(m_path, "experiments_idx_copy.pickle")

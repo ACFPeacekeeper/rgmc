@@ -202,12 +202,8 @@ def config_validation(m_path, config):
     if "dataset" not in config or config["dataset"] not in DATASETS:
         raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
     
-    try:
-        orig_umask = os.umask(0)
-        os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True, mode=0o777)
-        os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True, mode=0o777)
-    finally:
-        os.umask(orig_umask)
+    os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
+    os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
 
     if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
         if config['stage'] == 'train_model' and config['model_out'] is None:
