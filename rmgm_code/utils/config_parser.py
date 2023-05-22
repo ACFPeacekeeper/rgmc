@@ -216,18 +216,19 @@ def config_validation(m_path, config):
                 raise argparse.ArgumentError("Argument error: number of epochs must be a positive and non-zero integer.")
             elif config['batch_size'] < 1:
                 raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
-            elif config['latent_dimension'] < 1:
-                raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
             elif config['checkpoint'] < 0:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be an integer greater than or equal to 0.")
             elif config['checkpoint'] > config['epochs']:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
     
-        if "seed" not in config:
-            config["seed"] = SEED
-
-        if "latent_dimension" not in config:
+        if "latent_dimension" not in config or config['latent_dimension'] is None:
             config['latent_dimension'] = LATENT_DIM_DEFAULT
+
+        if config['latent_dimension'] < 1:
+            raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
+
+        if "seed" not in config or config['seed'] is None:
+            config["seed"] = SEED
 
         if "exclude_modality" not in config:
             config["exclude_modality"] = None
