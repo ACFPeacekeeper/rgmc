@@ -10,6 +10,7 @@ import shutil
 import pickle
 import termios
 import argparse
+import itertools
 import subprocess
 import tracemalloc
 
@@ -68,6 +69,7 @@ def process_arguments(m_path):
 
     configs_parser = subparsers.add_parser("config")
     configs_parser.add_argument('--load_config', '--load_json', type=str, help='File path where the experiment(s) configurations are to loaded from.')
+    configs_parser.add_argument('--config_permute', '--config_permutations', type=str, help='Generate several config runs from permutations of dict of lists with hyperparams.')
     configs_parser.add_argument('--seed', '--torch_seed', type=int, default=SEED, help='Seed value for results replication.')
 
     exp_parser = subparsers.add_parser("experiment")
@@ -125,14 +127,19 @@ def process_arguments(m_path):
                     shutil.rmtree(os.path.join(m_path, "configs", dir), ignore_errors=True)
         sys.exit(0)
     
+    torch.manual_seed(args['seed'])
 
     if args['command'] == 'config':
-        config_data = json.load(open(os.path.join(m_path, args['load_config'])))
-        configs = config_data['configs']
-        if not isinstance(configs, list):
-            configs = [configs]
-        configs = [dict(item, **{'seed': args['seed']}) for item in configs]
-        torch.manual_seed(args['seed'])
+        if "config_permute" in args and args['config_permute'] is not None:
+            hyperparams = json.load(open(os.path.join(m_path, args['config_permute'])))
+            keys, values = zip(*hyperparams.items())
+            configs = [dict(zip(keys, v)) for v in itertools.product(*values)]
+        else:
+            config_data = json.load(open(os.path.join(m_path, args['load_config'])))
+            configs = config_data['configs']
+            if not isinstance(configs, list):
+                configs = [configs]
+            configs = [dict(item, **{'seed': args['seed']}) for item in configs]
         return configs
     
     if args['command'] == 'experiment':
@@ -552,7 +559,7 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
             loss_list_dict[key] = 0.
 
 
-    if "notes" not in config:
+    if "notes" not in config or config["notes"] is None:
         print('Enter experiment notes:')
         notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
         if (notes):
@@ -560,7 +567,8 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
         else:
             notes = ""
         termios.tcflush(sys.stdin, termios.TCIOFLUSH)
-
+    else:
+        notes = config["notes"]
 
     wandb.init(project="rmgm", 
                name=config['model_out'],

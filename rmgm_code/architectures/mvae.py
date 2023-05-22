@@ -84,7 +84,7 @@ class MVAE(nn.Module):
 
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * self.latent_dim / batch_size
+            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * self.latent_dim / batch_size
         else:
             z = mean
 
@@ -108,7 +108,7 @@ class MVAE(nn.Module):
         elif self.exclude_modality == 'image':
             recon_losses['image'] = 0.
 
-        loss_dict = Counter({'ELBO loss': elbo, 'KLD loss': self.kld, 'Img recon loss': recon_losses['image'], 'Traj recon loss': recon_losses['trajectory']})
+        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
             

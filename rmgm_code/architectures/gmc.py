@@ -97,7 +97,7 @@ class GMC(LightningModule):
             joint_mod_loss_sum += loss_joint_mod
 
         loss = torch.mean(joint_mod_loss_sum)
-        tqdm_dict = {"InfoNCE": loss}
+        tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
 
     def infonce_with_joints_as_negatives(
@@ -136,7 +136,7 @@ class GMC(LightningModule):
             joint_mod_loss_sum += loss_joint_mod
 
         loss = torch.mean(joint_mod_loss_sum)
-        tqdm_dict = {"InfoNCE": loss}
+        tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
 
     def training_step(self, data, train_params, batch_size):

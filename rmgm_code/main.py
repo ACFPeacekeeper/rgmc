@@ -8,12 +8,38 @@ from collections import Counter, defaultdict
 # Assign path to current directory
 m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
+WAIT_TIME = 15 # Seconds to wait between sequential experiments
+
+def nan_hook(self, input, output):
+    if isinstance(output, dict):
+        outputs = [value for value in output.values()]
+    if not isinstance(output, tuple):
+        outputs = [output]
+    else:
+        outputs = output
+
+    for i, out in enumerate(outputs):
+        if isinstance(out, dict):
+            for value in list(out.values()):
+                nan_mask = torch.isnan(value)    
+                if nan_mask.any():
+                    print("In", self.__class__.__name__)
+                    raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
+
+        else:
+            nan_mask = torch.isnan(out)
+            if nan_mask.any():
+                print("In", self.__class__.__name__)
+                raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
+
+
 
 def train_model(config):
     device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config)
 
     checkpoint_counter = config['checkpoint'] 
-    
+    for module in model.modules():
+        module.register_forward_hook(nan_hook)
     bt_loss = defaultdict(list)
     total_start = time.time()
     tracemalloc.start()
@@ -246,8 +272,8 @@ def test_downstream_classifier(arguments, device, wandb_dict):
     clf_loss, accuracy, preds = clf.loss(classification, dataset.labels)
     test_end = time.time()
 
-    loss_dict['NLL loss'] = clf_loss
-    loss_dict['Accuracy'] = accuracy
+    loss_dict['nll_loss'] = clf_loss
+    loss_dict['accuracy'] = accuracy
     save_final_metrics(os.path.join(m_path, "results", arguments.model_out + ".txt"), loss_dict)
     save_preds(os.path.join(m_path, "results", arguments.model_out + ".txt"), preds, dataset.labels)
     print(f'Runtime: {test_end - test_start} sec')
@@ -326,7 +352,14 @@ def call_with_configs(config_ls):
             for config in config_ls:
                 config = setup_env(m_path, config)
                 kwargs['config'] = config
-                run_experiment(**kwargs)
+                try:
+                    run_experiment(**kwargs)
+                except ValueError as ve:
+                    print(ve)
+                    continue
+                finally:
+                    print('Finishing up run...')
+                    time.sleep(WAIT_TIME)
         return wrapper
     return decorate
 
@@ -350,8 +383,7 @@ def run_experiment(**kwargs):
         wandb.finish()
         traceback.print_exception(*sys.exc_info())
         os.remove(os.path.join(m_path, "experiments_idx.pickle"))
-        os.rename(os.path.join(m_path, "experiments_idx.pickle"), os.path.join(m_path, "experiments_idx_copy.pickle"))
-        sys.exit(1)
+        os.rename(os.path.join(m_path, "experiments_idx_copy.pickle"), os.path.join(m_path, "experiments_idx.pickle"))
 
 
 def main():
