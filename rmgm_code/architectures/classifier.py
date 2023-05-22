@@ -5,10 +5,10 @@ from torch.nn import functional as F
 from collections import Counter
 
 class MNISTClassifier(nn.Module):
-    def __init__(self, latent_dim, model):
+    def __init__(self, latent_dimension, model):
         super().__init__()
         self.model = model
-        self.fc1 = nn.Linear(latent_dim, 256)
+        self.fc1 = nn.Linear(latent_dimension, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 10)
 

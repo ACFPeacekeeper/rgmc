@@ -4,12 +4,12 @@ from collections import Counter
 
 # Code adapted from https://github.com/miguelsvasco/gmc
 class GMC(LightningModule):
-    def __init__(self, name, common_dim, exclude_modality, latent_dim, loss_type="infonce"):
+    def __init__(self, name, common_dim, exclude_modality, latent_dimension, loss_type="infonce"):
         super(GMC, self).__init__()
 
         self.name = name
         self.common_dim = common_dim
-        self.latent_dim = latent_dim
+        self.latent_dimension = latent_dimension
         self.loss_type = loss_type
         self.exclude_modality = exclude_modality
 
@@ -169,7 +169,7 @@ class GMC(LightningModule):
 
 
 class MhdGMC(GMC):
-    def __init__(self, name, exclude_modality, latent_dim, loss_type="infonce"):
+    def __init__(self, name, exclude_modality, latent_dimension, loss_type="infonce"):
         if exclude_modality == 'image':
             self.common_dim = 200
         elif exclude_modality == 'trajectory':
@@ -177,7 +177,7 @@ class MhdGMC(GMC):
         else:
             self.common_dim = 28 * 28 + 200
 
-        super(MhdGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dim, loss_type)
+        super(MhdGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
@@ -200,7 +200,7 @@ class MhdGMC(GMC):
             }
 
         self.loss_type = loss_type
-        self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dim=latent_dim)
+        self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
     def set_modalities(self, exclude_modality):
         if exclude_modality == 'image':
@@ -222,5 +222,5 @@ class MhdGMC(GMC):
                 'joint': self.joint_processor
             }
 
-        self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dim=self.latent_dim)
+        self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=self.latent_dimension)
         self.exclude_modality = exclude_modality

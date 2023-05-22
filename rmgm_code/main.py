@@ -4,11 +4,11 @@ import traceback
 from tqdm import tqdm
 from collections import Counter, defaultdict
 
-from rmgm_code.utils.logger import *
-from rmgm_code.utils.config_parser import *
+from utils.logger import *
+from utils.config_parser import *
 
 # Assign path to current directory
-m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
+m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
 WAIT_TIME = 5 # Seconds to wait between sequential experiments
 
@@ -27,7 +27,12 @@ def nan_hook(self, input, output):
                 if nan_mask.any():
                     print("In", self.__class__.__name__)
                     raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
-
+        elif isinstance(out, list):
+            for value in out:
+                nan_mask = torch.isnan(value)    
+                if nan_mask.any():
+                    print("In", self.__class__.__name__)
+                    raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
         else:
             nan_mask = torch.isnan(out)
             if nan_mask.any():
@@ -61,8 +66,8 @@ def train_model(config):
             for key, value in dataset.dataset.items():
                 batch[key] = value[batch_idx * config['batch_size'] : batch_end_idx, :]
 
-            if model.name == 'GMC':
-                loss, batch_loss_dict = model.training_step(batch, {"temperature": config['infonce_loss_temperature_scale']}, batch_end_idx - batch_idx * config['batch_size'])
+            if model.name == 'gmc':
+                loss, batch_loss_dict = model.training_step(batch, {"temperature": config['infonce_temperature']}, batch_end_idx - batch_idx * config['batch_size'])
             else:
                 x_hat, _ = model(batch)    
                 loss, batch_loss_dict = model.loss(batch, x_hat)      
@@ -218,7 +223,7 @@ def test_model(config):
 
 
     test_start = time.time()
-    if model.name == 'GMC':
+    if model.name == 'gmc':
         loss_dict = model.validation_step(dataset, {"temperature": config['infonce_temperature']}, dataset.dataset_len)
     else:
         x_hat, _ = model(dataset)
@@ -297,16 +302,16 @@ def call_with_configs(config_ls):
     def decorate(run_experiment):
         def wrapper(*args, **kwargs):
             for config in config_ls:
-                config = setup_env(m_path, config)
-                kwargs['config'] = config
                 try:
+                    config = setup_env(m_path, config)
+                    kwargs['config'] = config
                     run_experiment(**kwargs)
                 except ValueError as ve:
                     print(ve)
-                    continue
                 finally:
                     print('Finishing up run...')
                     time.sleep(WAIT_TIME)
+                    continue
         return wrapper
     return decorate
 

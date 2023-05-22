@@ -6,17 +6,17 @@ import torch.nn.functional as F
 # Code adapted from https://github.com/miguelsvasco/gmc
 class MHDCommonEncoder(nn.Module):
 
-    def __init__(self, common_dim, latent_dim):
+    def __init__(self, common_dim, latent_dimension):
         super(MHDCommonEncoder, self).__init__()
         self.common_dim = common_dim
-        self.latent_dim = latent_dim
+        self.latent_dimension = latent_dimension
 
         self.feature_extractor = nn.Sequential(
             nn.Linear(common_dim, 512),
             Swish(),
             nn.Linear(512, 512),
             Swish(),
-            nn.Linear(512, latent_dim),
+            nn.Linear(512, latent_dimension),
         )
 
     def forward(self, x):
@@ -102,7 +102,7 @@ class MHDLabelProcessor(nn.Module):
 
 class MHDJointProcessor(nn.Module):
     """
-    @param latent_dim: integer
+    @param latent_dimension: integer
                       number of latent dimensions
     """
 

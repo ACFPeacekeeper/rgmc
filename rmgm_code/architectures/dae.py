@@ -4,7 +4,7 @@ from collections import Counter
 from architectures.dae_networks import *
 
 class DAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, noise_factor=0.3):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.3):
         super(DAE, self).__init__()
         self.name = name
         if exclude_modality == 'image':
@@ -17,9 +17,9 @@ class DAE(nn.Module):
             self.layer_dim = 28 * 28 + 200
             self.modality_dims = [0, 28 * 28, 200]
 
-        self.encoder = Encoder(latent_dim, self.layer_dim)
-        self.decoder = Decoder(latent_dim, self.layer_dim)
-
+        self.encoder = Encoder(latent_dimension, self.layer_dim)
+        self.decoder = Decoder(latent_dimension, self.layer_dim)
+        self.latent_dimension = latent_dimension
         self.device = device
         self.scales = scales
         self.noise_factor = noise_factor

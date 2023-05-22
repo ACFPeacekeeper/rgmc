@@ -83,7 +83,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('-e', '--epochs', type=int, default=EPOCHS_DEFAULT, help='Number of epochs to train the model.')
     exp_parser.add_argument('-b', '--batch_size', type=int, default=BATCH_SIZE_DEFAULT, help='Number of samples processed for each model update.')
     exp_parser.add_argument('--checkpoint', type=int, default=CHECKPOINT_DEFAULT, help='Epoch interval between checkpoints of the model in training.')
-    exp_parser.add_argument('--latent_dim', '--latent_dimension', type=int, default=LATENT_DIM_DEFAULT, help='Dimension of the latent space of the models encodings.')
+    exp_parser.add_argument('--latent_dimension', '--latent_dimension', type=int, default=LATENT_DIM_DEFAULT, help='Dimension of the latent space of the models encodings.')
     exp_parser.add_argument('--noise', type=str, default=None, choices=NOISE_TYPES, help='Apply a type of noise to the model\'s input.')
     exp_parser.add_argument('--adversarial_attack', '--attack', type=str, default=None, choices=ADVERSARIAL_ATTACKS, help='Execute an adversarial attack against the model.')
     exp_parser.add_argument('--target_modality', type=str, default=None, choices=MODALITIES, help='Modality to target with noisy and/or adversarial samples.')
@@ -208,8 +208,8 @@ def config_validation(m_path, config):
             raise argparse.ArgumentError("Argument error: number of epochs must be a positive and non-zero integer.")
         elif config['batch_size'] < 1:
             raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
-        elif config['latent_dim'] < 1:
-            raise argparse.ArgumentError("Argument error: latent_dim value must be a positive and non-zero integer.")
+        elif config['latent_dimension'] < 1:
+            raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
         elif config['checkpoint'] < 0:
             raise argparse.ArgumentError("Argument error: checkpoint value must be an integer greater than or equal to 0.")
         elif config['checkpoint'] > config['epochs']:
@@ -218,8 +218,8 @@ def config_validation(m_path, config):
     if "seed" not in config:
         config["seed"] = SEED
 
-    if "latent_dim" not in config:
-        config['latent_dim'] = LATENT_DIM_DEFAULT
+    if "latent_dimension" not in config:
+        config['latent_dimension'] = LATENT_DIM_DEFAULT
 
     if "exclude_modality" not in config:
         config["exclude_modality"] = None
@@ -242,7 +242,7 @@ def config_validation(m_path, config):
         seed = config['seed']
         dataset = config['dataset']
         stage = config['stage']
-        latent_dim = config['latent_dim']
+        latent_dimension = config['latent_dimension']
         exclude_modality = config['exclude_modality']
         file.write(f'Model: {architecture}\n')
         print(f'Model: {architecture}')
@@ -256,8 +256,8 @@ def config_validation(m_path, config):
         file.write(f'stage: {stage}\n')
         print(f'stage: {stage}')
 
-        file.write(f'latent_dim: {latent_dim}\n')
-        print(f'latent_dim: {latent_dim}')
+        file.write(f'latent_dimension: {latent_dimension}\n')
+        print(f'latent_dimension: {latent_dimension}')
 
         file.write(f'exclude_modality: {exclude_modality}\n')
         print(f'exclude_modality: {exclude_modality}')
@@ -446,18 +446,18 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
 
     if config['architecture'] == 'vae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = vae.VAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
+        model = vae.VAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
         loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
     elif config['architecture'] == 'dae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
-        model = dae.DAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales)
+        model = dae.DAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales)
         loss_list_dict = {'total_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
     elif config['architecture'] == 'gmc':
-        model = gmc.MhdGMC(config['architecture'], config['exclude_modality'], config['latent_dim'])
+        model = gmc.MhdGMC(config['architecture'], config['exclude_modality'], config['latent_dimension'])
         loss_list_dict = {'infonce_loss': None}
     elif config['architecture'] == 'mvae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = mvae.MVAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
+        model = mvae.MVAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
         loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
 
     if "load_config" in config and config['load_config'] is not None:
@@ -470,7 +470,7 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
 
     if 'classifier' in config['stage']:
         loss_list_dict = {'nll_loss': None, 'accuracy': None}
-        model = classifier.MNISTClassifier(config['latent_dim'], model)
+        model = classifier.MNISTClassifier(config['latent_dimension'], model)
         model.to(device)
 
     if config['adversarial_attack'] is not None or config['noise'] is not None:

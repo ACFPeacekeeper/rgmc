@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 class Encoder(nn.Module):
-    def __init__(self, latent_dim, first_layer_dim):
+    def __init__(self, latent_dimension, first_layer_dim):
         super(Encoder, self).__init__()
         self.fc = nn.Linear(first_layer_dim, 512)
         self.feature_extractor = nn.Sequential(
@@ -10,8 +10,8 @@ class Encoder(nn.Module):
             nn.SiLU(),
         )
 
-        self.fc_mean = nn.Linear(256, latent_dim)
-        self.fc_logvar = nn.Linear(256, latent_dim)
+        self.fc_mean = nn.Linear(256, latent_dimension)
+        self.fc_logvar = nn.Linear(256, latent_dimension)
 
     def set_first_layer(self, layer_dim):
         self.fc = nn.Linear(layer_dim, 512)
@@ -25,10 +25,10 @@ class Encoder(nn.Module):
         return mean, logvar
     
 class Decoder(nn.Module):
-    def __init__(self, latent_dim, last_layer_dim):
+    def __init__(self, latent_dimension, last_layer_dim):
         super(Decoder, self).__init__()
         self.feature_reconstructor = nn.Sequential(
-            nn.Linear(latent_dim, 256),
+            nn.Linear(latent_dimension, 256),
             nn.SiLU(),
             nn.Linear(256, 512),
             nn.SiLU(),

@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from architectures.mvae_networks import *
 
 class MVAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, expert_type, poe_eps, dataset_len):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps, dataset_len):
         super(MVAE, self).__init__()
         self.name = name
         self.device = device
@@ -13,7 +13,7 @@ class MVAE(nn.Module):
         self.std = std
         self.scales = scales
         self.exclude_modality = exclude_modality
-        self.latent_dim = latent_dim
+        self.latent_dimension = latent_dimension
         self.kld = 0.
         self.dataset_len = dataset_len
         self.experts = PoE() if expert_type == 'PoE' else PoE()
@@ -24,40 +24,40 @@ class MVAE(nn.Module):
         self.trajectory_decoder = None
 
         if self.exclude_modality == 'image':
-            self.trajectory_encoder = TrajectoryEncoder(latent_dim)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dim)
+            self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
+            self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
             self.encoders = {'trajectory': self.trajectory_encoder}
             self.decoders = {'trajectory': self.trajectory_decoder}
         elif self.exclude_modality == 'trajectory':
-            self.image_encoder = ImageEncoder(latent_dim)
-            self.image_decoder = ImageDecoder(latent_dim)
+            self.image_encoder = ImageEncoder(latent_dimension)
+            self.image_decoder = ImageDecoder(latent_dimension)
             self.encoders = {'image': self.image_encoder}
             self.decoders = {'image': self.image_decoder}
         else:
-            self.trajectory_encoder = TrajectoryEncoder(latent_dim)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dim)
-            self.image_encoder = ImageEncoder(latent_dim)
-            self.image_decoder = ImageDecoder(latent_dim)
+            self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
+            self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
+            self.image_encoder = ImageEncoder(latent_dimension)
+            self.image_decoder = ImageDecoder(latent_dimension)
             self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
             self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
 
 
     def set_modalities(self, exclude_modality):
         if self.exclude_modality == 'image':
-            self.trajectory_encoder = TrajectoryEncoder(self.latent_dim)
-            self.trajectory_decoder = TrajectoryDecoder(self.latent_dim)
+            self.trajectory_encoder = TrajectoryEncoder(self.latent_dimension)
+            self.trajectory_decoder = TrajectoryDecoder(self.latent_dimension)
             self.encoders = {'trajectory': self.trajectory_encoder}
             self.decoders = {'trajectory': self.trajectory_decoder}
         elif self.exclude_modality == 'trajectory':
-            self.image_encoder = ImageEncoder(self.latent_dim)
-            self.image_decoder = ImageDecoder(self.latent_dim)
+            self.image_encoder = ImageEncoder(self.latent_dimension)
+            self.image_decoder = ImageDecoder(self.latent_dimension)
             self.encoders = {'image': self.image_encoder}
             self.decoders = {'image': self.image_decoder}
         else:
-            self.trajectory_encoder = TrajectoryEncoder(self.latent_dim)
-            self.trajectory_decoder = TrajectoryDecoder(self.latent_dim)
-            self.image_encoder = ImageEncoder(self.latent_dim)
-            self.image_decoder = ImageDecoder(self.latent_dim)
+            self.trajectory_encoder = TrajectoryEncoder(self.latent_dimension)
+            self.trajectory_decoder = TrajectoryDecoder(self.latent_dimension)
+            self.image_encoder = ImageEncoder(self.latent_dimension)
+            self.image_decoder = ImageDecoder(self.latent_dimension)
             self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
             self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
 
@@ -71,7 +71,7 @@ class MVAE(nn.Module):
 
     def forward(self, x, sample=False):
         batch_size = list(x.values())[0].size(dim=0)
-        mean, logvar = self.experts.prior_expert((1, batch_size, self.latent_dim), self.device)
+        mean, logvar = self.experts.prior_expert((1, batch_size, self.latent_dimension), self.device)
 
         for key in x.keys():
             tmp_mean, tmp_logvar = self.encoders[key](x[key])
@@ -84,7 +84,7 @@ class MVAE(nn.Module):
 
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * self.latent_dim / batch_size
+            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * self.latent_dimension / batch_size
         else:
             z = mean
 

@@ -4,7 +4,7 @@ from collections import Counter
 from architectures.vae_networks import *
 
 class VAE(nn.Module):
-    def __init__(self, name, latent_dim, device, exclude_modality, scales, mean, std, dataset_len):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, dataset_len):
         super(VAE, self).__init__()
         self.name = name
         if exclude_modality == 'image':
@@ -17,9 +17,9 @@ class VAE(nn.Module):
             self.layer_dim = 28 * 28 + 200
             self.modality_dims = [0, 28 * 28, 200]
 
-        self.latent_dim = latent_dim
-        self.encoder = Encoder(self.latent_dim, self.layer_dim)
-        self.decoder = Decoder(self.latent_dim, self.layer_dim)
+        self.latent_dimension = latent_dimension
+        self.encoder = Encoder(self.latent_dimension, self.layer_dim)
+        self.decoder = Decoder(self.latent_dimension, self.layer_dim)
         
         self.device = device
         self.scales = scales
@@ -64,7 +64,7 @@ class VAE(nn.Module):
         std = torch.exp(torch.mul(logvar, 0.5))
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * self.latent_dim / data_list[0].size(dim=0)
+            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * self.latent_dimension / data_list[0].size(dim=0)
         else:
             z = mean
         
