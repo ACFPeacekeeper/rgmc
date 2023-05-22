@@ -8,7 +8,7 @@ from utils.logger import *
 from utils.config_parser import *
 
 # Assign path to current directory
-m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
+m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
 
 WAIT_TIME = 5 # Seconds to wait between sequential experiments
 
@@ -307,7 +307,7 @@ def call_with_configs(config_ls):
                     kwargs['config'] = config
                     run_experiment(**kwargs)
                 except ValueError as ve:
-                    print(ve)
+                    traceback.print_exception(*sys.exc_info())
                 finally:
                     print('Finishing up run...')
                     time.sleep(WAIT_TIME)
@@ -332,7 +332,7 @@ def run_experiment(**kwargs):
             try:
                 os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
             except IOError as e:
-                print(e)
+                traceback.print_exception(*sys.exc_info())
             finally:
                 inference(config)
     except:
@@ -349,7 +349,7 @@ def main():
         os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
     except IOError as e:
-        print(e)
+        traceback.print_exception(*sys.exc_info())
     finally:
         configs = process_arguments(m_path)
         call_with_configs(config_ls=configs)(run_experiment)()

@@ -11,6 +11,7 @@ import pickle
 import termios
 import argparse
 import itertools
+import traceback
 import subprocess
 
 import numpy as np
@@ -206,7 +207,7 @@ def config_validation(m_path, config):
         os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
         os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
     except IOError as e:
-        print()
+        traceback.print_exception(*sys.exc_info())
     finally:
         if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
             if config['stage'] == 'train_model' and config['model_out'] is None:
