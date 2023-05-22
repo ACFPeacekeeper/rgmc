@@ -6,7 +6,7 @@ from tqdm import tqdm
 from collections import Counter, defaultdict
 
 # Assign path to current directory
-m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
+m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
 
 WAIT_TIME = 5 # Seconds to wait between sequential experiments
 
