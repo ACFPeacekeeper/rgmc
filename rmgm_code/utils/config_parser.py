@@ -16,11 +16,12 @@ import subprocess
 import numpy as np
 import torch.optim as optim
 
+from torch.utils.data import DataLoader
+
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
 from datasets.pendulum.PendulumDataset import PendulumDataset
-
 from input_transformations import gaussian_noise, fgsm
 from architectures import vae, dae, gmc, mvae, classifier
 
@@ -118,6 +119,9 @@ def process_arguments(m_path):
             path = os.path.join(m_path, "experiments_idx.pickle")
             if os.path.exists(path):
                 os.remove(path)
+            path = os.path.join(m_path, "experiments_idx_copy.pickle")
+            if os.path.exists(path):
+                os.remove(path)
         if args['clear_configs']:
             for dir in os.listdir(os.path.join(m_path, "configs")):
                 if os.path.isdir(os.path.join(m_path, "configs", dir)):
@@ -198,8 +202,12 @@ def config_validation(m_path, config):
     if "dataset" not in config or config["dataset"] not in DATASETS:
         raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
     
-    os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
-    os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
+    try:
+        orig_umask = os.umask(0)
+        os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True, mode=0o777)
+        os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True, mode=0o777)
+    finally:
+        os.umask(orig_umask)
 
     if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
         if config['stage'] == 'train_model' and config['model_out'] is None:
@@ -472,6 +480,8 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
         loss_list_dict = {'nll_loss': None, 'accuracy': None}
         model = classifier.MNISTClassifier(config['latent_dimension'], model)
         model.to(device)
+
+    #dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=config['shuffle'])
 
     if config['adversarial_attack'] is not None or config['noise'] is not None:
         target_modality = config['target_modality']
