@@ -82,7 +82,6 @@ def train_model(config):
     save_final_metrics(m_path, config, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
-    print(config["config_out"])
     with open(os.path.join(m_path, "configs", config['stage'], config["config_out"]), "w") as json_file:
         json_file.write(json_object)
 
@@ -94,26 +93,14 @@ def train_model(config):
 
 
 def train_downstream_classifier(config):
-    if arguments.train_results != 'none':
-        with open(os.path.join(m_path, "results", "train_model", arguments.train_results), 'r+') as file:
-            lines = file.readlines()
-            exclude_modality = [line for line in lines if "Exclude modality" in line][0].split(':')[1].strip()
-        
-        print(f'Loaded model training configuration from: results/train_model/{arguments.train_results}')
-        wandb_dict['model_train_config'] = arguments.train_results
-        with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
-            file.write(f'Loaded model training configuration from: results/train_model/{arguments.train_results}\n')
-    else:
-        exclude_modality = arguments.exclude_modality
-
-    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, arguments, wandb_dict, exclude_modality, latent_dim=-1, train=True, get_labels=True)
-    checkpoint_counter = arguments.checkpoint 
+    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config, train=True, get_labels=True)
+    checkpoint_counter = config['checkpoint'] 
     bt_loss = defaultdict(list)
     total_start = time.time()
     tracemalloc.start()
-    for epoch in range(arguments.epochs):
+    for epoch in range(config['epochs']):
         print(f'Epoch {epoch}')
-        with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
+        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             file.write(f'Epoch {epoch}:\n')
 
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
@@ -123,22 +110,21 @@ def train_downstream_classifier(config):
         epoch_preds = [0]*dataset.labels.size(dim=-1)
         for batch_idx in tqdm(range(batch_number)):
             # Skip last batch
-            batch_end_idx = batch_idx*arguments.batch_size+arguments.batch_size
+            batch_end_idx = batch_idx * config['batch_size'] + config['batch_size']
             if batch_end_idx > dataset.dataset_len:
                 break
             batch = dict.fromkeys(dataset.dataset.keys())
             batch.pop('labels', None)
             for key, value in dataset.dataset.items():
-                    batch[key] = value[batch_idx*arguments.batch_size:batch_end_idx, :]
-                
+                    batch[key] = value[batch_idx * config['batch_size'] : batch_end_idx, :]
             
-            batch_labels = dataset.labels[batch_idx*arguments.batch_size:batch_end_idx]
+            batch_labels = dataset.labels[batch_idx * config['batch_size'] : batch_end_idx]
 
             classification, _, _ = model(batch)
             loss, batch_loss_dict, num_preds = model.loss(classification, batch_labels)
 
             loss.backward()
-            if arguments.optimizer != 'none':
+            if config['optimizer'] is not None:
                 optimizer.step()
                 optimizer.zero_grad()
             
@@ -157,16 +143,16 @@ def train_downstream_classifier(config):
         epoch_end = time.time()
         print(f'Runtime: {epoch_end - epoch_start} sec')
         print(f'Prediction count: {epoch_preds}')
-        with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
+        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
             file.write(f'- Prediction count: {epoch_preds}\n')
-        save_results(m_path, arguments, device, loss_dict)
+        save_results(m_path, config, device, loss_dict)
 
         checkpoint_counter -= 1
         if checkpoint_counter == 0:
             print('Saving model checkpoint to file...')
-            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", f'clf_{arguments.architecture.lower()}_{arguments.dataset.lower()}_{epoch}.pt'))
-            checkpoint_counter = arguments.checkpoint
+            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", config['model_out'] + f'_{epoch}.pt'))
+            checkpoint_counter = config['checkpoint']
 
         if device.type == 'cuda':
             torch.cuda.empty_cache()
@@ -175,12 +161,12 @@ def train_downstream_classifier(config):
     tracemalloc.stop()
     total_end = time.time()
     print(f'Total runtime: {total_end - total_start} sec')
-    with open(os.path.join(m_path, "results", arguments.stage, arguments.model_out + ".txt"), 'a') as file:
+    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, arguments, loss_list_dict, bt_loss)
-    save_preds(m_path, arguments, epoch_preds, dataset.labels)
-    save_final_metrics(m_path, arguments, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
-    torch.save(model.state_dict(), os.path.join(m_path, "saved_models", arguments.model_out + '.pt'))
+    save_train_results(m_path, config, loss_list_dict, bt_loss)
+    save_preds(m_path, config, epoch_preds, dataset.labels)
+    save_final_metrics(m_path, config, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
+    torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + '.pt'))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["config_out"]), "w") as json_file:
         json_file.write(json_object)
@@ -286,15 +272,15 @@ def inference(arguments, device):
         exclude_modality = arguments.exclude_modality
 
     if arguments.architecture == 'VAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
+        scales = {'image': arguments.image_recon_scale, 'trajectory': arguments.traj_recon_scale, 'kld beta': arguments.kld_beta}
         model = vae.VAE(arguments.architecture, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, test=True)
     elif arguments.architecture == 'DAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale}
+        scales = {'image': arguments.image_recon_scale, 'trajectory': arguments.traj_recon_scale}
         model = dae.DAE(arguments.architecture, arguments.latent_dim, device, exclude_modality, scales, test=True)
     elif arguments.architecture == 'GMC':
         model = gmc.MhdGMC(arguments.architecture, exclude_modality, arguments.latent_dim)
     elif arguments.architecture == 'MVAE':
-        scales = {'image': arguments.image_scale, 'trajectory': arguments.traj_scale, 'kld beta': arguments.kld_beta}
+        scales = {'image': arguments.image_recon_scale, 'trajectory': arguments.traj_recon_scale, 'kld beta': arguments.kld_beta}
         model = mvae.MVAE(arguments.architecture, arguments.latent_dim, device, exclude_modality, scales, arguments.rep_mean, arguments.rep_std, arguments.experts_type)
 
     model.load_state_dict(torch.load(os.path.join(m_path, arguments.path_model)))

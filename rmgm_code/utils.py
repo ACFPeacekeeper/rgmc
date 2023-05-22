@@ -67,7 +67,7 @@ def process_arguments(m_path):
     clear_parser.add_argument('--clear_idx', action='store_false', help="Flag to delete previous experiments idx file.")
 
     configs_parser = subparsers.add_parser("config")
-    configs_parser.add_argument('--config_path', '--json_load', type=str, help='File path where the experiment(s) configurations are to loaded from.')
+    configs_parser.add_argument('--load_config', '--load_json', type=str, help='File path where the experiment(s) configurations are to loaded from.')
     configs_parser.add_argument('--seed', '--torch_seed', type=int, default=SEED, help='Seed value for results replication.')
 
     exp_parser = subparsers.add_parser("experiment")
@@ -75,7 +75,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES, help='Architecture to be used in the experiment.')
     exp_parser.add_argument('-p', '--path_model', type=str, default=None, help="Filename of the file where the model is to be loaded from.")
     exp_parser.add_argument('--seed', '--torch_seed', '--pytorch_seed', type=int, default=SEED, help='Seed value for results replication.')
-    exp_parser.add_argument('--train_results', type=str, default=None, help='Filename of the results file of the model training, to load model config from.')
+    exp_parser.add_argument('--load_config', '--load_json', type=str, default=None, help='Filename of config file of the model training, to load model config from.')
     exp_parser.add_argument('--path_classifier', type=str, default=None, help="Filename of the file where the classifier is to be loaded from.")
     exp_parser.add_argument('-m', '--model_out', type=str, default=None, help="Filename of the file where the model/classifier is to be saved to.")
     exp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the experiments.')
@@ -91,12 +91,12 @@ def process_arguments(m_path):
     exp_parser.add_argument('--target_modality', type=str, default=None, choices=MODALITIES, help='Modality to target with noisy and/or adversarial samples.')
     exp_parser.add_argument('--exclude_modality', type=str, default=None, choices=MODALITIES, help='Exclude a modality from the training/testing process.')
     exp_parser.add_argument('--infonce_temperature', '--infonce_temp', type=float, default=INFONCE_TEMPERATURE_DEFAULT, help='Temperature for the infonce loss.')
-    exp_parser.add_argument('--image_scale', type=float, default=RECON_SCALE_DEFAULTS['image'], help='Weight for the image reconstruction loss.')
-    exp_parser.add_argument('--traj_scale', type=float, default=RECON_SCALE_DEFAULTS['trajectory'], help='Weight for the trajectory reconstruction loss.')
+    exp_parser.add_argument('--image_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['image'], help='Weight for the image reconstruction loss.')
+    exp_parser.add_argument('--traj_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['trajectory'], help='Weight for the trajectory reconstruction loss.')
     exp_parser.add_argument('--kld_beta', type=float, default=KLD_BETA_DEFAULT, help='Beta value for KL divergence.')
-    exp_parser.add_argument('--experts_type', type=str, default='poe', choices=EXPERTS_FUSION_TYPES, help='Type of experts to use in the fusion of the modalities for the mvae.')
-    exp_parser.add_argument('--rep_mean', type=float, default=REPARAMETERIZATION_MEAN_DEFAULT, help='Mean value for the reparameterization trick for the vae and mvae.')
-    exp_parser.add_argument('--rep_std', type=float, default=REPARAMETERIZATION_STD_DEFAULT, help='Standard deviation value for the reparameterization trick for the vae and mvae.')
+    exp_parser.add_argument('--experts_fusion', type=str, default='poe', choices=EXPERTS_FUSION_TYPES, help='Type of experts to use in the fusion of the modalities for the mvae.')
+    exp_parser.add_argument('--rep_trick_mean', type=float, default=REPARAMETERIZATION_MEAN_DEFAULT, help='Mean value for the reparameterization trick for the vae and mvae.')
+    exp_parser.add_argument('--rep_trick_std', type=float, default=REPARAMETERIZATION_STD_DEFAULT, help='Standard deviation value for the reparameterization trick for the vae and mvae.')
     exp_parser.add_argument('--poe_mean', type=float, default=POE_MEAN_DEFAULT, help='Mean value for the product of experts for the mvae.')
     exp_parser.add_argument('--poe_std', type=float, default=POE_STD_DEFAULT, help='Standard deviation value for the product of experts for the mvae.')
     exp_parser.add_argument('--adam_betas', nargs=2, type=float, default=ADAM_BETAS_DEFAULTS, help='Beta values for the Adam optimizer.')
@@ -127,7 +127,7 @@ def process_arguments(m_path):
     
 
     if args['command'] == 'config':
-        config_data = json.load(open(os.path.join(m_path, args['config_path'])))
+        config_data = json.load(open(os.path.join(m_path, args['load_config'])))
         configs = config_data['configs']
         if not isinstance(configs, list):
             configs = [configs]
@@ -215,6 +215,9 @@ def config_validation(m_path, config):
     if config['exclude_modality'] is not None and config['target_modality'] is not None and config['exclude_modality'] == config['target_modality']:
         raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
 
+    if config['stage'] == 'train_model':
+        if "load_config" in config and config["load_config"] is not None:
+            config["load_config"] = None
 
     if "download" not in config:
         config["download"] = False
@@ -257,24 +260,38 @@ def config_validation(m_path, config):
             experts_fusion = config['experts_fusion'] 
             file.write(f'experts_fusion: {experts_fusion}\n')
             print(f'experts_fusion: {experts_fusion}')
+            if experts_fusion == 'poe':
+                if "poe_mean" not in config or config["poe_mean"] is None:
+                    config["poe_mean"] = POE_MEAN_DEFAULT
+                if "poe_std" not in config or config["poe_std"] is None:
+                    config["poe_std"] = POE_STD_DEFAULT
+
+                poe_mean = config['poe_mean']
+                poe_std = config["poe_std"]
+                file.write(f'poe_mean: {poe_mean}\n')
+                print(f'poe_mean: {poe_mean}')
+                file.write(f'poe_std: {poe_std}\n')
+                print(f'poe_std: {poe_std}')
         else:
             config['experts_fusion'] = None
+            config['poe_mean'] = None
+            config['poe_std'] = None
 
         if architecture == 'vae' or architecture == 'mvae':
-            if "reparameterization_trick_mean" not in config:
-                config['reparameterization_trick_mean'] = REPARAMETERIZATION_MEAN_DEFAULT
-            if "reparameterization_trick_std" not in config:
-                config['reparameterization_trick_std'] = REPARAMETERIZATION_STD_DEFAULT
+            if "rep_trick_mean" not in config:
+                config['rep_trick_mean'] = REPARAMETERIZATION_MEAN_DEFAULT
+            if "rep_trick_std" not in config:
+                config['rep_trick_std'] = REPARAMETERIZATION_STD_DEFAULT
 
-            rep_mean = config['reparameterization_trick_mean']
-            rep_std = config['reparameterization_trick_std']
-            file.write(f'reparameterization_trick_mean: {rep_mean}\n')
-            print(f'reparameterization_trick_mean: {rep_mean}')
-            file.write(f'reparameterization_trick_std: {rep_std}\n')
-            print(f'reparameterization_trick_std: {rep_std}')
+            rep_trick_mean = config['rep_trick_mean']
+            rep_trick_std = config['rep_trick_std']
+            file.write(f'rep_trick_mean: {rep_trick_mean}\n')
+            print(f'rep_trick_mean: {rep_trick_mean}')
+            file.write(f'rep_trick_std: {rep_trick_std}\n')
+            print(f'rep_trick_std: {rep_trick_std}')
         else:
-            config['reparameterization_trick_mean'] = None
-            config['reparameterization_trick_std'] = None
+            config['rep_trick_mean'] = None
+            config['rep_trick_std'] = None
 
         if "path_model" not in config:
             config["path_model"] = None
@@ -325,17 +342,19 @@ def config_validation(m_path, config):
             if "traj_recon_scale" not in config:
                 config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
             img_scale = config['image_recon_scale']
-            traj_scale = config['traj_recon_scale']
+            traj_recon_scale = config['traj_recon_scale']
             file.write(f'image_recon_scale: {img_scale}\n')
             print(f'image_recon_scale: {img_scale}')
-            file.write(f'traj_recon_scale: {traj_scale}\n')
-            print(f'traj_recon_scale: {traj_scale}')
+            file.write(f'traj_recon_scale: {traj_recon_scale}\n')
+            print(f'traj_recon_scale: {traj_recon_scale}')
             if architecture == 'vae' or architecture == 'mvae':
                 if "kld_beta" not in config:
                     config['kld_beta'] = KLD_BETA_DEFAULT
                 kld_beta = config['kld_beta']
                 file.write(f'kld_beta: {kld_beta}\n')
                 print(f'kld_beta: {kld_beta}')
+            else:
+                config['kld_beta'] = None
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
@@ -353,8 +372,23 @@ def config_validation(m_path, config):
         if "noise" not in config:
             config["noise"] = None
 
+        if config['noise'] is None:
+            config["noise_mean"] = None
+            config["noise_std"] = None
+
         if "adversarial_attack" not in config:
             config["adversarial_attack"] = None
+
+        if config["adversarial_attack"] is None:
+            config['adv_epsilon'] = None
+
+        if "optimizer" not in config:
+            config["optimizer"] = None
+        
+        if config["optimizer"] is None:
+            config["learning_rate"] = None
+            config["momentum"] = None
+            config["adam_betas"] = None
 
     return config
 
@@ -398,23 +432,25 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
         
 
     if config['architecture'] == 'vae':
-        scales = {'image': config['image_scale'], 'trajectory': config['traj_scale'], 'kld_beta': config['kld_beta']}
-        model = vae.VAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['reparameterization_trick_mean'], config['reparameterization_trick_std'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
+        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
+        model = vae.VAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
         loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
     elif config['architecture'] == 'dae':
-        scales = {'image': config['image_scale'], 'trajectory': config['traj_scale']}
+        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
         model = dae.DAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales)
         loss_list_dict = {'total_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
     elif config['architecture'] == 'gmc':
         model = gmc.MhdGMC(config['architecture'], config['exclude_modality'], config['latent_dim'])
         loss_list_dict = {'infonce_loss': None}
     elif config['architecture'] == 'mvae':
-        scales = {'image': config['image_scale'], 'trajectory': config['traj_scale'], 'kld_beta': config['kld_beta']}
-        model = mvae.MVAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['reparameterization_trick_mean'], config['reparameterization_trick_std'], config['experts_type'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
+        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
+        model = mvae.MVAE(config['architecture'], config['latent_dim'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
         loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
 
-    if "train_results" in config and config['train_results'] is not None:
-        if config['stage'] != 'test_classifier':
+    if "load_config" in config and config['load_config'] is not None:
+        config_data = json.load(open(os.path.join(m_path, config['load_config'])))
+        previous_config = config_data['configs']
+        if "test" not in previous_config['stage'] and previous_config['stage'] != "inference":
             model.set_modalities(config['exclude_modality'])
 
     model.to(device)
@@ -570,7 +606,7 @@ def save_train_results(m_path, config, loss_list_dict, bt_loss_dict):
         plt.ylabel(key)
         plt.title(f'{key} per batch')
         plt.legend()
-        plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_bt_{key}.png'))
+        plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + f'_bl_{key}.png'))
 
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         print('Average epoch results:')
