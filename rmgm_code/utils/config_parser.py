@@ -253,8 +253,8 @@ def config_validation(m_path, config):
             stage = config['stage']
             latent_dimension = config['latent_dimension']
             exclude_modality = config['exclude_modality']
-            file.write(f'Model: {architecture}\n')
-            print(f'Model: {architecture}')
+            file.write(f'architecture: {architecture}\n')
+            print(f'architecture: {architecture}')
 
             file.write(f'seed: {seed}\n')
             print(f'seed: {seed}')
