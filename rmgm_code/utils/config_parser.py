@@ -133,9 +133,13 @@ def process_arguments(m_path):
 
     if args['command'] == 'config':
         if "config_permute" in args and args['config_permute'] is not None:
-            hyperparams = json.load(open(os.path.join(m_path, args['config_permute'])))
+            conf_path = open(os.path.join(m_path, args['config_permute']))
+            hyperparams = json.load(conf_path)
             keys, values = zip(*hyperparams.items())
             configs = [dict(zip(keys, v)) for v in itertools.product(*values)]
+            json_object = json.dumps(configs, indent=4)
+            with open(os.path.join(m_path, "configs", os.path.splitext(os.path.basename(args['config_permute']))[0]) + "_unpacked.json", "w") as json_file:
+                json_file.write(json_object)
         else:
             config_data = json.load(open(os.path.join(m_path, args['load_config'])))
             configs = config_data['configs']
@@ -415,7 +419,7 @@ def config_validation(m_path, config):
         return config
 
 
-def setup_experiment(m_path, config, train=True, get_labels=False):
+def setup_experiment(m_path, config, train=True):
     if torch.cuda.is_available():
         device = "cuda:0"
         print(f"Using device: {torch.cuda.get_device_name(0)}.")
@@ -444,13 +448,13 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
     device = torch.device(device)
 
     if config['dataset'] == 'mhd':
-        dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train, get_labels)
+        dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
     elif config['dataset'] == 'mosi':
-        dataset = MOSIDataset(os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train, get_labels)
+        dataset = MOSIDataset(os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
     elif config['dataset'] == 'mosei':
-        dataset = MOSEIDataset(os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train, get_labels)
+        dataset = MOSEIDataset(os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
     elif config['dataset'] == 'pendulum':
-        dataset = PendulumDataset(os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train, get_labels)
+        dataset = PendulumDataset(os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         
 
     if config['architecture'] == 'vae':
@@ -578,8 +582,6 @@ def setup_experiment(m_path, config, train=True, get_labels=False):
         termios.tcflush(sys.stdin, termios.TCIOFLUSH)
     else:
         notes = config["notes"]
-
-        print(notes)
 
     run = wandb.init(project="rmgm", 
                name=config['model_out'],

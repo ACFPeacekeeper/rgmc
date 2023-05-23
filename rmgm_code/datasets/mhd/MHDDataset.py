@@ -4,14 +4,14 @@ from subprocess import call
 from ..MultimodalDataset import *
 
 class MHDDataset(MultimodalDataset):
-    def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, get_labels=False, transform=None, adv_attack=None):
-        super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, get_labels, transform, adv_attack)
+    def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
+        super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
 
     def _download(self):
         call("./download_mhd_dataset.sh")
         return
 
-    def _load_data(self, train, get_labels):
+    def _load_data(self, train):
         if train:
             data_path = os.path.join(self.dataset_dir, "mhd_train.pt")
         else:
@@ -27,9 +27,6 @@ class MHDDataset(MultimodalDataset):
         else:
             self.dataset = {'image': data[1].to(self.device), 'trajectory': data[2].to(self.device)}
 
-        if get_labels:
-            self.labels = data[0].to(self.device)
-        else:
-            self.labels = None
+        self.labels = data[0].to(self.device)
 
         return

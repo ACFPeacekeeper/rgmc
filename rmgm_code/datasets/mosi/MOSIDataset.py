@@ -5,14 +5,14 @@ from subprocess import call
 from ..MultimodalDataset import *
 
 class MOSIDataset(MultimodalDataset):
-    def __init__(self, dataset_dir, device, download=False, exclude_modality='none', train=True, transform=None, adv_attack=None, target_modality='none', get_labels=False):
-        super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, get_labels, transform, adv_attack)
+    def __init__(self, dataset_dir, device, download=False, exclude_modality='none', train=True, transform=None, adv_attack=None, target_modality='none'):
+        super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
 
     def _download(self):
         call("./download_mosi_dataset.sh")
         return
     
-    def _load_data(self, train, get_labels):
+    def _load_data(self, train):
         modalities = ['vision', 'text']
         if self.exclude_modality != 'none':
             modalities.remove(self.exclude_modality)
@@ -30,12 +30,9 @@ class MOSIDataset(MultimodalDataset):
             for modal in modalities:
                 self.dataset[modal] = torch.tensor(data['test'][modal].astype(np.float32))
 
-        if get_labels:
-            if train:
-                self.labels = torch.concat((data['labels'], val_data['labels']), dim=0)
-            else:
-                self.labels = data['labels']
+        if train:
+            self.labels = torch.concat((data['labels'], val_data['labels']), dim=0)
         else:
-            self.labels = None
+            self.labels = data['labels']
 
         return
