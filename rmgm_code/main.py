@@ -325,9 +325,6 @@ def run_experiment(**kwargs):
     except:
         wandb.finish(exit_code=1)
         traceback.print_exception(*sys.exc_info())
-        os.remove(os.path.join(m_path, "experiments_idx.pickle"))
-        os.rename(os.path.join(m_path, "experiments_idx_copy.pickle"), os.path.join(m_path, "experiments_idx.pickle"))
-
 
 def main():
     try:
