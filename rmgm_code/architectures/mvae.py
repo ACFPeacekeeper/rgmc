@@ -85,7 +85,6 @@ class MVAE(nn.Module):
         if sample is False:
             z = self.reparameterization(mean, std)
             self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (batch_size / self.dataset_len) # To avoid exploding gradients
-            print(f"kld: {self.kld}")
         else:
             z = mean
 
@@ -102,7 +101,6 @@ class MVAE(nn.Module):
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
             recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() * (x[key].size(dim=0) / self.dataset_len) # To avoid exploding gradients
-            print(f"{key}: {recon_losses[key]}")
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 

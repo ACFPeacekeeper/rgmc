@@ -563,7 +563,7 @@ def setup_experiment(m_path, config, train=True):
         notes = config["notes"]
 
     wandb.init(project="rmgm", 
-               name=config['model_out'],
+               name=config['stage'] + config['model_out'],
                config={key: value for key, value in config.items() if value is not None}, 
                notes=notes,
                allow_val_change=True,
