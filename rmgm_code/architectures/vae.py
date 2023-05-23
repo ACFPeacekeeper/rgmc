@@ -64,7 +64,7 @@ class VAE(nn.Module):
         std = torch.exp(torch.mul(logvar, 0.5))
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) / data_list[0].size(dim=0)
+            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (data_list[0].size(dim=0) / self.dataset_len) # To avoid exploding gradients
         else:
             z = mean
         

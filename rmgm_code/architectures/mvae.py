@@ -84,7 +84,7 @@ class MVAE(nn.Module):
 
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) / batch_size
+            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (batch_size / self.dataset_len) # To avoid exploding gradients
         else:
             z = mean
 
