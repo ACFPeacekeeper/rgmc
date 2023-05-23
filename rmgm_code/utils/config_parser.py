@@ -17,8 +17,6 @@ import subprocess
 import numpy as np
 import torch.optim as optim
 
-from torch.utils.data import DataLoader
-
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
@@ -38,13 +36,13 @@ STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'i
 
 SEED = 42
 LR_DEFAULT = 0.001
-EPOCHS_DEFAULT = 100
+EPOCHS_DEFAULT = 15
 BATCH_SIZE_DEFAULT = 256
 CHECKPOINT_DEFAULT = 0
 LATENT_DIM_DEFAULT = 128
 INFONCE_TEMPERATURE_DEFAULT = 0.2
 RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5}
-KLD_BETA_DEFAULT = 0.0001
+KLD_BETA_DEFAULT = 0.5
 REPARAMETERIZATION_MEAN_DEFAULT = 0.0
 REPARAMETERIZATION_STD_DEFAULT = 1.0
 POE_EPS_DEFAULT = 1e-8
@@ -137,9 +135,6 @@ def process_arguments(m_path):
             hyperparams = json.load(conf_path)
             keys, values = zip(*hyperparams.items())
             configs = [dict(zip(keys, v)) for v in itertools.product(*values)]
-            json_object = json.dumps(configs, indent=4)
-            with open(os.path.join(m_path, "configs", os.path.splitext(os.path.basename(args['config_permute']))[0]) + "_unpacked.json", "w") as json_file:
-                json_file.write(json_object)
         else:
             config_data = json.load(open(os.path.join(m_path, args['load_config'])))
             configs = config_data['configs']
@@ -161,27 +156,20 @@ def setup_env(m_path, config):
             idx_dict = pickle.load(idx_pickle)
             with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
                 pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
-            if "classifier" in config['stage']: 
-                idx_dict[config['architecture']][config['dataset']]['classifier'] += 1
-                exp_id = idx_dict[config['architecture']][config['dataset']]['classifier']
-            elif "model" in config['stage']:
-                idx_dict[config['architecture']][config['dataset']]['model'] += 1
-                exp_id = idx_dict[config['architecture']][config['dataset']]['model']
+            idx_dict[config['stage']][config['dataset']][config['architecture']] += 1
+            exp_id = idx_dict[config['stage']][config['dataset']][config['architecture']]
         with open(os.path.join(m_path, "experiments_idx.pickle"), "wb") as idx_pickle:
             pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
     else:
         with open(experiments_idx_path, 'wb') as idx_pickle:
             idx_dict = {}
-            for architecture in ARCHITECTURES:
-                idx_dict[architecture] = {}
+            for stage in STAGES:
+                idx_dict[stage] = {}
                 for dataset in DATASETS:
-                    idx_dict[architecture][dataset] = {'model': 0, 'classifier': 0}
+                    idx_dict[stage][dataset] = dict.fromkeys(ARCHITECTURES, 0)
             with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
                 pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
-            if "classifier" in config['stage']: 
-                idx_dict[config['architecture']][config['dataset']]['classifier'] = 1
-            elif "model" in config['stage']:
-                idx_dict[config['architecture']][config['dataset']]['model'] = 1
+                idx_dict[config['stage']][config['dataset']][config['architecture']] = 1
             pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
             exp_id = 1
     
@@ -486,16 +474,13 @@ def setup_experiment(m_path, config, train=True):
         model = classifier.MNISTClassifier(config['latent_dimension'], model)
         model.to(device)
 
-    #dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=config['shuffle'])
-
     if config['adversarial_attack'] is not None or config['noise'] is not None:
         target_modality = config['target_modality']
-        print(f'Target modality: {target_modality}')
-        file.write(f'Target modality: {target_modality}\n')
-
         noise = config['noise']
+        print(f'Target modality: {target_modality}')
         print(f'Noise: {noise}')
         with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
+            file.write(f'Target modality: {target_modality}\n')
             file.write(f'Noise: {noise}\n')
         
         if noise == "gaussian":
@@ -589,7 +574,7 @@ def setup_experiment(m_path, config, train=True):
                notes=notes,
                allow_val_change=True,
                magic=True,
-               mode="offline",
+               #mode="offline",
                reinit=True,
                tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)

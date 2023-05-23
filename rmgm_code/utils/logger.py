@@ -42,6 +42,7 @@ def save_train_results(m_path, config, loss_list_dict, bt_loss_dict):
         plt.title(f'{key} per epoch')
         plt.legend()
         plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + f'_{key}.png'))
+        plt.close(idx)
 
     for idx, (key, values) in enumerate(bt_loss_dict.items()):
         plt.figure(idx+len(list(loss_list_dict.keys())), figsize=(20, 20))
@@ -52,6 +53,7 @@ def save_train_results(m_path, config, loss_list_dict, bt_loss_dict):
         plt.title(f'{key} per batch')
         plt.legend()
         plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + f'_bl_{key}.png'))
+        plt.close(idx+len(list(loss_list_dict.keys())))
 
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         print('Average epoch results:')
@@ -82,6 +84,7 @@ def save_final_metrics(m_path, config, loss_dict, first_loss_dict, loss_list_dic
     plt.title("Loss values and improvements of model")
     plt.legend()
     plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
+    plt.close()
     return
 
 
@@ -100,4 +103,5 @@ def save_preds(m_path, config, preds, labels):
         plt.title('Classifier predictions and number of incorrect predictions')
         plt.legend()
         plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_predictions.png'))
+        plt.close()
     return

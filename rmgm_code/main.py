@@ -2,6 +2,7 @@ import time
 import traceback
 
 from tqdm import tqdm
+from torch.utils.data import DataLoader
 from collections import Counter, defaultdict
 
 from utils.logger import *
@@ -52,22 +53,15 @@ def train_model(config):
             file.write(f'Epoch {epoch}:\n')
 
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
+        dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
 
         epoch_start = time.time()
-        for batch_idx in tqdm(range(batch_number)):
-            # Skip last batch
-            batch_end_idx = batch_idx * config['batch_size'] + config['batch_size']
-            if batch_end_idx > dataset.dataset_len:
-                break
-            batch = dict.fromkeys(dataset.dataset.keys())
-            for key, value in dataset.dataset.items():
-                batch[key] = value[batch_idx * config['batch_size'] : batch_end_idx, :]
-
+        for batch_feats, _ in tqdm(dataloader, total=batch_number):
             if model.name == 'gmc':
-                loss, batch_loss_dict = model.training_step(batch, {"temperature": config['infonce_temperature']}, batch_end_idx - batch_idx * config['batch_size'])
+                loss, batch_loss_dict = model.training_step(batch_feats, {"temperature": config['infonce_temperature']}, config['batch_size'])
             else:
-                x_hat, _ = model(batch)    
-                loss, batch_loss_dict = model.loss(batch, x_hat)      
+                x_hat, _ = model(batch_feats)    
+                loss, batch_loss_dict = model.loss(batch_feats, x_hat)      
 
             loss.backward()
             if config['optimizer'] is not None:
@@ -137,23 +131,12 @@ def train_downstream_classifier(config):
             file.write(f'Epoch {epoch}:\n')
 
         loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
+        dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
 
         epoch_start = time.time()
-
         epoch_preds = [0]*dataset.labels.size(dim=-1)
-        for batch_idx in tqdm(range(batch_number)):
-            # Skip last batch
-            batch_end_idx = batch_idx * config['batch_size'] + config['batch_size']
-            if batch_end_idx > dataset.dataset_len:
-                break
-            batch = dict.fromkeys(dataset.dataset.keys())
-            batch.pop('labels', None)
-            for key, value in dataset.dataset.items():
-                    batch[key] = value[batch_idx * config['batch_size'] : batch_end_idx, :]
-            
-            batch_labels = dataset.labels[batch_idx * config['batch_size'] : batch_end_idx]
-
-            classification, _, _ = model(batch)
+        for batch_feats, batch_labels in tqdm(dataloader, total=batch_number):
+            classification, _, _ = model(batch_feats)
             loss, batch_loss_dict, num_preds = model.loss(classification, batch_labels)
 
             loss.backward()
