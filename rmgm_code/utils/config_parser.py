@@ -118,9 +118,6 @@ def process_arguments(m_path):
             path = os.path.join(m_path, "experiments_idx.pickle")
             if os.path.exists(path):
                 os.remove(path)
-            path = os.path.join(m_path, "experiments_idx_copy.pickle")
-            if os.path.exists(path):
-                os.remove(path)
         if args['clear_configs']:
             for dir in os.listdir(os.path.join(m_path, "configs")):
                 if os.path.isdir(os.path.join(m_path, "configs", dir)):
@@ -154,8 +151,6 @@ def setup_env(m_path, config):
     if os.path.isfile(experiments_idx_path):
         with open(experiments_idx_path, 'rb') as idx_pickle:
             idx_dict = pickle.load(idx_pickle)
-            with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
-                pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
             idx_dict[config['stage']][config['dataset']][config['architecture']] += 1
             exp_id = idx_dict[config['stage']][config['dataset']][config['architecture']]
         with open(os.path.join(m_path, "experiments_idx.pickle"), "wb") as idx_pickle:
@@ -167,9 +162,8 @@ def setup_env(m_path, config):
                 idx_dict[stage] = {}
                 for dataset in DATASETS:
                     idx_dict[stage][dataset] = dict.fromkeys(ARCHITECTURES, 0)
-            with open(os.path.join(m_path, "experiments_idx_copy.pickle"), 'wb') as idx_pickle_copy:
-                pickle.dump(idx_dict, idx_pickle_copy, protocol=pickle.HIGHEST_PROTOCOL)
-                idx_dict[config['stage']][config['dataset']][config['architecture']] = 1
+
+            idx_dict[config['stage']][config['dataset']][config['architecture']] = 1
             pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
             exp_id = 1
     

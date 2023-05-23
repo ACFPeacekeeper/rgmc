@@ -293,7 +293,7 @@ def call_with_configs(config_ls):
                     config = setup_env(m_path, config)
                     kwargs['config'] = config
                     run_experiment(**kwargs)
-                except ValueError as ve:
+                except Exception as e:
                     traceback.print_exception(*sys.exc_info())
                 finally:
                     print('Finishing up run...')
