@@ -340,10 +340,6 @@ def main():
     finally:
         configs = process_arguments(m_path)
         call_with_configs(config_ls=configs)(run_experiment)()
-        path_pickle_copy = os.path.join(m_path, "experiments_idx_copy.pickle")
-        if os.path.isfile(path_pickle_copy):
-            os.remove(path_pickle_copy)
-        
 
 if __name__ == "__main__":
     main()
