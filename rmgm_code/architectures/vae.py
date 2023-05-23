@@ -84,7 +84,7 @@ class VAE(nn.Module):
 
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
-            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
+            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() * (x[key].size(dim=0) / self.dataset_len) # To avoid exploding gradients
 
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
