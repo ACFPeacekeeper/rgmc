@@ -36,7 +36,7 @@ STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'i
 
 SEED = 42
 LR_DEFAULT = 0.001
-EPOCHS_DEFAULT = 15
+EPOCHS_DEFAULT = 10
 BATCH_SIZE_DEFAULT = 256
 CHECKPOINT_DEFAULT = 0
 LATENT_DIM_DEFAULT = 128
@@ -267,6 +267,8 @@ def config_validation(m_path, config):
                 config['epochs'] = None
 
             if architecture == 'mvae':
+                if "experts_fusion" not in config or config["experts_fusion"] is None:
+                    config['experts_fusion'] = "poe"
                 experts_fusion = config['experts_fusion'] 
                 file.write(f'experts_fusion: {experts_fusion}\n')
                 print(f'experts_fusion: {experts_fusion}')
@@ -357,8 +359,6 @@ def config_validation(m_path, config):
                     kld_beta = config['kld_beta']
                     file.write(f'kld_beta: {kld_beta}\n')
                     print(f'kld_beta: {kld_beta}')
-                else:
-                    config['kld_beta'] = None
             else:
                 config['image_recon_scale'] = None
                 config['traj_recon_scale'] = None
@@ -562,15 +562,14 @@ def setup_experiment(m_path, config, train=True):
     else:
         notes = config["notes"]
 
-    run = wandb.init(project="rmgm", 
+    wandb.init(project="rmgm", 
                name=config['model_out'],
                config={key: value for key, value in config.items() if value is not None}, 
                notes=notes,
                allow_val_change=True,
                magic=True,
                #mode="offline",
-               reinit=True,
                tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)
 
-    return device, dataset, model, loss_list_dict, batch_number, optimizer, run
+    return device, dataset, model, loss_list_dict, batch_number, optimizer

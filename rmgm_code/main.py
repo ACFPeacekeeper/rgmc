@@ -39,7 +39,7 @@ def nan_hook(self, input, output):
 
 
 def train_model(config):
-    device, dataset, model, loss_list_dict, batch_number, optimizer, _ = setup_experiment(m_path, config)
+    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
@@ -111,13 +111,12 @@ def train_model(config):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
-    wandb.save()
     wandb.finish()
     return model
 
 
 def train_downstream_classifier(config):
-    device, dataset, model, loss_list_dict, batch_number, optimizer, _ = setup_experiment(m_path, config, train=True)
+    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
@@ -190,13 +189,12 @@ def train_downstream_classifier(config):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     
-    wandb.save()
     wandb.finish()
     return model
 
 
 def test_model(config):
-    device, dataset, model, _, _, _, _ = setup_experiment(m_path, config, train=False)
+    device, dataset, model, _, _, _ = setup_experiment(m_path, config, train=False)
     
     tracemalloc.start()
     print('Testing model')
@@ -222,12 +220,11 @@ def test_model(config):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
-    wandb.save()
     wandb.finish()
     return
 
 def test_downstream_classifier(config):
-    device, dataset, clf, _, _, _, _ = setup_experiment(m_path, config, train=False)
+    device, dataset, clf, _, _, _ = setup_experiment(m_path, config, train=False)
 
     tracemalloc.start()
     print('Testing classifier')
@@ -249,12 +246,11 @@ def test_downstream_classifier(config):
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
-    wandb.save()
     wandb.finish()
     return
 
 def inference(config):
-    device, dataset, model, _, _, _, _ = setup_experiment(m_path, config, train=False)
+    device, dataset, model, _, _, _ = setup_experiment(m_path, config, train=False)
     
     tracemalloc.start()
     print('Performing inference')
@@ -280,7 +276,6 @@ def inference(config):
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
-    wandb.save()
     wandb.finish()
     return
 
