@@ -11,7 +11,7 @@ from utils.config_parser import *
 # Assign path to current directory
 m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
 
-WAIT_TIME = 5 # Seconds to wait between sequential experiments
+WAIT_TIME = 0 # Seconds to wait between sequential experiments
 
 def nan_hook(self, input, output):
     if isinstance(output, dict):

@@ -11,7 +11,6 @@ from matplotlib.ticker import StrMethodFormatter
 def save_test_results(m_path, config, loss_list_dict):
     keys = list(loss_list_dict.keys())
     X_axis = np.arange(len(keys))
-    print(loss_list_dict)
     loss_means = [np.mean(loss) for loss in loss_list_dict.values()]
     loss_std = [np.std(loss) for loss in loss_list_dict.values()]
     fig, ax = plt.subplots()
@@ -83,8 +82,8 @@ def save_train_results(m_path, config, loss_list_dict, bt_loss_dict):
             file.write(f'- {key}: {np.mean(values)}\n')
 
     keys = list(loss_list_dict.keys())
-    last_loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_list_dict[-1].values())]
-    first_loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_list_dict[0].values())]
+    last_loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_list_dict.values())[-1]]
+    first_loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_list_dict.values())[0]]
     X_axis = np.arange(len(keys))
     plt.figure(figsize=(20, 10))
     plt.bar(X_axis - 0.2, last_loss_dict, width=0.4, label='Loss values', color='purple')
