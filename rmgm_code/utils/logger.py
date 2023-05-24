@@ -80,10 +80,13 @@ def save_train_results(m_path, config, loss_list_dict, bt_loss_dict):
         for key, values in loss_list_dict.items():
             print(f'{key}: {np.mean(values)}')
             file.write(f'- {key}: {np.mean(values)}\n')
-
+    import sys
     keys = list(loss_list_dict.keys())
-    last_loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_list_dict.values())[-1]]
-    first_loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_list_dict.values())[0]]
+    first_loss_dict = []
+    last_loss_dict = []
+    for value in loss_list_dict.values():
+        first_loss_dict.append(value[0])
+        last_loss_dict.append(value[-1])
     X_axis = np.arange(len(keys))
     plt.figure(figsize=(20, 10))
     plt.bar(X_axis - 0.2, last_loss_dict, width=0.4, label='Loss values', color='purple')

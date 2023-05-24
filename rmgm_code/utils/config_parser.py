@@ -36,7 +36,7 @@ STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'i
 
 SEED = 42
 LR_DEFAULT = 0.001
-EPOCHS_DEFAULT = 10
+EPOCHS_DEFAULT = 2
 BATCH_SIZE_DEFAULT = 256
 CHECKPOINT_DEFAULT = 0
 LATENT_DIM_DEFAULT = 128
@@ -467,7 +467,7 @@ def setup_experiment(m_path, config, train=True):
                notes=notes,
                allow_val_change=True,
                magic=True,
-               #mode="offline",
+               mode="offline",
                tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)
 
