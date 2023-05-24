@@ -467,7 +467,7 @@ def setup_experiment(m_path, config, train=True):
                notes=notes,
                allow_val_change=True,
                magic=True,
-               mode="offline",
+               #mode="offline",
                tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)
 
