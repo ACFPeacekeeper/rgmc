@@ -443,7 +443,7 @@ def setup_experiment(m_path, config, train=True):
     for ckey, cval in config.items():
         if cval is not None:
             print(f'{ckey}: {cval}')
-            with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'w+') as file:
+            with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'a') as file:
                 file.write(f'{ckey}: {cval}\n')
 
     print(f'number_batches: {batch_number}')
