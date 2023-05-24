@@ -424,6 +424,8 @@ def setup_experiment(m_path, config, train=True):
 
         dataset._set_adv_attack(adv_attack)
 
+    batch_number = math.floor(dataset.dataset_len/config['batch_size'])
+
     if train:
         for key in loss_list_dict.keys():
             loss_list_dict[key] = np.zeros(config['epochs'])
@@ -435,16 +437,14 @@ def setup_experiment(m_path, config, train=True):
                 optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
     else:
         for key in loss_list_dict.keys():
-            loss_list_dict[key] = 0.
+            loss_list_dict[key] = []
         optimizer = None
-
-    batch_number = math.floor(dataset.dataset_len/config['batch_size'])
 
     for ckey, cval in config.items():
         if cval is not None:
             print(f'{ckey}: {cval}')
             with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'w+') as file:
-                file.write(f'{ckey}: {cval}')
+                file.write(f'{ckey}: {cval}\n')
 
     print(f'number_batches: {batch_number}')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:

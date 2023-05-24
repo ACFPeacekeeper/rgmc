@@ -86,29 +86,26 @@ def run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_li
     return model, loss_list_dict, bt_loss, checkpoint_counter, optimizer
 
 def run_test(config, device, model, dataset, batch_number, loss_list_dict):
-    loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
     dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
     tracemalloc.start()
     test_start = time.time()
     for batch_feats, batch_labels in tqdm(dataloader, total=batch_number):
         _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
 
-        loss_dict = loss_dict + batch_loss_dict
-
-    for key, value in loss_dict.items():
-        loss_list_dict[key] = value / batch_number
+        for key in loss_list_dict.keys():
+            loss_list_dict[key].append(float(batch_loss_dict[key]))
 
     test_end = time.time()
     wandb.log({**loss_list_dict})
 
     test_end = time.time()
     tracemalloc.stop()
-    wandb.log({**loss_dict})
+    wandb.log({**loss_list_dict})
     print(f'Total runtime: {test_end - test_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {test_end - test_end} sec\n')
 
-    save_test_results(m_path, config, loss_dict)
+    save_test_results(m_path, config, loss_list_dict)
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 

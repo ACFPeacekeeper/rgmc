@@ -8,18 +8,22 @@ import matplotlib.pyplot as plt
 
 from matplotlib.ticker import StrMethodFormatter
 
-def save_test_results(m_path, config, loss_dict):
-    keys = list(loss_dict.keys())
-    loss_dict = [tensor.item() if isinstance(tensor, torch.Tensor) else tensor for tensor in list(loss_dict.values())]
+def save_test_results(m_path, config, loss_list_dict):
+    keys = list(loss_list_dict.keys())
     X_axis = np.arange(len(keys))
-    plt.figure(figsize=(20, 10))
-    plt.bar(X_axis, loss_dict, width=0.4, label='Loss values', color='purple')
-    plt.xticks(X_axis, keys)
-    plt.xlabel('Metrics')
-    plt.ylabel('Values')
-    plt.title("Loss values of the model")
-    plt.legend()
-    plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
+    print(loss_list_dict)
+    loss_means = [np.mean(loss) for loss in loss_list_dict.values()]
+    loss_std = [np.std(loss) for loss in loss_list_dict.values()]
+    fig, ax = plt.subplots()
+    fig.figsize=(20, 10)
+    ax.bar(X_axis, loss_means, yerr=loss_std, width=0.4, label='Loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
+    ax.set_ylabel('Values')
+    ax.set_xticks(X_axis)
+    ax.set_xticklabels(keys)
+    ax.set_title("Loss values of the model")
+    ax.yaxis.grid(True)
+    fig.legend()
+    fig.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
     plt.close()
     return
 
