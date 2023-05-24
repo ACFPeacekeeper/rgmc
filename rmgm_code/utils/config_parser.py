@@ -36,7 +36,7 @@ STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'i
 
 SEED = 42
 LR_DEFAULT = 0.001
-EPOCHS_DEFAULT = 2
+EPOCHS_DEFAULT = 15
 BATCH_SIZE_DEFAULT = 256
 CHECKPOINT_DEFAULT = 0
 LATENT_DIM_DEFAULT = 128
@@ -368,7 +368,7 @@ def setup_experiment(m_path, config, train=True):
 
     if config['architecture'] == 'vae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = vae.VAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
+        model = vae.VAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'])
         loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
     elif config['architecture'] == 'dae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
@@ -379,7 +379,7 @@ def setup_experiment(m_path, config, train=True):
         loss_list_dict = {'infonce_loss': None}
     elif config['architecture'] == 'mvae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = mvae.MVAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'], dataset.dataset_len - dataset.dataset_len % config['batch_size'])
+        model = mvae.MVAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
         loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
 
     if "load_config" in config and config['load_config'] is not None:

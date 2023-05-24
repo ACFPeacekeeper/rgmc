@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from architectures.mvae_networks import *
 
 class MVAE(nn.Module):
-    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps, dataset_len):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps):
         super(MVAE, self).__init__()
         self.name = name
         self.device = device
@@ -15,7 +15,6 @@ class MVAE(nn.Module):
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
         self.kld = 0.
-        self.dataset_len = dataset_len
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.poe_eps = poe_eps
         self.image_encoder = None
@@ -84,7 +83,7 @@ class MVAE(nn.Module):
 
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (batch_size / self.dataset_len) # To avoid exploding gradients
+            self.kld = - self.scales['kld_beta'] * torch.mean(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dimension / batch_size)
         else:
             z = mean
 
@@ -100,7 +99,7 @@ class MVAE(nn.Module):
 
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
-            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() * (x[key].size(dim=0) / self.dataset_len) # To avoid exploding gradients
+            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 

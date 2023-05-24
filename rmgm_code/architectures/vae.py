@@ -4,7 +4,7 @@ from collections import Counter
 from architectures.vae_networks import *
 
 class VAE(nn.Module):
-    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, dataset_len):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
         super(VAE, self).__init__()
         self.name = name
         if exclude_modality == 'image':
@@ -26,7 +26,6 @@ class VAE(nn.Module):
         self.mean = mean
         self.std = std
         self.kld = 0.
-        self.dataset_len = dataset_len
         self.exclude_modality = exclude_modality
 
     def set_modalities(self, exclude_modality):
@@ -64,7 +63,7 @@ class VAE(nn.Module):
         std = torch.exp(torch.mul(logvar, 0.5))
         if sample is False:
             z = self.reparameterization(mean, std)
-            self.kld = - self.scales['kld_beta'] * torch.sum(1 + logvar - mean.pow(2) - std.pow(2)) * (data_list[0].size(dim=0) / self.dataset_len) # To avoid exploding gradients
+            self.kld = - self.scales['kld_beta'] * torch.mean(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dimension / data_list[0].size(dim=0))
         else:
             z = mean
         
@@ -84,7 +83,7 @@ class VAE(nn.Module):
 
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
-            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() * (x[key].size(dim=0) / self.dataset_len) # To avoid exploding gradients
+            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum()
 
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
