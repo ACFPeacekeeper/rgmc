@@ -96,4 +96,12 @@ class VAE(nn.Module):
         loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
+    
+    def training_step(self, x, labels):
+        x_hat, _ = self.forward(x, sample=False)
+        elbo, loss_dict = self.loss(x, x_hat)
+        return elbo, loss_dict
+
+    def validation_step(self, x, labels):
+        return self.training_step(x, labels)
         

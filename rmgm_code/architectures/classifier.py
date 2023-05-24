@@ -13,30 +13,35 @@ class MNISTClassifier(nn.Module):
         self.fc3 = nn.Linear(128, 10)
 
     def forward(self, x, sample=True):
-        if self.model.name == 'GMC':
-            encoding = self.model.encode(x)
-            repr = encoding.detach().clone()
+        if self.model.name == 'gmc':
+            z = self.model.encode(x)
         else:
-            repr, encoding = self.model(x, sample)
-        encoding = self.fc1(encoding)
+            _, z = self.model(x, sample)
+        encoding = self.fc1(z)
         encoding = F.relu(encoding)
         encoding = self.fc2(encoding)
         encoding = F.relu(encoding)
         encoding = self.fc3(encoding)
         classification = F.log_softmax(encoding, dim=-1)
-        return classification, repr, encoding
+        return classification, z
     
     def loss(self, y_preds, labels):
         batch_size = labels.size()[0]
-        num_preds = [0] * 10
         loss_function = nn.CrossEntropyLoss()
         loss = loss_function(y_preds, labels)
         accuracy = 0.
         for pred, label in zip(y_preds, labels):
             num_pred = torch.argmax(torch.exp(pred))
             accuracy += int(num_pred == label)
-            num_preds[num_pred] += 1
 
         accuracy = accuracy / batch_size
         loss_dict = Counter({'nll_loss': loss, 'accuracy': accuracy})
-        return loss, loss_dict, num_preds
+        return loss, loss_dict
+    
+    def training_step(self, x, labels):
+        classification, _ = self.forward(x, sample=False)
+        loss, loss_dict = self.loss(classification, labels)
+        return loss, loss_dict
+    
+    def validation_step(self, x, labels):
+        return self.training_step(x, labels)

@@ -91,3 +91,11 @@ class DAE(nn.Module):
 
         loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         return recon_loss, loss_dict
+
+    def training_step(self, x, labels):
+            x_hat, _ = self.forward(x, sample=False)
+            recon_loss, loss_dict = self.loss(x, x_hat)
+            return recon_loss, loss_dict
+    
+    def validation_step(self, x, labels):
+        return self.training_step(x, labels)

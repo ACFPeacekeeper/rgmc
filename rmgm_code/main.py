@@ -9,7 +9,7 @@ from utils.logger import *
 from utils.config_parser import *
 
 # Assign path to current directory
-m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
+m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
 
 WAIT_TIME = 5 # Seconds to wait between sequential experiments
 
@@ -38,8 +38,85 @@ def nan_hook(self, input, output):
                 raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
 
+def run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_list_dict, bt_loss, checkpoint_counter, optimizer=None):
+    print(f'Epoch {epoch}')
+    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
+        file.write(f'Epoch {epoch}:\n')
+
+    loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
+    dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+
+    epoch_start = time.time()
+    for batch_feats, batch_labels in tqdm(dataloader, total=batch_number):
+        loss, batch_loss_dict = model.training_step(batch_feats, batch_labels)
+
+        loss.backward()
+        if config['optimizer'] is not None:
+            optimizer.step()
+            optimizer.zero_grad()
+
+        wandb.log({**batch_loss_dict})
+
+        for key, value in batch_loss_dict.items():
+            bt_loss[key].append(float(value))
+
+        loss_dict = loss_dict + batch_loss_dict
+    
+    for key, value in loss_dict.items():
+        loss_dict[key] = value / batch_number
+        loss_list_dict[key][epoch] = loss_dict[key]
+        
+    epoch_end = time.time()
+    wandb.log({**loss_dict})
+    print(f'Runtime: {epoch_end - epoch_start} sec')
+    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
+        file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
+    save_epoch_results(m_path, config, device, loss_dict)
+
+    checkpoint_counter -= 1
+    if checkpoint_counter == 0:
+        print('Saving model checkpoint to file...')
+        torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", config['model_out'] + f'_{epoch}.pt'))
+        checkpoint_counter = config['checkpoint']
+
+    tracemalloc.reset_peak()
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
+
+    return model, loss_list_dict, bt_loss, checkpoint_counter, optimizer
+
+def run_test(config, device, model, dataset, batch_number, loss_list_dict):
+    loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
+    dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+    tracemalloc.start()
+    test_start = time.time()
+    for batch_feats, batch_labels in tqdm(dataloader, total=batch_number):
+        _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
+
+        loss_dict = loss_dict + batch_loss_dict
+
+    for key, value in loss_dict.items():
+        loss_list_dict[key] = value / batch_number
+
+    test_end = time.time()
+    wandb.log({**loss_list_dict})
+
+    test_end = time.time()
+    tracemalloc.stop()
+    wandb.log({**loss_dict})
+    print(f'Total runtime: {test_end - test_start} sec')
+    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
+        file.write(f'Total runtime: {test_end - test_end} sec\n')
+
+    save_test_results(m_path, config, loss_dict)
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
+
+    return loss_list_dict
+
+
 def train_model(config):
-    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config)
+    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
@@ -48,53 +125,7 @@ def train_model(config):
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        print(f'Epoch {epoch}')
-        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-            file.write(f'Epoch {epoch}:\n')
-
-        loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
-        dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
-
-        epoch_start = time.time()
-        for batch_feats, _ in tqdm(dataloader, total=batch_number):
-            if model.name == 'gmc':
-                loss, batch_loss_dict = model.training_step(batch_feats, {"temperature": config['infonce_temperature']}, config['batch_size'])
-            else:
-                x_hat, _ = model(batch_feats)    
-                loss, batch_loss_dict = model.loss(batch_feats, x_hat)      
-
-            loss.backward()
-            if config['optimizer'] is not None:
-                optimizer.step()
-                optimizer.zero_grad()
-
-            wandb.log({**batch_loss_dict})
-
-            for key, value in batch_loss_dict.items():
-                bt_loss[key].append(float(value))
-
-            loss_dict = loss_dict + batch_loss_dict
-        
-        for key, value in loss_dict.items():
-            loss_dict[key] = value / batch_number
-            loss_list_dict[key][epoch] = loss_dict[key]
-            
-        wandb.log({**loss_dict})
-        epoch_end = time.time()
-        print(f'Runtime: {epoch_end - epoch_start} sec')
-        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-            file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
-        save_results(m_path, config, device, loss_dict)
-
-        checkpoint_counter -= 1
-        if checkpoint_counter == 0:
-            print('Saving model checkpoint to file...')
-            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", config['model_out'] + f'_{epoch}.pt'))
-            checkpoint_counter = config['checkpoint']
-
-        if device.type == 'cuda':
-            torch.cuda.empty_cache()
-        tracemalloc.reset_peak()
+        model, loss_list_dict, bt_loss, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_list_dict, bt_loss, checkpoint_counter, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
@@ -102,10 +133,9 @@ def train_model(config):
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
     save_train_results(m_path, config, loss_list_dict, bt_loss)
-    save_final_metrics(m_path, config, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
-    with open(os.path.join(m_path, "configs", config['stage'], config["config_out"]), "w") as json_file:
+    with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
         json_file.write(json_object)
 
     if device.type == 'cuda':
@@ -125,53 +155,7 @@ def train_downstream_classifier(config):
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        print(f'Epoch {epoch}')
-        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-            file.write(f'Epoch {epoch}:\n')
-
-        loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
-        dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
-
-        epoch_start = time.time()
-        epoch_preds = [0]*dataset.labels.size(dim=-1)
-        for batch_feats, batch_labels in tqdm(dataloader, total=batch_number):
-            classification, _, _ = model(batch_feats)
-            loss, batch_loss_dict, num_preds = model.loss(classification, batch_labels)
-
-            loss.backward()
-            if config['optimizer'] is not None:
-                optimizer.step()
-                optimizer.zero_grad()
-            
-            wandb.log({**batch_loss_dict})
-            for key, value in batch_loss_dict.items():
-                bt_loss[key].append(float(value))
-
-            loss_dict = loss_dict + batch_loss_dict
-            epoch_preds = [sum(x) for x in zip(epoch_preds, num_preds)]
-
-        for key in loss_dict.keys():
-            loss_dict[key] = loss_dict[key] / batch_number
-            loss_list_dict[key][epoch] = loss_dict[key]
-
-        wandb.log({**loss_dict})
-        epoch_end = time.time()
-        print(f'Runtime: {epoch_end - epoch_start} sec')
-        print(f'Prediction count: {epoch_preds}')
-        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-            file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
-            file.write(f'- Prediction count: {epoch_preds}\n')
-        save_results(m_path, config, device, loss_dict)
-
-        checkpoint_counter -= 1
-        if checkpoint_counter == 0:
-            print('Saving model checkpoint to file...')
-            torch.save(model.state_dict(), os.path.join(m_path, "checkpoints", config['model_out'] + f'_{epoch}.pt'))
-            checkpoint_counter = config['checkpoint']
-
-        if device.type == 'cuda':
-            torch.cuda.empty_cache()
-        tracemalloc.reset_peak()
+        model, loss_list_dict, bt_loss, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_list_dict, bt_loss, checkpoint_counter, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
@@ -179,11 +163,9 @@ def train_downstream_classifier(config):
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
     save_train_results(m_path, config, loss_list_dict, bt_loss)
-    save_preds(m_path, config, epoch_preds, dataset.labels)
-    save_final_metrics(m_path, config, loss_dict, {key: value[0] for key, value in loss_list_dict.items()}, loss_list_dict)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + '.pt'))
     json_object = json.dumps(config, indent=4)
-    with open(os.path.join(m_path, "configs", config['stage'], config["config_out"]), "w") as json_file:
+    with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
         json_file.write(json_object)
 
     if device.type == 'cuda':
@@ -194,58 +176,15 @@ def train_downstream_classifier(config):
 
 
 def test_model(config):
-    device, dataset, model, _, _, _ = setup_experiment(m_path, config, train=False)
-    
+    device, dataset, model, loss_dict, batch_number, _ = setup_experiment(m_path, config, train=False)
     tracemalloc.start()
-    print('Testing model')
-    with open(os.path.join(m_path, "results", config['model_out'] + ".txt"), 'a') as file:
-        file.write('Testing model:\n')
-
-
-    test_start = time.time()
-    if model.name == 'gmc':
-        loss_dict = model.validation_step(dataset, {"temperature": config['infonce_temperature']}, dataset.dataset_len)
-    else:
-        x_hat, _ = model(dataset)
-        _, loss_dict = model.loss(dataset, x_hat)
-    test_end = time.time()
-    wandb.log({**loss_dict})
-
-    save_final_metrics(config, loss_dict)
-    print(f'Runtime: {test_end - test_start} sec')
-    with open(os.path.join(m_path, "results", config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'- Runtime: {test_end - test_start} sec\n')
-    save_results(config, device, loss_dict)
-    tracemalloc.stop()
-    if device.type == 'cuda':
-        torch.cuda.empty_cache()
-
+    loss_dict = run_test(config, device, model, dataset, batch_number, loss_dict)
     wandb.finish()
     return
 
 def test_downstream_classifier(config):
-    device, dataset, clf, _, _, _ = setup_experiment(m_path, config, train=False)
-
-    tracemalloc.start()
-    print('Testing classifier')
-    with open(os.path.join(m_path, "results", config['model_out'] + ".txt"), 'a') as file:
-        file.write('Testing classifier:\n')
-
-    test_start = time.time()
-    classification, _, _ = clf(dataset.dataset)
-    _, loss_dict, preds = clf.loss(classification, dataset.labels)
-    test_end = time.time()
-    wandb.log({**loss_dict})
-
-    save_final_metrics(os.path.join(m_path, "results", config['model_out'] + ".txt"), loss_dict)
-    save_preds(os.path.join(m_path, "results", config['model_out'] + ".txt"), preds, dataset.labels)
-    print(f'Runtime: {test_end - test_start} sec')
-    with open(os.path.join(m_path, "results", config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'- Runtime: {test_end - test_start} sec\n')
-    save_results(os.path.join(m_path, "results", config['model_out'] + ".txt"), device, loss_dict)
-    tracemalloc.stop()
-    if device.type == 'cuda':
-        torch.cuda.empty_cache()
+    device, dataset, model, loss_dict, batch_number, _ = setup_experiment(m_path, config, train=False)
+    loss_dict = run_test(config, device, model, dataset, batch_number, loss_dict)
     wandb.finish()
     return
 
