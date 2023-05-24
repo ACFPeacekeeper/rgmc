@@ -9,7 +9,7 @@ from utils.logger import *
 from utils.config_parser import *
 
 # Assign path to current directory
-m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
+m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
 
 WAIT_TIME = 0 # Seconds to wait between sequential experiments
 

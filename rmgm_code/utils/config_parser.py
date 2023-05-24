@@ -211,7 +211,7 @@ def config_validation(m_path, config):
                 raise argparse.ArgumentError("Argument error: checkpoint value must be an integer greater than or equal to 0.")
             elif config['checkpoint'] > config['epochs']:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
-            if "epochs" not in config or config["epochs"]:
+            if "epochs" not in config or config["epochs"] is None:
                 config['epochs'] = EPOCHS_DEFAULT
         else:
             if "learning_rate" in config and config['learning_rate'] is not None:
