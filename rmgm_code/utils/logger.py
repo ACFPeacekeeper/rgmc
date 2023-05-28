@@ -1,4 +1,5 @@
 import os
+import math
 import torch
 import tracemalloc
 
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from collections import defaultdict
 from matplotlib.ticker import StrMethodFormatter
+from torch.utils.data import DataLoader, random_split
 
 
 def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=None):
@@ -89,7 +91,10 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     plt.close()
     return
 
-def save_train_results(m_path, config, train_losses, val_losses, train_bnumber, val_bnumber):
+def save_train_results(m_path, config, train_losses, val_losses, dataset):
+    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
+    train_bnumber = len(iter(DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)))
+    val_bnumber = len(iter(DataLoader(val_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)))
     plot_loss_graph(m_path, config, train_losses, train_bnumber, y_label="train loss values")
     plot_loss_graph(m_path, config, val_losses, val_bnumber, y_label="validation loss values")
     plot_metrics_bar(m_path, config, train_losses, val_losses)

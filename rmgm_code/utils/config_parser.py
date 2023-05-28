@@ -2,7 +2,6 @@ import re
 import os
 import sys
 import json
-import math
 import torch
 import wandb
 import select
@@ -16,7 +15,6 @@ import subprocess
 
 import torch.optim as optim
 
-from torch.utils.data import random_split
 from input_transformations import gaussian_noise, fgsm
 from architectures import vae, dae, gmc, mvae, classifier
 from datasets.mhd.MHDDataset import MHDDataset

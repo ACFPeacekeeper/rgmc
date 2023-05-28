@@ -2,8 +2,7 @@ import time
 import traceback
 
 from tqdm import tqdm
-from torch.utils.data import DataLoader
-from collections import defaultdict, Counter
+from collections import Counter
 
 from utils.logger import *
 from utils.config_parser import *
@@ -140,7 +139,7 @@ def train_model(config):
     print(f'Total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, train_losses, val_losses, len(train_loader), len(val_loader))
+    save_train_results(m_path, config, train_losses, val_losses)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
@@ -154,23 +153,24 @@ def train_model(config):
 
 
 def train_downstream_classifier(config):
-    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config, train=True)
+    device, dataset, model, loss_list_dict, optimizer = setup_experiment(m_path, config, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
 
-    bt_loss = defaultdict(list)
+    train_losses = defaultdict(list)
+    val_losses = defaultdict(list)
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        model, loss_list_dict, bt_loss, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_list_dict, bt_loss, checkpoint_counter, optimizer)
+        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, train_losses, val_losses, checkpoint_counter, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
     print(f'Total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, loss_list_dict, bt_loss)
+    save_train_results(m_path, config, train_losses, val_losses)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + '.pt'))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
