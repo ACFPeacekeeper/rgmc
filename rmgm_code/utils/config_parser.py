@@ -420,14 +420,12 @@ def setup_experiment(m_path, config, train=True):
         dataset._set_adv_attack(adv_attack)
 
     if train:
-        data_split = random_split(dataset, [math.ceil(dataset.dataset_len * 0.8), math.floor(dataset.dataset_len * 0.2)])
         if config['optimizer'] is not None:
             if config['optimizer'] == 'adam':
                 optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
             elif config['optimizer'] == 'sgd':
                 optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
     else:
-        data_split = dataset
         optimizer = None
 
     for ckey, cval in config.items():
@@ -457,4 +455,4 @@ def setup_experiment(m_path, config, train=True):
                tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)
 
-    return device, data_split, model, optimizer
+    return device, dataset, model, optimizer

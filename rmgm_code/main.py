@@ -9,7 +9,7 @@ from utils.logger import *
 from utils.config_parser import *
 
 # Assign path to current directory
-m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
+m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
 WAIT_TIME = 0 # Seconds to wait between sequential experiments
 
@@ -38,7 +38,7 @@ def nan_hook(self, input, output):
                 raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
 
-def run_train_epoch(epoch, config, device, model, train_loader, val_loader, train_losses, val_losses, checkpoint_counter, optimizer=None):
+def run_train_epoch(epoch, config, device, model, dataset, train_losses, val_losses, checkpoint_counter, optimizer=None):
     print(f'Epoch {epoch}')
     print('Training:')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
@@ -46,8 +46,11 @@ def run_train_epoch(epoch, config, device, model, train_loader, val_loader, trai
         file.write('Training:\n')
 
     loss_dict = Counter(dict.fromkeys(train_losses.keys(), 0.))
+    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
+    train_loader = iter(DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+    train_bnumber = len(train_loader)
     run_start = time.time()
-    for batch_feats, batch_labels in tqdm(train_loader, total=len(train_loader)):
+    for batch_feats, batch_labels in tqdm(train_loader, total=train_bnumber):
         if config['optimizer'] is not None:
             optimizer.zero_grad()
 
@@ -63,23 +66,25 @@ def run_train_epoch(epoch, config, device, model, train_loader, val_loader, trai
         for key, value in batch_loss_dict.items():
             train_losses[key].append(float(value))
 
-    run_test = time.time()
-    save_epoch_results(m_path, config, device, run_test - run_start, len(train_loader), loss_dict)
+    run_end = time.time()
+    save_epoch_results(m_path, config, device, run_end - run_start, train_bnumber, loss_dict)
+    val_loader = iter(DataLoader(val_set, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+    val_bnumber = len(val_loader)
     loss_dict = Counter(dict.fromkeys(val_losses.keys(), 0.))
     print('Validation:')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write('Validation:\n')
     model.eval()
     run_start = time.time()
-    for batch_feats, batch_labels in tqdm(val_loader, total=len(val_loader)):
+    for batch_feats, batch_labels in tqdm(val_loader, total=val_bnumber):
         _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
         loss_dict = loss_dict + batch_loss_dict
         wandb.log({f'val_{key}': value for key, value in batch_loss_dict.items()})
         for key, value in batch_loss_dict.items():
             val_losses[key].append(float(value)) 
 
-    run_test = time.time()
-    save_epoch_results(m_path, config, device, run_test - run_start, len(val_loader), loss_dict)
+    run_end = time.time()
+    save_epoch_results(m_path, config, device, run_end - run_start, val_bnumber, loss_dict)
 
     checkpoint_counter -= 1
     if checkpoint_counter == 0:
@@ -118,7 +123,7 @@ def run_test(config, device, model, dataset, batch_number, loss_list_dict):
 
 
 def train_model(config):
-    device, data_split, model, optimizer = setup_experiment(m_path, config, train=True)
+    device, dataset, model, optimizer = setup_experiment(m_path, config, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
@@ -128,9 +133,7 @@ def train_model(config):
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        train_loader = DataLoader(data_split[0], shuffle=True, drop_last=True)
-        val_loader = DataLoader(data_split[1], shuffle=True, drop_last=True)
-        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, train_loader, val_loader, train_losses, val_losses, checkpoint_counter, optimizer)
+        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, train_losses, val_losses, checkpoint_counter, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
