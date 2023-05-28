@@ -448,8 +448,8 @@ def setup_experiment(m_path, config, train=True):
                config={key: value for key, value in config.items() if value is not None}, 
                notes=notes,
                allow_val_change=True,
-               magic=True,
-               mode="offline",
+               #magic=True,
+               #mode="offline",
                tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)
 
