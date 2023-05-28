@@ -3,7 +3,7 @@ import traceback
 
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from collections import Counter, defaultdict
+from collections import defaultdict, Counter
 
 from utils.logger import *
 from utils.config_parser import *
@@ -38,40 +38,48 @@ def nan_hook(self, input, output):
                 raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
 
-def run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_list_dict, bt_loss, checkpoint_counter, optimizer=None):
+def run_train_epoch(epoch, config, device, model, train_loader, val_loader, train_losses, val_losses, checkpoint_counter, optimizer=None):
     print(f'Epoch {epoch}')
+    print('Training:')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'Epoch {epoch}:\n')
+        file.write(f'Epoch {epoch}\n')
+        file.write('Training:\n')
 
-    loss_dict = Counter(dict.fromkeys(loss_list_dict.keys(), 0.))
-    dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+    loss_dict = Counter(dict.fromkeys(train_losses.keys(), 0.))
+    run_start = time.time()
+    for batch_feats, batch_labels in tqdm(train_loader, total=len(train_loader)):
+        if config['optimizer'] is not None:
+            optimizer.zero_grad()
 
-    epoch_start = time.time()
-    for batch_feats, batch_labels in tqdm(dataloader, total=batch_number):
         loss, batch_loss_dict = model.training_step(batch_feats, batch_labels)
+        loss_dict = loss_dict + batch_loss_dict
 
         loss.backward()
         if config['optimizer'] is not None:
             optimizer.step()
-            optimizer.zero_grad()
 
         wandb.log({**batch_loss_dict})
 
         for key, value in batch_loss_dict.items():
-            bt_loss[key].append(float(value))
+            train_losses[key].append(float(value))
 
-        loss_dict = loss_dict + batch_loss_dict
-    
-    for key, value in loss_dict.items():
-        loss_dict[key] = value / batch_number
-        loss_list_dict[key][epoch] = loss_dict[key]
-        
-    epoch_end = time.time()
-    wandb.log({**loss_dict})
-    print(f'Runtime: {epoch_end - epoch_start} sec')
+    run_test = time.time()
+    save_epoch_results(m_path, config, device, run_test - run_start, len(train_loader), loss_dict)
+    loss_dict = Counter(dict.fromkeys(val_losses.keys(), 0.))
+    print('Validation:')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'- Runtime: {epoch_end - epoch_start} sec\n')
-    save_epoch_results(m_path, config, device, loss_dict)
+        file.write('Validation:\n')
+    model.eval()
+    run_start = time.time()
+    for batch_feats, batch_labels in tqdm(val_loader, total=len(val_loader)):
+        _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
+        loss_dict = loss_dict + batch_loss_dict
+        wandb.log({f'val_{key}': value for key, value in batch_loss_dict.items()})
+        for key, value in batch_loss_dict.items():
+            val_losses[key].append(float(value)) 
+
+    run_test = time.time()
+    save_epoch_results(m_path, config, device, run_test - run_start, len(val_loader), loss_dict)
 
     checkpoint_counter -= 1
     if checkpoint_counter == 0:
@@ -83,7 +91,7 @@ def run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_li
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
-    return model, loss_list_dict, bt_loss, checkpoint_counter, optimizer
+    return model, train_losses, val_losses, checkpoint_counter, optimizer
 
 def run_test(config, device, model, dataset, batch_number, loss_list_dict):
     dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
@@ -94,9 +102,6 @@ def run_test(config, device, model, dataset, batch_number, loss_list_dict):
 
         for key in loss_list_dict.keys():
             loss_list_dict[key].append(float(batch_loss_dict[key]))
-
-    test_end = time.time()
-    wandb.log({**loss_list_dict})
 
     test_end = time.time()
     tracemalloc.stop()
@@ -113,23 +118,26 @@ def run_test(config, device, model, dataset, batch_number, loss_list_dict):
 
 
 def train_model(config):
-    device, dataset, model, loss_list_dict, batch_number, optimizer = setup_experiment(m_path, config, train=True)
+    device, data_split, model, optimizer = setup_experiment(m_path, config, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
 
-    bt_loss = defaultdict(list)
+    train_losses = defaultdict(list)
+    val_losses = defaultdict(list)
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        model, loss_list_dict, bt_loss, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, batch_number, loss_list_dict, bt_loss, checkpoint_counter, optimizer)
+        train_loader = DataLoader(data_split[0], shuffle=True, drop_last=True)
+        val_loader = DataLoader(data_split[1], shuffle=True, drop_last=True)
+        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, train_loader, val_loader, train_losses, val_losses, checkpoint_counter, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
     print(f'Total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, loss_list_dict, bt_loss)
+    save_train_results(m_path, config, train_losses, val_losses, len(train_loader), len(val_loader))
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:

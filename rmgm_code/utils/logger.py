@@ -1,36 +1,23 @@
 import os
 import torch
-import wandb
 import tracemalloc
 
 import numpy as np
 import matplotlib.pyplot as plt
 
+from collections import defaultdict
 from matplotlib.ticker import StrMethodFormatter
 
-def save_test_results(m_path, config, loss_list_dict):
-    keys = list(loss_list_dict.keys())
-    X_axis = np.arange(len(keys))
-    loss_means = [np.mean(loss) for loss in loss_list_dict.values()]
-    loss_std = [np.std(loss) for loss in loss_list_dict.values()]
-    fig, ax = plt.subplots()
-    fig.figsize=(20, 10)
-    ax.bar(X_axis, loss_means, yerr=loss_std, width=0.4, label='Loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
-    ax.set_ylabel('Values')
-    ax.set_xticks(X_axis)
-    ax.set_xticklabels(keys)
-    ax.set_title("Loss values of the model")
-    ax.yaxis.grid(True)
-    fig.legend()
-    fig.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
-    plt.close()
-    return
 
-def save_epoch_results(m_path, config, device, loss_dict=None):
+def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=None):
+    print(f'Runtime: {runtime} sec')
+    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
+        file.write(f'- Runtime: {runtime} sec\n')
+    
     if loss_dict is not None:
         with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             for key, value in loss_dict.items():
-                wandb.log({f'epoch_{key}': value})
+                value = value / batch_number
                 print(f'{key}: {value}')
                 file.write(f'- {key}: {value}\n')
     
@@ -50,57 +37,64 @@ def save_epoch_results(m_path, config, device, loss_dict=None):
 
     return
 
-
-def save_train_results(m_path, config, loss_list_dict, bt_loss_dict):
-    for idx, (key, values) in enumerate(loss_list_dict.items()):
+def plot_loss_graph(m_path, config, loss_list_dict, batch_number, y_label="loss values"):
+    keys = list(loss_list_dict.keys())
+    loss_means = defaultdict(list)
+    loss_stds = defaultdict(list)
+    for idx, key in enumerate(keys):
+        loss_values = np.array(loss_list_dict[key])
+        epoch_means = np.mean(loss_values.reshape(-1, batch_number), axis=1)
+        epoch_stds = np.std(loss_values.reshape(-1, batch_number), axis=1)
+        loss_means[key] = epoch_means
+        loss_stds[key] = epoch_stds
         plt.figure(idx, figsize=(20, 20))
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
-        plt.plot(range(config['epochs']), values, label='loss values')
-        plt.xlabel("Epoch")
+        plt.plot(range(len(epoch_means)), epoch_means, label=y_label)
+        plt.fill_between(range(len(epoch_stds)), epoch_means-epoch_stds, epoch_means+epoch_stds, alpha=0.1)
+        plt.xlabel("epoch")
         plt.ylabel(key)
         plt.title(f'{key} per epoch')
         plt.legend()
         plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + f'_{key}.png'))
         plt.close(idx)
-    
-    for idx, (key, values) in enumerate(bt_loss_dict.items()):
-        plt.figure(idx+len(list(loss_list_dict.keys())), figsize=(20, 20))
-        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
-        plt.plot(range(len(values)), values, label='loss values')
-        plt.xlabel("Batch")
-        plt.ylabel(key)
-        plt.title(f'{key} per batch')
-        plt.legend()
-        plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + f'_bl_{key}.png'))
-        plt.close(idx+len(list(loss_list_dict.keys())))
 
-    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        print('Average epoch results:')
-        file.write('Average epoch results:\n')
-        for key, values in loss_list_dict.items():
-            print(f'{key}: {np.mean(values)}')
-            file.write(f'- {key}: {np.mean(values)}\n')
-    import sys
-    keys = list(loss_list_dict.keys())
-    first_loss_dict = []
-    last_loss_dict = []
-    for value in loss_list_dict.values():
-        first_loss_dict.append(value[0])
-        last_loss_dict.append(value[-1])
+    return
+
+def plot_metrics_bar(m_path, config, losses, val_losses=None):
+    keys = list(losses.keys())
     X_axis = np.arange(len(keys))
-    plt.figure(figsize=(20, 10))
-    plt.bar(X_axis - 0.2, last_loss_dict, width=0.4, label='Loss values', color='purple')
-    if 'clf' in config['model_out']:
-        plt.bar(X_axis + 0.2, [abs(fl_i - ls_i) for fl_i, ls_i in zip(first_loss_dict, last_loss_dict)], width=0.4, label='Loss improvement', color='powderblue')
+    loss_means = [np.mean(loss) for loss in losses.values()]
+    loss_stds = [np.std(loss) for loss in losses.values()]
+    with open(os.path.join(m_path, "results", config["stage"], config["model_out"] + ".txt"), "a") as file:
+        for key, mean in zip(keys, loss_means):
+            print(f'{key}: {mean}')
+            file.write(f'- {key}: {mean}\n')
+    fig, ax = plt.subplots()
+    fig.figsize=(20, 10)
+    ax.set_xticks(X_axis)
+    ax.set_xticklabels(keys)
+    ax.set_title("Loss values of the model")
+    ax.yaxis.grid(True)
+    if val_losses is not None:
+        train_bar = ax.bar(X_axis - 0.2, loss_means, yerr=loss_stds, width=0.4, label='Training loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
+        val_bar = ax.bar(X_axis + 0.2, [np.mean(val_loss) for val_loss in val_losses.values()], yerr=[np.std(val_loss) for val_loss in val_losses.values()], width=0.4, label='Validation loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
+        ax.bar_label(train_bar)
+        ax.bar_label(val_bar)
     else:
-        plt.bar(X_axis + 0.2, [fl_i - ls_i for fl_i, ls_i in zip(first_loss_dict, last_loss_dict)], width=0.4, label='Loss improvement', color='powderblue')
-    for X_value, (key, value) in zip(X_axis, loss_list_dict.items()):
-        plt.plot(X_value , np.mean(np.asarray([value_i for value_i in value])), marker="o", markersize=10, label=f'Avg {key.lower()}')
-    plt.xticks(X_axis, keys)
-    plt.xlabel('Metrics')
-    plt.ylabel('Values')
-    plt.title("Loss values and improvements of the model")
-    plt.legend()
-    plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
+        test_bar = ax.bar(X_axis, loss_means, yerr=loss_stds, width=0.4, label="Testing loss values", align='center', alpha=0.5, ecolor='black', capsize=10)
+        ax.bar_label(test_bar)
+
+    fig.legend()
+    fig.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
     plt.close()
+    return
+
+def save_train_results(m_path, config, train_losses, val_losses, train_bnumber, val_bnumber):
+    plot_loss_graph(m_path, config, train_losses, train_bnumber, y_label="train loss values")
+    plot_loss_graph(m_path, config, val_losses, val_bnumber, y_label="validation loss values")
+    plot_metrics_bar(m_path, config, train_losses, val_losses)
+    return
+
+def save_test_results(m_path, config, loss_list_dict):
+    plot_metrics_bar(m_path, config, loss_list_dict)
     return

@@ -14,15 +14,15 @@ import itertools
 import traceback
 import subprocess
 
-import numpy as np
 import torch.optim as optim
 
+from torch.utils.data import random_split
+from input_transformations import gaussian_noise, fgsm
+from architectures import vae, dae, gmc, mvae, classifier
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
 from datasets.pendulum.PendulumDataset import PendulumDataset
-from input_transformations import gaussian_noise, fgsm
-from architectures import vae, dae, gmc, mvae, classifier
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
 ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae']
@@ -369,18 +369,14 @@ def setup_experiment(m_path, config, train=True):
     if config['architecture'] == 'vae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
         model = vae.VAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'])
-        loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
     elif config['architecture'] == 'dae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
         model = dae.DAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales)
-        loss_list_dict = {'total_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
     elif config['architecture'] == 'gmc':
         model = gmc.MhdGMC(config['architecture'], config['exclude_modality'], config['latent_dimension'], config['infonce_temperature'])
-        loss_list_dict = {'infonce_loss': None}
     elif config['architecture'] == 'mvae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
         model = mvae.MVAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
-        loss_list_dict = {'elbo_loss': None, 'kld_loss': None, 'img_recon_loss': None, 'traj_recon_loss': None}
 
     if "load_config" in config and config['load_config'] is not None:
         config_data = json.load(open(os.path.join(m_path, config['load_config'])))
@@ -397,7 +393,6 @@ def setup_experiment(m_path, config, train=True):
     model.to(device)
 
     if 'classifier' in config['stage']:
-        loss_list_dict = {'nll_loss': None, 'accuracy': None}
         model = classifier.MNISTClassifier(config['latent_dimension'], model)
         if "path_classifier" in config and config["path_classifier"] is not None and config["stage"] == "test_classifier":
             model.load_state_dict(torch.load(os.path.join(m_path, config["path_classifier"])))
@@ -424,20 +419,15 @@ def setup_experiment(m_path, config, train=True):
 
         dataset._set_adv_attack(adv_attack)
 
-    batch_number = math.floor(dataset.dataset_len/config['batch_size'])
-
     if train:
-        for key in loss_list_dict.keys():
-            loss_list_dict[key] = np.zeros(config['epochs'])
-
+        data_split = random_split(dataset, [math.ceil(dataset.dataset_len * 0.8), math.floor(dataset.dataset_len * 0.2)])
         if config['optimizer'] is not None:
             if config['optimizer'] == 'adam':
                 optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
             elif config['optimizer'] == 'sgd':
                 optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
     else:
-        for key in loss_list_dict.keys():
-            loss_list_dict[key] = []
+        data_split = dataset
         optimizer = None
 
     for ckey, cval in config.items():
@@ -445,10 +435,6 @@ def setup_experiment(m_path, config, train=True):
             print(f'{ckey}: {cval}')
             with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'a') as file:
                 file.write(f'{ckey}: {cval}\n')
-
-    print(f'number_batches: {batch_number}')
-    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'number_batches: {batch_number}\n')
 
     if "notes" not in config:
         print('Enter experiment notes:')
@@ -467,8 +453,8 @@ def setup_experiment(m_path, config, train=True):
                notes=notes,
                allow_val_change=True,
                magic=True,
-               #mode="offline",
+               mode="offline",
                tags=[config['architecture'], config['dataset'], config['stage']])
     wandb.watch(model)
 
-    return device, dataset, model, loss_list_dict, batch_number, optimizer
+    return device, data_split, model, optimizer
