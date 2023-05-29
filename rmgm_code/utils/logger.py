@@ -39,7 +39,7 @@ def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=
 
     return
 
-def plot_loss_graph(m_path, config, loss_list_dict, batch_number, y_label="loss values"):
+def plot_loss_graph(m_path, config, loss_list_dict, batch_number, label):
     keys = list(loss_list_dict.keys())
     loss_means = defaultdict(list)
     loss_stds = defaultdict(list)
@@ -51,13 +51,13 @@ def plot_loss_graph(m_path, config, loss_list_dict, batch_number, y_label="loss 
         loss_stds[key] = epoch_stds
         plt.figure(idx, figsize=(20, 20))
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
-        plt.plot(range(len(epoch_means)), epoch_means, label=y_label)
+        plt.plot(range(len(epoch_means)), epoch_means, label=label + " loss values")
         plt.fill_between(range(len(epoch_stds)), epoch_means-epoch_stds, epoch_means+epoch_stds, alpha=0.1)
         plt.xlabel("epoch")
         plt.ylabel(key)
         plt.title(f'{key} per epoch')
         plt.legend()
-        plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + f'_{key}.png'))
+        plt.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + f'_{label}_{key}.png'))
         plt.close(idx)
 
     return
@@ -95,8 +95,8 @@ def save_train_results(m_path, config, train_losses, val_losses, dataset):
     train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
     train_bnumber = len(iter(DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)))
     val_bnumber = len(iter(DataLoader(val_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)))
-    plot_loss_graph(m_path, config, train_losses, train_bnumber, y_label="train loss values")
-    plot_loss_graph(m_path, config, val_losses, val_bnumber, y_label="validation loss values")
+    plot_loss_graph(m_path, config, train_losses, train_bnumber, label="train")
+    plot_loss_graph(m_path, config, val_losses, val_bnumber, label="validation")
     plot_metrics_bar(m_path, config, train_losses, val_losses)
     return
 
