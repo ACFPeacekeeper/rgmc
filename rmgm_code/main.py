@@ -8,7 +8,7 @@ from utils.logger import *
 from utils.config_parser import *
 
 # Assign path to current directory
-m_path = "/home/afernandes/Repositories/rmgm/rmgm_code"
+m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
 
 WAIT_TIME = 0 # Seconds to wait between sequential experiments
 
@@ -153,7 +153,7 @@ def train_model(config):
 
 
 def train_downstream_classifier(config):
-    device, dataset, model, loss_list_dict, optimizer = setup_experiment(m_path, config, train=True)
+    device, dataset, model, optimizer = setup_experiment(m_path, config, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
