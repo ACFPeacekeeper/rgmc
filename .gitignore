@@ -410,3 +410,4 @@ rmgm_code/results
 rmgm_code/images
 rmgm_code/wandb
 gmc/
+tmp/

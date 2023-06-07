@@ -12,7 +12,7 @@ class GaussianNoise(Noise):
     def __call__(self, x):
         for key in x.keys():
             if key == self.target_modality:
-                x[key] = torch.clamp(x + torch.randn(x.size()).to(self.device) * self.std + self.mean, torch.min(x), torch.max(x))
+                x[key] = torch.clamp(x[key] + torch.randn(x[key].size()).to(self.device) * self.std + self.mean, torch.min(x[key]), torch.max(x[key]))
             else:
                 x[key] = x[key]
         return x

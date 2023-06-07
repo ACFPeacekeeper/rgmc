@@ -15,6 +15,7 @@ import subprocess
 
 import torch.optim as optim
 
+from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
 from architectures import vae, dae, gmc, mvae, classifier
 from datasets.mhd.MHDDataset import MHDDataset
@@ -37,7 +38,7 @@ LR_DEFAULT = 0.001
 EPOCHS_DEFAULT = 15
 BATCH_SIZE_DEFAULT = 256
 CHECKPOINT_DEFAULT = 0
-LATENT_DIM_DEFAULT = 128
+LATENT_DIM_DEFAULT = 256
 INFONCE_TEMPERATURE_DEFAULT = 0.2
 RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5}
 KLD_BETA_DEFAULT = 0.5
@@ -47,7 +48,6 @@ EXPERTS_FUSION_DEFAULT = "poe"
 POE_EPS_DEFAULT = 1e-8
 MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
-NOISE_MEAN_DEFAULT = 0.0
 NOISE_STD_DEFAULT = 1.0
 ADV_EPSILON_DEFAULT = 8 / 255
 
@@ -96,7 +96,6 @@ def process_arguments(m_path):
     exp_parser.add_argument('--poe_eps', type=float, default=POE_EPS_DEFAULT, help='Epsilon value for the product of experts fusion for the mvae.')
     exp_parser.add_argument('--adam_betas', nargs=2, type=float, default=ADAM_BETAS_DEFAULTS, help='Beta values for the Adam optimizer.')
     exp_parser.add_argument('--momentum', type=float, default=MOMENTUM_DEFAULT, help='Momentum for the SGD optimizer.')
-    exp_parser.add_argument('--noise_mean', type=float, default=NOISE_MEAN_DEFAULT, help='Mean for noise distribution.')
     exp_parser.add_argument('--noise_std', type=float, default=NOISE_STD_DEFAULT, help='Standard deviation for noise distribution.')
     exp_parser.add_argument('--adv_epsilon', type=float, default=ADV_EPSILON_DEFAULT, help='Epsilon value for adversarial example generation.')
     exp_parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
@@ -176,7 +175,7 @@ def setup_env(m_path, config):
         config["path_model"] = os.path.join("saved_models", config["architecture"] + "_" + config["dataset"] + f"_exp{exp_id}.pt")
 
     if ("path_classifier" not in config or config["path_classifier"] is None) and config["stage"] == "test_classifier":
-        config["path_classifier"] = os.path.join("saved_models", "clf_" + config["architecture"] + "_" + config["dataset"] + f'_exp{exp_id}.pt')
+        config["path_classifier"] = os.path.join("saved_models", "clf_" + os.path.basename(config["path_model"]))
 
     config = config_validation(m_path, config)
 
@@ -198,9 +197,7 @@ def config_validation(m_path, config):
     finally:
         if config['stage'] == 'train_model' and config['model_out'] is None:
             raise argparse.ArgumentError('Argument error: the --model_out argument must be set when the --stage argument is ' + config['stage'] + '.')
-        if config['epochs'] < 1:
-            raise argparse.ArgumentError("Argument error: number of epochs must be a positive and non-zero integer.")
-        elif config['batch_size'] < 1:
+        if config['batch_size'] < 1:
             raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
         
         if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
@@ -212,10 +209,14 @@ def config_validation(m_path, config):
             if "epochs" not in config or config["epochs"] is None:
                 config['epochs'] = EPOCHS_DEFAULT
         else:
+            if "epochs" in config and config["epochs"] is not None:
+                config["epochs"] = None
             if "learning_rate" in config and config['learning_rate'] is not None:
                 config['learning_rate'] = None
             if "optimizer" in config and config['optimizer'] is not None:
                 config['optimizer'] = None
+            if config["stage"] != "inference" and "checkpoint" in config and config["checkpoint"] is not None:
+                config["checkpoint"] = None
 
         if "seed" not in config or config['seed'] is None:
             config["seed"] = SEED
@@ -310,14 +311,20 @@ def config_validation(m_path, config):
             config["noise"] = None
 
         if config['noise'] is None:
-            config["noise_mean"] = None
             config["noise_std"] = None
+        else:
+            if "noise_std" not in config or config["noise_std"] is None:
+                config["noise_std"] = NOISE_STD_DEFAULT
 
         if "adversarial_attack" not in config:
             config["adversarial_attack"] = None
 
         if config["adversarial_attack"] is None:
             config['adv_epsilon'] = None
+
+        if config["noise"] is not None or config["adversarial_attack"] is not None:
+            if config["target_modality"] is None:
+                raise argparse.ArgumentError("Argument error: must define the target_modality for noise/adversarial attack.")
 
         if "optimizer" not in config:
             config["optimizer"] = None
@@ -404,33 +411,18 @@ def setup_experiment(m_path, config, train=True):
         noise = config['noise']
         
         if noise == "gaussian":
-            transform = gaussian_noise.GaussianNoise(device, config['noise_mean'], config['noise_std'])
+            transform = transforms.Compose([gaussian_noise.GaussianNoise(device, target_modality, 0. ,config['noise_std'])])
         else:
             transform = None
 
         dataset._set_transform(transform)
 
         if config['adversarial_attack'] == 'fgsm':
-            adv_attack = fgsm.FGSM(device, model, target_modality, eps=config['adv_epsilon'])
+            adv_attack = transforms.Compose([fgsm.FGSM(device, model, target_modality, eps=config['adv_epsilon'])])
         else:
             adv_attack = None
 
         dataset._set_adv_attack(adv_attack)
-
-    if train:
-        if config['optimizer'] is not None:
-            if config['optimizer'] == 'adam':
-                optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
-            elif config['optimizer'] == 'sgd':
-                optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
-    else:
-        optimizer = None
-
-    for ckey, cval in config.items():
-        if cval is not None:
-            print(f'{ckey}: {cval}')
-            with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'a') as file:
-                file.write(f'{ckey}: {cval}\n')
 
     if "notes" not in config:
         print('Enter experiment notes:')
@@ -443,14 +435,29 @@ def setup_experiment(m_path, config, train=True):
     else:
         notes = config["notes"]
 
-    wandb.init(project="rmgm", 
-               name=config['model_out'] + '_' + config['stage'],
+    if train:
+        if config['optimizer'] is not None:
+            if config['optimizer'] == 'adam':
+                optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
+            elif config['optimizer'] == 'sgd':
+                optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
+
+        wandb.init(project="rmgm", 
+               name=config['model_out'],
                config={key: value for key, value in config.items() if value is not None}, 
                notes=notes,
                allow_val_change=True,
                #magic=True,
                #mode="offline",
                tags=[config['architecture'], config['dataset'], config['stage']])
-    wandb.watch(model)
+        wandb.watch(model)
+    else:
+        optimizer = None
+
+    for ckey, cval in config.items():
+        if cval is not None:
+            print(f'{ckey}: {cval}')
+            with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'a') as file:
+                file.write(f'{ckey}: {cval}\n')
 
     return device, dataset, model, optimizer

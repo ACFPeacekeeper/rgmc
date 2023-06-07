@@ -2,7 +2,7 @@ import time
 import traceback
 
 from tqdm import tqdm
-from collections import Counter
+from collections import Counter, defaultdict
 
 from utils.logger import *
 from utils.config_parser import *
@@ -37,7 +37,7 @@ def nan_hook(self, input, output):
                 raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
 
-def run_train_epoch(epoch, config, device, model, dataset, train_losses, val_losses, checkpoint_counter, optimizer=None):
+def run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, val_set=None, val_losses=None, optimizer=None):
     print(f'Epoch {epoch}')
     print('Training:')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
@@ -45,7 +45,6 @@ def run_train_epoch(epoch, config, device, model, dataset, train_losses, val_los
         file.write('Training:\n')
 
     loss_dict = Counter(dict.fromkeys(train_losses.keys(), 0.))
-    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
     train_loader = iter(DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True))
     train_bnumber = len(train_loader)
     run_start = time.time()
@@ -67,23 +66,24 @@ def run_train_epoch(epoch, config, device, model, dataset, train_losses, val_los
 
     run_end = time.time()
     save_epoch_results(m_path, config, device, run_end - run_start, train_bnumber, loss_dict)
-    val_loader = iter(DataLoader(val_set, batch_size=config['batch_size'], shuffle=True, drop_last=True))
-    val_bnumber = len(val_loader)
-    loss_dict = Counter(dict.fromkeys(val_losses.keys(), 0.))
-    print('Validation:')
-    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        file.write('Validation:\n')
-    model.eval()
-    run_start = time.time()
-    for batch_feats, batch_labels in tqdm(val_loader, total=val_bnumber):
-        _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
-        loss_dict = loss_dict + batch_loss_dict
-        wandb.log({f'val_{key}': value for key, value in batch_loss_dict.items()})
-        for key, value in batch_loss_dict.items():
-            val_losses[key].append(float(value)) 
+    if val_set is not None:
+        val_loader = iter(DataLoader(val_set, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+        val_bnumber = len(val_loader)
+        loss_dict = Counter(dict.fromkeys(val_losses.keys(), 0.))
+        print('Validation:')
+        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
+            file.write('Validation:\n')
+        model.eval()
+        run_start = time.time()
+        for batch_feats, batch_labels in tqdm(val_loader, total=val_bnumber):
+            _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
+            loss_dict = loss_dict + batch_loss_dict
+            #wandb.log({f'val_{key}': value for key, value in batch_loss_dict.items()})
+            for key, value in batch_loss_dict.items():
+                val_losses[key].append(float(value)) 
 
-    run_end = time.time()
-    save_epoch_results(m_path, config, device, run_end - run_start, val_bnumber, loss_dict)
+        run_end = time.time()
+        save_epoch_results(m_path, config, device, run_end - run_start, val_bnumber, loss_dict)
 
     checkpoint_counter -= 1
     if checkpoint_counter == 0:
@@ -97,28 +97,29 @@ def run_train_epoch(epoch, config, device, model, dataset, train_losses, val_los
 
     return model, train_losses, val_losses, checkpoint_counter, optimizer
 
-def run_test(config, device, model, dataset, batch_number, loss_list_dict):
+def run_test(config, device, model, dataset):
     dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+    bnumber = len(dataloader)
+    loss_dict = defaultdict(list)
     tracemalloc.start()
     test_start = time.time()
-    for batch_feats, batch_labels in tqdm(dataloader, total=batch_number):
+    for batch_feats, batch_labels in tqdm(dataloader, total=bnumber):
         _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
 
-        for key in loss_list_dict.keys():
-            loss_list_dict[key].append(float(batch_loss_dict[key]))
+        for key, value in batch_loss_dict.items():
+            loss_dict[key].append(float(value))
 
     test_end = time.time()
     tracemalloc.stop()
-    wandb.log({**loss_list_dict})
     print(f'Total runtime: {test_end - test_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {test_end - test_end} sec\n')
 
-    save_test_results(m_path, config, loss_list_dict)
+    save_test_results(m_path, config, loss_dict)
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
-    return loss_list_dict
+    return
 
 
 def train_model(config):
@@ -129,10 +130,11 @@ def train_model(config):
 
     train_losses = defaultdict(list)
     val_losses = defaultdict(list)
+    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, train_losses, val_losses, checkpoint_counter, optimizer)
+        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, val_set, val_losses, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
@@ -160,10 +162,11 @@ def train_downstream_classifier(config):
 
     train_losses = defaultdict(list)
     val_losses = defaultdict(list)
+    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, train_losses, val_losses, checkpoint_counter, optimizer)
+        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, val_set, val_losses, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
@@ -184,16 +187,13 @@ def train_downstream_classifier(config):
 
 
 def test_model(config):
-    device, dataset, model, loss_dict, batch_number, _ = setup_experiment(m_path, config, train=False)
-    tracemalloc.start()
-    loss_dict = run_test(config, device, model, dataset, batch_number, loss_dict)
-    wandb.finish()
+    device, dataset, model, _ = setup_experiment(m_path, config, train=False)
+    run_test(config, device, model, dataset)
     return
 
 def test_downstream_classifier(config):
-    device, dataset, model, loss_dict, batch_number, _ = setup_experiment(m_path, config, train=False)
-    loss_dict = run_test(config, device, model, dataset, batch_number, loss_dict)
-    wandb.finish()
+    device, dataset, model, _ = setup_experiment(m_path, config, train=False)
+    run_test(config, device, model, dataset)
     return
 
 def inference(config):
@@ -223,7 +223,6 @@ def inference(config):
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
-    wandb.finish()
     return
 
 
@@ -231,16 +230,11 @@ def call_with_configs(config_ls):
     def decorate(run_experiment):
         def wrapper(*args, **kwargs):
             for config in config_ls:
-                try:
-                    config = setup_env(m_path, config)
-                    kwargs['config'] = config
-                    run_experiment(**kwargs)
-                except Exception as e:
-                    traceback.print_exception(*sys.exc_info())
-                finally:
-                    print('Finishing up run...')
-                    time.sleep(WAIT_TIME)
-                    continue
+                config = setup_env(m_path, config)
+                kwargs['config'] = config
+                run_experiment(**kwargs)
+                print('Finishing up experiment...')
+                time.sleep(WAIT_TIME)
         return wrapper
     return decorate
 
