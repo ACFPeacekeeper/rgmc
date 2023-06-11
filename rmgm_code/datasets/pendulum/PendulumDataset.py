@@ -13,6 +13,9 @@ class PendulumDataset(MultimodalDataset):
         return
 
     def _load_data(self, train):
+        if self.download:
+            self._download
+            
         return super()._load_data(self.dataset_dir, train)
         if train:
             data_path = os.path.join(self.dataset_dir, "train_pendulum_dataset_samples20000_stack2_freq440.0_vel20.0_rec['LEFT_BOTTOM', 'RIGHT_BOTTOM', 'MIDDLE_TOP'].pt")

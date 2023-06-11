@@ -13,6 +13,9 @@ class MOSIDataset(MultimodalDataset):
         return
     
     def _load_data(self, train):
+        if self.download:
+            self._download
+            
         modalities = ['vision', 'text']
         if self.exclude_modality != 'none':
             modalities.remove(self.exclude_modality)

@@ -12,6 +12,9 @@ class MHDDataset(MultimodalDataset):
         return
 
     def _load_data(self, train):
+        if self.download:
+            self._download
+            
         if train:
             data_path = os.path.join(self.dataset_dir, "mhd_train.pt")
         else:
