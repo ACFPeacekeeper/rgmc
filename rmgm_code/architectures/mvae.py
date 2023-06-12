@@ -40,6 +40,12 @@ class MVAE(nn.Module):
             self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
             self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
 
+    def set_latent_dim(self, latent_dim):
+        for enc_key, dec_key in zip(self.encoders.keys(), self.decoders.keys()):
+            self.encoders[enc_key].set_latent_dim(latent_dim)
+            self.decoders[dec_key].set_latent_dim(latent_dim)
+        self.latent_dimension = latent_dim
+
 
     def set_modalities(self, exclude_modality):
         if self.exclude_modality == 'image':

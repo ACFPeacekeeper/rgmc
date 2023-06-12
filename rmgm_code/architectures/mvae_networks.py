@@ -16,6 +16,10 @@ class ImageEncoder(nn.Module):
         self.fc_mean = nn.Linear(512, latent_dimension)
         self.fc_logvar = nn.Linear(512, latent_dimension)
 
+    def set_latent_dim(self, latent_dim):
+        self.fc_mean = nn.Linear(512, latent_dim)
+        self.fc_logvar = nn.Linear(512, latent_dim)
+
     def forward(self, x):
         h = self.feature_extractor(x)
         return self.fc_mean(h), self.fc_logvar(h)
@@ -23,8 +27,8 @@ class ImageEncoder(nn.Module):
 class ImageDecoder(nn.Module):
     def __init__(self, latent_dimension):
         super(ImageDecoder, self).__init__()
+        self.latent_fc = nn.Linear(latent_dimension, 512)
         self.feature_reconstructor = nn.Sequential(
-            nn.Linear(latent_dimension, 512),
             nn.SiLU(),
             nn.Linear(512, 128 * 7 * 7),
             nn.Unflatten(dim=1, unflattened_size=(128, 7, 7)),
@@ -34,8 +38,11 @@ class ImageDecoder(nn.Module):
             nn.ConvTranspose2d(64, 1, 4, 2, 1),
         )
 
+    def set_latent_dim(self, latent_dim):
+        self.latent_fc = nn.Linear(latent_dim, 512)
+
     def forward(self, z):
-        return self.feature_reconstructor(z)
+        return self.feature_reconstructor(self.latent_fc(z))
 
 class TrajectoryEncoder(nn.Module):
     def __init__(self, latent_dimension):
@@ -49,6 +56,10 @@ class TrajectoryEncoder(nn.Module):
 
         self.fc_mean = nn.Linear(256, latent_dimension)
         self.fc_logvar = nn.Linear(256, latent_dimension)
+
+    def set_latent_dim(self, latent_dim):
+        self.fc_mean = nn.Linear(256, latent_dim)
+        self.fc_logvar = nn.Linear(256, latent_dim)
     
     def forward(self, x):
         h = self.feature_extractor(x)
@@ -60,15 +71,18 @@ class TrajectoryEncoder(nn.Module):
 class TrajectoryDecoder(nn.Module):
     def __init__(self, latent_dimension):
         super(TrajectoryDecoder, self).__init__()
+        self.latent_fc = nn.Linear(latent_dimension, 256)
         self.feature_reconstructor = nn.Sequential(
-            nn.Linear(latent_dimension, 256),
             nn.SiLU(),
             nn.Linear(256, 512),
             nn.SiLU(),
             nn.Linear(512, 200)
         )
 
+    def set_latent_dim(self, latent_dim):
+        self.latent_fc = nn.Linear(latent_dim, 256)
+
     def forward(self, z):
-        return self.feature_reconstructor(z)
+        return self.feature_reconstructor(self.latent_fc(z))
     
     

@@ -16,11 +16,15 @@ class MHDCommonEncoder(nn.Module):
             Swish(),
             nn.Linear(512, 512),
             Swish(),
-            nn.Linear(512, latent_dimension),
         )
+        self.latent_fc = nn.Linear(512, latent_dimension)
+
+    def set_latent_dim(self, latent_dim):
+        self.latent_fc = nn.Linear(512, latent_dim)
+        self.latent_dimension = latent_dim
 
     def forward(self, x):
-        return F.normalize(self.feature_extractor(x), dim=-1)
+        return F.normalize(self.latent_fc(self.feature_extractor(x)), dim=-1)
 
 
 class MHDImageProcessor(nn.Module):

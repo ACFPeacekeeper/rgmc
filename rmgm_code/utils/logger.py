@@ -27,9 +27,9 @@ def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=
     print('Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
     print('Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
     if device.type == 'cuda':
-        print("Torch CUDA memory allocated: %f GB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
-        print("Torch CUDA memory reserved: %f GB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
-        print("Torch CUDA max memory reserved: %f GB"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
+        print("Torch CUDA memory allocated: %f GB"%(torch.cuda.memory_allocated(torch.cuda.current_device())/1024/1024/1024))
+        print("Torch CUDA memory reserved: %f GB"%(torch.cuda.memory_reserved(torch.cuda.current_device())/1024/1024/1024))
+        print("Torch CUDA max memory reserved: %f GB"%(torch.cuda.max_memory_reserved(torch.cuda.current_device())/1024/1024/1024))
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write('- Current RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
         file.write('- Peak RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))

@@ -28,6 +28,11 @@ class VAE(nn.Module):
         self.kld = 0.
         self.exclude_modality = exclude_modality
 
+    def set_latent_dim(self, latent_dim):
+        self.encoder.set_latent_dim(latent_dim)
+        self.decoder.set_latent_dim(latent_dim)
+        self.latent_dimension = latent_dim
+
     def set_modalities(self, exclude_modality):
         if exclude_modality == 'image':
             self.layer_dim = 200

@@ -201,6 +201,10 @@ class MhdGMC(GMC):
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
+    def set_latent_dim(self, latent_dim):
+        self.encoder.set_latent_dim(latent_dim)
+        self.latent_dimension = latent_dim
+
     def set_modalities(self, exclude_modality):
         if exclude_modality == 'image':
             self.common_dim = 200

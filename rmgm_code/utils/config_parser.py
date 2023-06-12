@@ -71,7 +71,6 @@ def process_arguments(m_path):
     exp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES, help='Architecture to be used in the experiment.')
     exp_parser.add_argument('-p', '--path_model', type=str, default=None, help="Filename of the file where the model is to be loaded from.")
     exp_parser.add_argument('--seed', '--torch_seed', '--pytorch_seed', type=int, default=SEED, help='Seed value for results replication.')
-    exp_parser.add_argument('--load_config', '--load_json', type=str, default=None, help='Filename of config file of the model training, to load model config from.')
     exp_parser.add_argument('--path_classifier', type=str, default=None, help="Filename of the file where the classifier is to be loaded from.")
     exp_parser.add_argument('-m', '--model_out', type=str, default=None, help="Filename of the file where the model/classifier and results are to be saved to.")
     exp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the experiments.')
@@ -343,8 +342,14 @@ def config_validation(m_path, config):
 
 def setup_experiment(m_path, config, train=True):
     if torch.cuda.is_available():
+        min_mem = torch.cuda.max_memory_reserved(0)
         device = "cuda:0"
-        config['device'] = torch.cuda.get_device_name(0)
+        for id in range(1, torch.cuda.device_count()):
+            if min_mem > torch.cuda.max_memory_reserved(id):
+                min_mem = torch.cuda.max_memory_reserved(id)
+                device = f'cuda:{id}'
+
+        config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
     else:
         device = "cpu"
         command = "cat /proc/cpuinfo"
@@ -371,17 +376,25 @@ def setup_experiment(m_path, config, train=True):
     if "download" in config:
         config['download'] = None
 
+    if config['stage'] != "train_model":
+        model_config = json.load(open(os.path.join(m_path, "configs", "train_model", os.path.basename(os.path.splitext(config['path_model'])[0]) + '.json')))
+        latent_dim = model_config["latent_dimension"]
+        exclude_modality = model_config["exclude_modality"]
+    else:
+        latent_dim = config["latent_dimension"]
+        exclude_modality = config["exclude_modality"]
+
     if config['architecture'] == 'vae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = vae.VAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'])
+        model = vae.VAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
     elif config['architecture'] == 'dae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
-        model = dae.DAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales)
+        model = dae.DAE(config['architecture'], latent_dim, device, exclude_modality, scales)
     elif config['architecture'] == 'gmc':
-        model = gmc.MhdGMC(config['architecture'], config['exclude_modality'], config['latent_dimension'], config['infonce_temperature'])
+        model = gmc.MhdGMC(config['architecture'], exclude_modality, latent_dim, config['infonce_temperature'])
     elif config['architecture'] == 'mvae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = mvae.MVAE(config['architecture'], config['latent_dimension'], device, config['exclude_modality'], scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        model = mvae.MVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
 
     if "load_config" in config and config['load_config'] is not None:
         config_data = json.load(open(os.path.join(m_path, config['load_config'])))
@@ -394,6 +407,12 @@ def setup_experiment(m_path, config, train=True):
         model.eval()
         for param in model.parameters():
             param.requires_grad = False
+
+    if latent_dim != config["latent_dimension"]:
+        model.set_latent_dim(config["latent_dimension"])
+
+    if exclude_modality != config["exclude_modality"]:
+        model.set_modalities(config["exclude_modality"])
 
     model.to(device)
 
