@@ -6,9 +6,9 @@ import torch
 import wandb
 import select
 import shutil
-import pickle
 import termios
 import argparse
+import threading
 import itertools
 import traceback
 import subprocess
@@ -51,9 +51,11 @@ ADAM_BETAS_DEFAULTS = [0.9, 0.999]
 NOISE_STD_DEFAULT = 1.0
 ADV_EPSILON_DEFAULT = 8 / 255
 
+lock = threading.Lock()
+
 def process_arguments(m_path):
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
-    subparsers = parser.add_subparsers(help="command", dest="command")
+    subparsers = parser.add_subparsers(help="command", dest="command")   
     clear_parser = subparsers.add_parser("clear")
     clear_parser.add_argument('--clear_results', '--clear_res', action="store_false", help="Flag to delete results directory.")
     clear_parser.add_argument('--clear_checkpoints', '--clear_check', action="store_false", help="Flag to delete checkpoints directory.")
@@ -111,7 +113,7 @@ def process_arguments(m_path):
         if args['clear_wandb']:
             shutil.rmtree(os.path.join(m_path, "wandb"), ignore_errors=True)
         if args['clear_idx']:
-            path = os.path.join(m_path, "experiments_idx.pickle")
+            path = os.path.join(m_path, "experiments_idx.json")
             if os.path.exists(path):
                 os.remove(path)
         if args['clear_configs']:
@@ -119,7 +121,7 @@ def process_arguments(m_path):
                 if os.path.isdir(os.path.join(m_path, "configs", dir)):
                     shutil.rmtree(os.path.join(m_path, "configs", dir), ignore_errors=True)
         sys.exit(0)
-    
+
     torch.manual_seed(args['seed'])
 
     if args['command'] == 'config':
@@ -143,26 +145,23 @@ def process_arguments(m_path):
     raise argparse.ArgumentError("Argumment error: unknown command " + args['command'])
 
 def setup_env(m_path, config):
-    experiments_idx_path = os.path.join(m_path, "experiments_idx.pickle")
+    experiments_idx_path = os.path.join(m_path, "experiments_idx.json")
     idx_dict = {}
+    lock.acquire()
     if os.path.isfile(experiments_idx_path):
-        with open(experiments_idx_path, 'rb') as idx_pickle:
-            idx_dict = pickle.load(idx_pickle)
+        with open(experiments_idx_path, 'r') as idx_json:
+            idx_dict = json.load(idx_json)
             idx_dict[config['stage']][config['dataset']][config['architecture']] += 1
             exp_id = idx_dict[config['stage']][config['dataset']][config['architecture']]
-        with open(os.path.join(m_path, "experiments_idx.pickle"), "wb") as idx_pickle:
-            pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(experiments_idx_path, 'w') as idx_json:
+            json.dump(idx_dict, idx_json, indent=4)
     else:
-        with open(experiments_idx_path, 'wb') as idx_pickle:
-            idx_dict = {}
-            for stage in STAGES:
-                idx_dict[stage] = {}
-                for dataset in DATASETS:
-                    idx_dict[stage][dataset] = dict.fromkeys(ARCHITECTURES, 0)
-
+        with open(experiments_idx_path, 'w') as idx_json:
+            idx_dict = create_idx_dict()
             idx_dict[config['stage']][config['dataset']][config['architecture']] = 1
-            pickle.dump(idx_dict, idx_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+            json.dump(idx_dict, idx_json, indent=4)
             exp_id = 1
+    lock.release()
     
     if 'model_out' not in config or config["model_out"] is None:
         model_out = config['architecture'] + '_' + config['dataset'] + f'_exp{exp_id}'
@@ -179,6 +178,14 @@ def setup_env(m_path, config):
     config = config_validation(m_path, config)
 
     return config
+
+def create_idx_dict():
+    idx_dict = {}
+    for stage in STAGES:
+        idx_dict[stage] = {}
+        for dataset in DATASETS:
+            idx_dict[stage][dataset] = dict.fromkeys(ARCHITECTURES, 0)
+    return idx_dict
 
 
 def config_validation(m_path, config):
@@ -342,13 +349,7 @@ def config_validation(m_path, config):
 
 def setup_experiment(m_path, config, train=True):
     if torch.cuda.is_available():
-        min_mem = torch.cuda.max_memory_reserved(0)
         device = "cuda:0"
-        for id in range(1, torch.cuda.device_count()):
-            if min_mem > torch.cuda.max_memory_reserved(id):
-                min_mem = torch.cuda.max_memory_reserved(id)
-                device = f'cuda:{id}'
-
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
     else:
         device = "cpu"
