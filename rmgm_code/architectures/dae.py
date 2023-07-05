@@ -7,16 +7,11 @@ class DAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.3):
         super(DAE, self).__init__()
         self.name = name
-        if exclude_modality == 'image':
-            self.layer_dim = 200
-            self.modality_dims = [0, 200]
-        elif exclude_modality == 'trajectory':
-            self.layer_dim = 28 * 28
-            self.modality_dims = [0, 28 * 28]
-        else:
-            self.layer_dim = 28 * 28 + 200
-            self.modality_dims = [0, 28 * 28, 200]
+        self.layer_dim = 28 * 28 + 200
+        self.modality_dims = [0, 28 * 28, 200]
+        self.exclude_modality = exclude_modality
 
+        self.exclude_modality
         self.encoder = Encoder(latent_dimension, self.layer_dim)
         self.decoder = Decoder(latent_dimension, self.layer_dim)
         self.latent_dimension = latent_dimension
@@ -28,21 +23,6 @@ class DAE(nn.Module):
         self.encoder.set_latent_dim(latent_dim)
         self.decoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
-
-    def set_modalities(self, exclude_modality):
-        if exclude_modality == 'image':
-            self.layer_dim = 200
-            self.modality_dims = [0, 200]
-        elif exclude_modality == 'trajectory':
-            self.layer_dim = 28 * 28
-            self.modality_dims = [0, 28 * 28]
-        else:
-            self.layer_dim = 28 * 28 + 200
-            self.modality_dims = [0, 28 * 28, 200]
-            
-        self.exclude_modality = exclude_modality
-        self.encoder.set_first_layer(self.layer_dim)
-        self.decoder.set_last_layer(self.layer_dim)
 
     def add_noise(self, x):
         x_noisy = dict.fromkeys(x.keys())
@@ -89,9 +69,9 @@ class DAE(nn.Module):
         for value in recon_losses.values():
             recon_loss += value
 
-        if recon_losses.get('trajectory') is None:
+        if self.exclude_modality == 'trajectory':
             recon_losses['trajectory'] = 0.
-        elif recon_losses.get('image') is None:
+        elif self.exclude_modality == 'image':
             recon_losses['image'] = 0.
 
         loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})

@@ -21,9 +21,9 @@ class MHDDataset(MultimodalDataset):
         self.dataset_len = len(data[0])
 
         if self.exclude_modality == 'image':
-            self.dataset = {'trajectory': data[2].to(self.device)}
+            self.dataset = {'image': torch.full(data[1].size(), -1).to(self.device),'trajectory': data[2].to(self.device)}
         elif self.exclude_modality == 'trajectory':
-            self.dataset = {'image': data[1].to(self.device)}
+            self.dataset = {'image': data[1].to(self.device), 'trajectory': torch.full(data[2].size(), -1).to(self.device)}
         else:
             self.dataset = {'image': data[1].to(self.device), 'trajectory': data[2].to(self.device)}
 

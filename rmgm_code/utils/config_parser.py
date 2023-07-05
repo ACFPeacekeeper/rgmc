@@ -327,6 +327,8 @@ def config_validation(m_path, config):
 
         if config["adversarial_attack"] is None:
             config['adv_epsilon'] = None
+        elif 'adv_epsilon' not in config or config['adv_epsilon'] is None:
+            config['adv_epsilon'] = ADV_EPSILON_DEFAULT
 
         if config["noise"] is not None or config["adversarial_attack"] is not None:
             if config["target_modality"] is None:
@@ -347,7 +349,7 @@ def config_validation(m_path, config):
     return config
 
 
-def setup_experiment(m_path, config, train=True):
+def setup_device(config):
     if torch.cuda.is_available():
         device = "cuda:0"
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
@@ -363,8 +365,10 @@ def setup_experiment(m_path, config, train=True):
 
         config['device'] = device_info
 
-    device = torch.device(device)
+    return device
 
+
+def setup_experiment(m_path, config, device, train=True):
     if config['dataset'] == 'mhd':
         dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
     elif config['dataset'] == 'mosi':
@@ -438,7 +442,7 @@ def setup_experiment(m_path, config, train=True):
         dataset._set_transform(transform)
 
         if config['adversarial_attack'] == 'fgsm':
-            adv_attack = transforms.Compose([fgsm.FGSM(device, model, target_modality, eps=config['adv_epsilon'])])
+            adv_attack = fgsm.FGSM(device, model, target_modality, eps=config['adv_epsilon'])
         else:
             adv_attack = None
 
@@ -480,4 +484,4 @@ def setup_experiment(m_path, config, train=True):
             with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'a') as file:
                 file.write(f'{ckey}: {cval}\n')
 
-    return device, dataset, model, optimizer
+    return dataset, model, optimizer

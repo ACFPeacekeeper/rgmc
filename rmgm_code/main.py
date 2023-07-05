@@ -122,8 +122,8 @@ def run_test(config, device, model, dataset):
     return
 
 
-def train_model(config):
-    device, dataset, model, optimizer = setup_experiment(m_path, config, train=True)
+def train_model(config, device):
+    dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
@@ -154,8 +154,8 @@ def train_model(config):
     return model
 
 
-def train_downstream_classifier(config):
-    device, dataset, model, optimizer = setup_experiment(m_path, config, train=True)
+def train_downstream_classifier(config, device):
+    dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
     checkpoint_counter = config['checkpoint'] 
     for module in model.modules():
         module.register_forward_hook(nan_hook)
@@ -186,25 +186,24 @@ def train_downstream_classifier(config):
     return model
 
 
-def test_model(config):
-    device, dataset, model, _ = setup_experiment(m_path, config, train=False)
+def test_model(config, device):
+    dataset, model, _ = setup_experiment(m_path, config, device, train=False)
     run_test(config, device, model, dataset)
     return
 
-def test_downstream_classifier(config):
-    device, dataset, model, _ = setup_experiment(m_path, config, train=False)
+def test_downstream_classifier(config, device):
+    dataset, model, _ = setup_experiment(m_path, config, device, train=False)
     run_test(config, device, model, dataset)
     return
 
-def inference(config):
-    device, dataset, model, _, _, _ = setup_experiment(m_path, config, train=False)
+def inference(config, device):
+    dataset, model, _, _, _ = setup_experiment(m_path, config, device, train=False)
     
-    tracemalloc.start()
     print('Performing inference')
     with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
         file.write('Performing inference:\n')
 
-
+    tracemalloc.start()
     inference_start = time.time()
     x_hat, _ = model(dataset)
     counter = 0
@@ -215,14 +214,14 @@ def inference(config):
         counter += 1
 
     inference_stop = time.time()
-    print(f'Runtime: {inference_stop - inference_start} sec')
-    with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
-        file.write(f'- Runtime: {inference_stop - inference_start} sec\n')
-    config['model_out'] = os.path.splitext(os.path.basename(config['path_model']))[0]
-    save_results(config, device)
     tracemalloc.stop()
     if device.type == 'cuda':
         torch.cuda.empty_cache()
+
+    print(f'Total runtime: {inference_stop - inference_start} sec')
+    with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
+        file.write(f'- Total runtime: {inference_stop - inference_start} sec\n')
+    config['model_out'] = os.path.splitext(os.path.basename(config['path_model']))[0]
     return
 
 
@@ -231,9 +230,11 @@ def call_with_configs(config_ls):
         def wrapper(*args, **kwargs):
             for config in config_ls:
                 config = setup_env(m_path, config)
+                device = setup_device(config)
+                kwargs['device'] = torch.device(device)
                 kwargs['config'] = config
                 run_experiment(**kwargs)
-                print('Finishing up experiment...')
+                print(f'Finishing up experiment on device {device}...')
                 time.sleep(WAIT_TIME)
         return wrapper
     return decorate
@@ -241,23 +242,24 @@ def call_with_configs(config_ls):
 
 def run_experiment(**kwargs):
     config = kwargs['config']
+    device = kwargs['device']
 
     try:
         if config['stage'] == 'train_model':
-            train_model(config)
+            train_model(config, device)
         elif config['stage'] == 'train_classifier':
-            train_downstream_classifier(config)
+            train_downstream_classifier(config, device)
         elif config['stage'] == 'test_model':
-            test_model(config)
+            test_model(config, device)
         elif config['stage'] == 'test_classifier':
-            test_downstream_classifier(config)
+            test_downstream_classifier(config, device)
         elif config['stage'] == 'inference':
             try:
                 os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
             except IOError as e:
                 traceback.print_exception(*sys.exc_info())
             finally:
-                inference(config)
+                inference(config, device)
     except:
         wandb.finish(exit_code=1)
         traceback.print_exception(*sys.exc_info())

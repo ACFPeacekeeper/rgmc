@@ -7,16 +7,9 @@ class VAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
         super(VAE, self).__init__()
         self.name = name
-        if exclude_modality == 'image':
-            self.layer_dim = 200
-            self.modality_dims = [0, 200]
-        elif exclude_modality == 'trajectory':
-            self.layer_dim = 28 * 28
-            self.modality_dims = [0, 28 * 28]
-        else:
-            self.layer_dim = 28 * 28 + 200
-            self.modality_dims = [0, 28 * 28, 200]
-
+        self.layer_dim = 28 * 28 + 200
+        self.modality_dims = [0, 28 * 28, 200]
+        self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
         self.encoder = Encoder(self.latent_dimension, self.layer_dim)
         self.decoder = Decoder(self.latent_dimension, self.layer_dim)
@@ -26,27 +19,11 @@ class VAE(nn.Module):
         self.mean = mean
         self.std = std
         self.kld = 0.
-        self.exclude_modality = exclude_modality
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
         self.decoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
-
-    def set_modalities(self, exclude_modality):
-        if exclude_modality == 'image':
-            self.layer_dim = 200
-            self.modality_dims = [0, 200]
-        elif exclude_modality == 'trajectory':
-            self.layer_dim = 28 * 28
-            self.modality_dims = [0, 28 * 28]
-        else:
-            self.layer_dim = 28 * 28 + 200
-            self.modality_dims = [0, 28 * 28, 200]
-
-        self.exclude_modality = exclude_modality
-        self.encoder.set_first_layer(self.layer_dim)
-        self.decoder.set_last_layer(self.layer_dim)
 
     def reparameterization(self, mean, std):
         dist = torch.distributions.Normal(self.mean, self.std)
