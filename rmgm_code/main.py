@@ -203,14 +203,15 @@ def inference(config, device):
     with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
         file.write('Performing inference:\n')
 
+    dataloader = iter(DataLoader(dataset, batch_size=1))
     tracemalloc.start()
     inference_start = time.time()
-    x_hat, _ = model(dataset)
     counter = 0
-    for idx, (img, recon) in tqdm(enumerate(zip(dataset['image'], x_hat['image'])), total=x_hat['image'].size(dim=0)):
+    for idx, (batch_feats, _) in enumerate(tqdm(dataloader, total=len(dataloader))):
         if counter % config['checkpoint'] == 0: 
-            plt.imsave(os.path.join("images", config['model_out'] + f'_{idx}_orig.png'), torch.reshape(img, (28,28)).detach().clone().cpu())
-            plt.imsave(os.path.join("images", config['model_out'] + f'_{idx}_recon.png'), torch.reshape(recon, (28,28)).detach().clone().cpu())
+            x_hat, _ = model(batch_feats)
+            plt.imsave(os.path.join("images", config['model_out'] + f'_{idx}_orig.png'), torch.reshape(batch_feats, (28,28)).detach().clone().cpu())
+            plt.imsave(os.path.join("images", config['model_out'] + f'_{idx}_recon.png'), torch.reshape(x_hat, (28,28)).detach().clone().cpu())
         counter += 1
 
     inference_stop = time.time()
@@ -221,7 +222,7 @@ def inference(config, device):
     print(f'Total runtime: {inference_stop - inference_start} sec')
     with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
         file.write(f'- Total runtime: {inference_stop - inference_start} sec\n')
-    config['model_out'] = os.path.splitext(os.path.basename(config['path_model']))[0]
+    
     return
 
 
