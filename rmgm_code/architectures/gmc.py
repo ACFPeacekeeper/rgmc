@@ -30,13 +30,17 @@ class GMC(LightningModule):
 
         self.encoder = None
 
+    def set_modalities(self, exclude_modality):
+        self.exclude_modality = exclude_modality
+
     def encode(self, x, sample=False):
         if self.exclude_modality == 'none':
-            return self.encoder(self.processors['joint'](x))
+            return self.encoder(self.processors[-1](x))
         else:
             latent_representations = []
             for key in x.keys():
-                latent_representations.append(self.encoder(self.processors[key](x[key])))
+                if key != self.exclude_modality:
+                    latent_representations.append(self.encoder(self.processors[key](x[key])))
 
             # Take the average of the latent representations
             if len(latent_representations) > 1:
@@ -50,10 +54,11 @@ class GMC(LightningModule):
         # Forward pass through the modality specific encoders
         batch_representations = []
         for key in x.keys():
-            mod_representations = self.encoder(
-                self.processors[key](x[key])
-            )
-            batch_representations.append(mod_representations)
+            if key != self.exclude_modality:
+                mod_representations = self.encoder(
+                    self.processors[key](x[key])
+                )
+                batch_representations.append(mod_representations)
 
         # Forward pass through the joint encoder
         if self.exclude_modality == 'none':
@@ -206,24 +211,4 @@ class MhdGMC(GMC):
         self.latent_dimension = latent_dim
 
     def set_modalities(self, exclude_modality):
-        if exclude_modality == 'image':
-            self.common_dim = 200
-            self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif exclude_modality == 'trajectory':
-            self.common_dim = 28 * 28
-            self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-            self.processors = {'image': self.image_processor}
-        else:
-            self.common_dim = 28 * 28 + 200
-            self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-            self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-            self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor
-            }
-
-        self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=self.latent_dimension)
         self.exclude_modality = exclude_modality

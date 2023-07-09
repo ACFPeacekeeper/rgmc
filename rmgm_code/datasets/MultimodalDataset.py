@@ -1,3 +1,5 @@
+import torch
+
 from torch.utils.data import Dataset
 
 class MultimodalDataset(Dataset):
@@ -36,7 +38,7 @@ class MultimodalDataset(Dataset):
     def __getitem__(self, index):
         data = dict.fromkeys(self.dataset.keys())
         for key in data.keys():
-            data[key] = self.dataset[key][index]
+            data[key] = self.dataset[key][index].type(torch.cuda.FloatTensor)
 
         if self.labels is not None:
             labels = self.labels[index]

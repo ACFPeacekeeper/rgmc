@@ -5,12 +5,22 @@ from torch.nn import functional as F
 from collections import Counter
 
 class MNISTClassifier(nn.Module):
-    def __init__(self, latent_dimension, model):
+    def __init__(self, latent_dimension, model, exclude_modality):
         super().__init__()
         self.model = model
+        self.exclude_modality = exclude_modality
+        self.latent_dimension = latent_dimension
         self.fc1 = nn.Linear(latent_dimension, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 10)
+
+    def set_modalities(self, exclude_modality):
+        self.exclude_modality = exclude_modality
+        self.model.set_modalities(exclude_modality)
+
+    def set_latent_dim(self, latent_dim):
+        self.latent_dimension = latent_dim
+        self.model.set_latent_dim(latent_dim)
 
     def forward(self, x, sample=True):
         if self.model.name == 'gmc':

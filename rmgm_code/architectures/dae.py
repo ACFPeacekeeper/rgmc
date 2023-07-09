@@ -19,6 +19,9 @@ class DAE(nn.Module):
         self.scales = scales
         self.noise_factor = noise_factor
 
+    def set_modalities(self, exclude_modality):
+        self.exclude_modality = exclude_modality
+
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
         self.decoder.set_latent_dim(latent_dim)

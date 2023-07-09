@@ -48,24 +48,6 @@ class MVAE(nn.Module):
 
 
     def set_modalities(self, exclude_modality):
-        if self.exclude_modality == 'image':
-            self.trajectory_encoder = TrajectoryEncoder(self.latent_dimension)
-            self.trajectory_decoder = TrajectoryDecoder(self.latent_dimension)
-            self.encoders = {'trajectory': self.trajectory_encoder}
-            self.decoders = {'trajectory': self.trajectory_decoder}
-        elif self.exclude_modality == 'trajectory':
-            self.image_encoder = ImageEncoder(self.latent_dimension)
-            self.image_decoder = ImageDecoder(self.latent_dimension)
-            self.encoders = {'image': self.image_encoder}
-            self.decoders = {'image': self.image_decoder}
-        else:
-            self.trajectory_encoder = TrajectoryEncoder(self.latent_dimension)
-            self.trajectory_decoder = TrajectoryDecoder(self.latent_dimension)
-            self.image_encoder = ImageEncoder(self.latent_dimension)
-            self.image_decoder = ImageDecoder(self.latent_dimension)
-            self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
-            self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
-
         self.exclude_modality = exclude_modality
 
     def reparameterization(self, mean, std):
@@ -79,6 +61,8 @@ class MVAE(nn.Module):
         mean, logvar = self.experts.prior_expert((1, batch_size, self.latent_dimension), self.device)
 
         for key in x.keys():
+            if key == self.exclude_modality:
+                continue
             tmp_mean, tmp_logvar = self.encoders[key](x[key])
             mean = torch.cat((mean, tmp_mean.unsqueeze(0)), dim=0)
             logvar = torch.cat((logvar, tmp_logvar.unsqueeze(0)), dim=0)
