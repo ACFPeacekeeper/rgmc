@@ -231,7 +231,7 @@ def call_with_configs(config_ls):
         def wrapper(*args, **kwargs):
             for config in config_ls:
                 config = setup_env(m_path, config)
-                device = setup_device(config)
+                device = setup_device(m_path, config)
                 kwargs['device'] = torch.device(device)
                 kwargs['config'] = config
                 run_experiment(**kwargs)

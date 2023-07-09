@@ -51,7 +51,8 @@ ADAM_BETAS_DEFAULTS = [0.9, 0.999]
 NOISE_STD_DEFAULT = 1.0
 ADV_EPSILON_DEFAULT = 8 / 255
 
-lock = threading.Lock()
+idx_lock = threading.Lock()
+device_lock = threading.Lock()
 
 def process_arguments(m_path):
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
@@ -114,8 +115,11 @@ def process_arguments(m_path):
             shutil.rmtree(os.path.join(m_path, "wandb"), ignore_errors=True)
         if args['clear_idx']:
             path = os.path.join(m_path, "experiments_idx.json")
+            device_idx_path = os.path.join(m_path, "device_idx.txt")
             if os.path.exists(path):
                 os.remove(path)
+            if os.path.exists(device_idx_path):
+                os.remove(device_idx_path)
         if args['clear_configs']:
             for dir in os.listdir(os.path.join(m_path, "configs")):
                 if os.path.isdir(os.path.join(m_path, "configs", dir)):
@@ -147,7 +151,7 @@ def process_arguments(m_path):
 def setup_env(m_path, config):
     experiments_idx_path = os.path.join(m_path, "experiments_idx.json")
     idx_dict = {}
-    lock.acquire()
+    idx_lock.acquire()
     if os.path.isfile(experiments_idx_path):
         with open(experiments_idx_path, 'r') as idx_json:
             idx_dict = json.load(idx_json)
@@ -161,7 +165,7 @@ def setup_env(m_path, config):
             idx_dict[config['stage']][config['dataset']][config['architecture']] = 1
             json.dump(idx_dict, idx_json, indent=4)
             exp_id = 1
-    lock.release()
+    idx_lock.release()
     
     if 'model_out' not in config or config["model_out"] is None:
         model_out = config['architecture'] + '_' + config['dataset'] + f'_exp{exp_id}'
@@ -277,6 +281,15 @@ def config_validation(m_path, config):
                 config['kld_beta'] = None
                 config['rep_trick_mean'] = None
                 config['rep_trick_std'] = None
+
+            if config['exclude_modality'] == 'image':
+                config['image_recon_scale'] = 0.
+                if config['target_modality'] == 'image':
+                    config['target_modality'] = None
+            elif config['exclude_modality'] == 'trajectory':
+                config['traj_recon_scale'] = 0.
+                if config['target_modality'] == 'trajectory':
+                    config['target_modality'] = None
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
@@ -296,16 +309,6 @@ def config_validation(m_path, config):
         if config['stage'] == 'test_classifier':
             if "path_classifier" not in config or config['path_classifier'] is None:
                 config['path_classifier'] = os.path.join(os.path.dirname(config['path_model']), "clf_" + os.path.basename(config['path_model']))
-        
-
-        if config['exclude_modality'] == 'image':
-            config['image_recon_scale'] = 0.
-            if config['target_modality'] == 'image':
-                config['target_modality'] = None
-        elif config['exclude_modality'] == 'trajectory':
-            config['traj_recon_scale'] = 0.
-            if config['target_modality'] == 'trajectory':
-                config['target_modality'] = None
 
         if config['architecture'] == 'gmc':
             if "infonce_temperature" not in config or config['infonce_temperature'] is None:
@@ -349,9 +352,24 @@ def config_validation(m_path, config):
     return config
 
 
-def setup_device(config):
+def setup_device(m_path, config):
     if torch.cuda.is_available():
-        device = "cuda:0"
+        device_idx_path = os.path.join(m_path, "device_idx.txt")
+        device_lock.acquire()
+        if os.path.isfile(device_idx_path):
+            with open(device_idx_path, 'r+') as device_file:
+                device_counter = int(device_file.readline()) + 1
+                device_file.seek(0)
+                device_file.truncate()
+                device_file.write(str(device_counter))
+        else:
+            with open(device_idx_path, 'w') as device_file:
+                device_counter = 0
+                device_file.write('0')
+
+        device_id = device_counter % torch.cuda.device_count()
+        device = f"cuda:{device_id}"
+        device_lock.release()
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
     else:
         device = "cpu"
@@ -369,14 +387,23 @@ def setup_device(config):
 
 
 def setup_experiment(m_path, config, device, train=True):
-    if config['dataset'] == 'mhd':
-        dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
-    elif config['dataset'] == 'mosi':
-        dataset = MOSIDataset(os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
-    elif config['dataset'] == 'mosei':
-        dataset = MOSEIDataset(os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
-    elif config['dataset'] == 'pendulum':
-        dataset = PendulumDataset(os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+    def setup_dataset(m_path, config, device, train):
+        if config['dataset'] == 'mhd':
+            dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+        elif config['dataset'] == 'mosi':
+            dataset = MOSIDataset(os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+        elif config['dataset'] == 'mosei':
+            dataset = MOSEIDataset(os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+        elif config['dataset'] == 'pendulum':
+            dataset = PendulumDataset(os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+        return dataset
+
+    if config['stage'] == "inference":
+        dataset = setup_dataset(m_path, config, device, True)
+        test_dataset = setup_dataset(m_path, config, device, False)
+        dataset = torch.concat((dataset, test_dataset), dim=0)
+    else:
+        dataset = setup_dataset(m_path, config, device, train)
 
     if "download" in config:
         config['download'] = None
@@ -401,34 +428,33 @@ def setup_experiment(m_path, config, device, train=True):
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
         model = mvae.MVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
 
-    if "load_config" in config and config['load_config'] is not None:
-        config_data = json.load(open(os.path.join(m_path, config['load_config'])))
-        previous_config = config_data['configs']
-        if "test" not in previous_config['stage'] and previous_config['stage'] != "inference":
-            model.set_modalities(config['exclude_modality'])
-
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))
         model.eval()
         for param in model.parameters():
             param.requires_grad = False
 
-    if latent_dim != config["latent_dimension"]:
-        model.set_latent_dim(config["latent_dimension"])
-
-    if exclude_modality != config["exclude_modality"]:
-        model.set_modalities(config["exclude_modality"])
-
     model.to(device)
 
     if 'classifier' in config['stage']:
-        model = classifier.MNISTClassifier(config['latent_dimension'], model)
         if "path_classifier" in config and config["path_classifier"] is not None and config["stage"] == "test_classifier":
+            clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", os.path.basename(os.path.splitext(config['path_classifier'])[0]) + '.json')))
+            model = classifier.MNISTClassifier(clf_config['latent_dimension'], model, clf_config['exclude_modality'])
             model.load_state_dict(torch.load(os.path.join(m_path, config["path_classifier"])))
             model.eval()
             for param in model.parameters():
                 param.requires_grad = False
+        else:
+            model = classifier.MNISTClassifier(config['latent_dimension'], model, config['exclude_modality'])
         model.to(device)
+
+    if exclude_modality != config["exclude_modality"]:
+        model.set_modalities(config["exclude_modality"])
+
+    if latent_dim != config["latent_dimension"]:
+        model.set_latent_dim(config["latent_dimension"])
+
+    model.to(device)
 
     if config['adversarial_attack'] is not None or config['noise'] is not None:
         target_modality = config['target_modality']
