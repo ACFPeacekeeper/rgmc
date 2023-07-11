@@ -3,7 +3,7 @@ class AdversarialAttack(object):
         self.name = name
         self.model = model
 
-    def __call__(self, x, y=None):
+    def __call__(self, x, y):
         raise NotImplementedError
     
     def __repr__(self):

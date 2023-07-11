@@ -50,6 +50,6 @@ class MultimodalDataset(Dataset):
             if self.labels is not None:
                 data = self.adv_attack(data, labels)
             else:
-                data = self.adv_attack(data)
+                data = self.adv_attack(data, data)
 
         return data, labels

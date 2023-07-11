@@ -405,6 +405,7 @@ rmgm_code/datasets/mhd/*.pt
 rmgm_code/saved_models
 rmgm_code/checkpoints
 rmgm_code/*.json
+rmgm_code/*.txt
 rmgm_code/configs
 rmgm_code/results
 rmgm_code/images
