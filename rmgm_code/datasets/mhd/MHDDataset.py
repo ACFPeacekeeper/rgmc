@@ -8,7 +8,7 @@ class MHDDataset(MultimodalDataset):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
 
     def _download(self):
-        call("./download_mhd_dataset.sh")
+        call("./download_mhd_dataset.sh", shell=True)
         return
 
     def _load_data(self, train):

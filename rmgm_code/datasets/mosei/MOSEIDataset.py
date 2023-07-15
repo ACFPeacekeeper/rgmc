@@ -10,7 +10,7 @@ class MOSEIDataset(MultimodalDataset):
         self.meta = None
 
     def _download(self):
-        call("./download_mosei_dataset.sh")
+        call("./download_mosei_dataset.sh", shell=True)
         return
     
     def _load_data(self, train):   
