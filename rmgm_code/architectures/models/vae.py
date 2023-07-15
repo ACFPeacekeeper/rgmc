@@ -1,23 +1,24 @@
 import torch
 
 from collections import Counter
-from architectures.dae_networks import *
+from ..subnetworks.vae_networks import *
 
-class DAE(nn.Module):
-    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.3):
-        super(DAE, self).__init__()
+class VAE(nn.Module):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
+        super(VAE, self).__init__()
         self.name = name
         self.layer_dim = 28 * 28 + 200
         self.modality_dims = [0, 28 * 28, 200]
         self.exclude_modality = exclude_modality
-
-        self.exclude_modality
-        self.encoder = Encoder(latent_dimension, self.layer_dim)
-        self.decoder = Decoder(latent_dimension, self.layer_dim)
         self.latent_dimension = latent_dimension
+        self.encoder = Encoder(self.latent_dimension, self.layer_dim)
+        self.decoder = Decoder(self.latent_dimension, self.layer_dim)
+        
         self.device = device
         self.scales = scales
-        self.noise_factor = noise_factor
+        self.mean = mean
+        self.std = std
+        self.kld = 0.
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
@@ -27,16 +28,13 @@ class DAE(nn.Module):
         self.decoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
-    def add_noise(self, x):
-        x_noisy = dict.fromkeys(x.keys())
-        for key, modality in x.items():
-            x_noisy[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
-        return x_noisy
+    def reparameterization(self, mean, std):
+        dist = torch.distributions.Normal(self.mean, self.std)
+        eps = dist.sample(std.shape).to(self.device)
+        z = torch.add(mean, torch.mul(std, eps))
+        return z
 
     def forward(self, x, sample=False):
-        if sample is False:
-            x = self.add_noise(x)
-
         data_list = list(x.values())
         if len(data_list[0].size()) > 2:
             data = torch.flatten(data_list[0], start_dim=1)
@@ -44,13 +42,17 @@ class DAE(nn.Module):
             data = data_list[0]
 
         for id in range(1, len(data_list)):
-            if len(data_list[id].size()) > 2:
-                data_list[id] = torch.flatten(data_list[id], start_dim=1)
             data = torch.concat((data, data_list[id]), dim=-1)
 
-        z = self.encoder(data)
+        mean, logvar = self.encoder(data)
+        std = torch.exp(torch.mul(logvar, 0.5))
+        if sample is False:
+            z = self.reparameterization(mean, std)
+            self.kld = - self.scales['kld_beta'] * torch.mean(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dimension / data_list[0].size(dim=0))
+        else:
+            z = mean
+        
         tmp = self.decoder(z)
-
         x_hat = dict.fromkeys(x.keys())
         for id, key in enumerate(x_hat.keys()):
             x_hat[key] = tmp[:, self.modality_dims[id]:self.modality_dims[id]+self.modality_dims[id+1]]
@@ -59,31 +61,31 @@ class DAE(nn.Module):
 
         return x_hat, z
     
+    
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
 
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
-            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
-            
+            recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum()
 
-        recon_loss = 0
-        for value in recon_losses.values():
-            recon_loss += value
+        elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
         if self.exclude_modality == 'trajectory':
             recon_losses['trajectory'] = 0.
         elif self.exclude_modality == 'image':
             recon_losses['image'] = 0.
 
-        loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
-        return recon_loss, loss_dict
-
-    def training_step(self, x, labels):
-            x_hat, _ = self.forward(x, sample=False)
-            recon_loss, loss_dict = self.loss(x, x_hat)
-            return recon_loss, loss_dict
+        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
+        self.kld = 0.
+        return elbo, loss_dict
     
+    def training_step(self, x, labels):
+        x_hat, _ = self.forward(x, sample=False)
+        elbo, loss_dict = self.loss(x, x_hat)
+        return elbo, loss_dict
+
     def validation_step(self, x, labels):
         return self.training_step(x, labels)
+        

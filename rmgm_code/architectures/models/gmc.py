@@ -1,5 +1,5 @@
 from pytorch_lightning import LightningModule
-from architectures.gmc_networks import *
+from ..subnetworks.gmc_networks import *
 from collections import Counter
 
 # Code adapted from https://github.com/miguelsvasco/gmc
