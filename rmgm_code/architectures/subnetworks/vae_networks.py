@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class Encoder(nn.Module):
     def __init__(self, latent_dimension, first_layer_dim):
         super(Encoder, self).__init__()
@@ -27,6 +28,7 @@ class Encoder(nn.Module):
         mean = self.fc_mean(h)
         logvar = self.fc_logvar(h)
         return mean, logvar
+    
     
 class Decoder(nn.Module):
     def __init__(self, latent_dimension, last_layer_dim):

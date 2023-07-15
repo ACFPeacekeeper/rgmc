@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class ImageEncoder(nn.Module):
     def __init__(self, latent_dimension):
         super(ImageEncoder, self).__init__()
@@ -24,6 +25,7 @@ class ImageEncoder(nn.Module):
         h = self.feature_extractor(x)
         return self.fc_mean(h), self.fc_logvar(h)
         
+
 class ImageDecoder(nn.Module):
     def __init__(self, latent_dimension):
         super(ImageDecoder, self).__init__()
@@ -43,6 +45,7 @@ class ImageDecoder(nn.Module):
 
     def forward(self, z):
         return self.feature_reconstructor(self.latent_fc(z))
+
 
 class TrajectoryEncoder(nn.Module):
     def __init__(self, latent_dimension):
@@ -67,6 +70,7 @@ class TrajectoryEncoder(nn.Module):
         mean = self.fc_mean(h)
         logvar = self.fc_logvar(h)
         return mean, logvar
+
 
 class TrajectoryDecoder(nn.Module):
     def __init__(self, latent_dimension):

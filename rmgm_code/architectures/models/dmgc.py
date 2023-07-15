@@ -1,12 +1,11 @@
 from pytorch_lightning import LightningModule
-from ..subnetworks.gmc_networks import *
+from ..subnetworks.dgmc_networks import *
 from collections import Counter
 
 
-# Code adapted from https://github.com/miguelsvasco/gmc
-class GMC(LightningModule):
+class DGMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
-        super(GMC, self).__init__()
+        super(DGMC, self).__init__()
         self.name = name
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
@@ -169,7 +168,7 @@ class GMC(LightningModule):
 
 
 
-class MhdGMC(GMC):
+class MhdDGMC(DGMC):
     def __init__(self, name, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
         if exclude_modality == 'image':
             self.common_dim = 200
@@ -178,7 +177,7 @@ class MhdGMC(GMC):
         else:
             self.common_dim = 28 * 28 + 200
 
-        super(MhdGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
+        super(MhdDGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)

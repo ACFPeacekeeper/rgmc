@@ -3,6 +3,7 @@ import torch
 from collections import Counter
 from ..subnetworks.vae_networks import *
 
+
 class VAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
         super(VAE, self).__init__()

@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class Encoder(nn.Module):
     def __init__(self, latent_dimension, first_layer_dim):
         super(Encoder, self).__init__()

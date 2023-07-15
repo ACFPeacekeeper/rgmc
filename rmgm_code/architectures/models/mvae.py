@@ -4,6 +4,7 @@ from collections import Counter
 from torch.autograd import Variable
 from ..subnetworks.mvae_networks import *
 
+
 class MVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps):
         super(MVAE, self).__init__()

@@ -3,6 +3,7 @@ import torch
 from collections import Counter
 from ..subnetworks.dae_networks import *
 
+
 class DAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.3):
         super(DAE, self).__init__()
@@ -87,3 +88,4 @@ class DAE(nn.Module):
     
     def validation_step(self, x, labels):
         return self.training_step(x, labels)
+    
