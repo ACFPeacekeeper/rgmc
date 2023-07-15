@@ -86,7 +86,7 @@ class MVAE(nn.Module):
     
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
-        recon_losses =  dict.fromkeys(x.keys())
+        recon_losses = dict.fromkeys(x.keys())
 
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])

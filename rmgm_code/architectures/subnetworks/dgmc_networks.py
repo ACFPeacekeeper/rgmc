@@ -41,9 +41,9 @@ class MHDCommonDecoder(nn.Module):
         self.latent_fc = nn.Linear(512, latent_dim)
         self.latent_dimension = latent_dim
 
-    def forward(self, x):
-        x_hat = self.latent_fc(x)
-        return self.feature_reconstructor(x_hat)
+    def forward(self, z):
+        h = self.latent_fc(z)
+        return self.feature_reconstructor(h)
     
 
 class MHDImageProcessor(nn.Module):
@@ -76,8 +76,9 @@ class MHDImageDecoder(nn.Module):
             nn.ConvTranspose2d(64, 1, 4, 2, 1),
         )
 
-    def forward(self, z):
-        x_hat = self.projector(z)
+    def forward(self, h):
+        x_hat = self.projector(h)
+        x_hat = x_hat.view(x_hat.size(0), 128, 7, 7)
         return self.image_reconstructor(x_hat)
 
 
@@ -133,8 +134,8 @@ class MHDTrajectoryDecoder(nn.Module):
             nn.Linear(512, 200)
         )
 
-    def forward(self, z):
-        x_hat = self.projector(z)
+    def forward(self, h):
+        x_hat = self.projector(h)
         return self.trajectory_reconstructor(x_hat)        
 
 
@@ -153,8 +154,8 @@ class MHDLabelDecoder(nn.Module):
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 10)
 
-    def forward(self, z):
-        return self.projector(z)
+    def forward(self, h):
+        return self.projector(h)
 
 
 class MHDJointProcessor(nn.Module):
@@ -210,15 +211,16 @@ class MHDJointDecoder(nn.Module):
             nn.Linear(512, 200)
         )
 
-    def forward(self, z):
-        x_hat = self.projector(z)
+    def forward(self, h):
+        x_hat = self.projector(h)
 
         # Image recon
-        img_hat = self.image_reconstructor(x_hat)
-        img_hat = img_hat.view(img_hat.size(0), 128, 7, 7)
+        img_hat = x_hat[:, :128 * 7 * 7]
+        img_hat = self.image_reconstructor(img_hat.view(img_hat.size(0), 128, 7, 7))
 
         # Trajectory recon
-        traj_hat = self.trajectory_reconstructor(x_hat)
+        traj_hat = x_hat[:, 128 * 7 * 7:128 * 7 * 7 + 512]
+        traj_hat = self.trajectory_reconstructor(traj_hat)
 
         return {"image": img_hat, "trajectory": traj_hat}
 

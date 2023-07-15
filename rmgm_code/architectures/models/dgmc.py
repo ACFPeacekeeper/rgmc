@@ -46,7 +46,7 @@ class DGMC(LightningModule):
 
     def encode(self, x, sample=False):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            return self.encoder(self.processors[-1](x))
+            return self.encoder(self.processors['joint'](x))
         else:
             latent_representations = []
             for key in x.keys():
@@ -59,21 +59,33 @@ class DGMC(LightningModule):
             else:
                 latent = latent_representations[0]
             return latent
+        
+    def decode(self, z):
+        reconstructions = dict.fromkeys(z.keys())
+
+        for key in reconstructions.keys():
+            if key != self.exclude_modality:
+                reconstructions[key] = self.reconstructors[key](self.decoder(z[key]))
+
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
+            reconstructions['joint'] = self.reconstructors['joint'](self.decoder(z['joint']))
+        
+        return reconstructions
 
     def forward(self, x):
         # Forward pass through the modality specific encoders
-        batch_representations = []
+        batch_representations = {}
         for key in x.keys():
             if key != self.exclude_modality:
                 mod_representations = self.encoder(
                     self.processors[key](x[key])
                 )
-                batch_representations.append(mod_representations)
+                batch_representations[key] = mod_representations
 
         # Forward pass through the joint encoder
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            joint_representation = self.encoder(self.processors['joint'](x))
-            batch_representations.append(joint_representation)
+            batch_representations['joint'] = self.encoder(self.processors['joint'](x))
+
         return batch_representations
 
     def infonce(self, batch_representations, batch_size):
@@ -152,6 +164,31 @@ class DGMC(LightningModule):
         loss = torch.mean(joint_mod_loss_sum)
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
+    
+    def recon_loss(self, x, z):
+        x_hat = self.decode(z)
+
+        mse_loss = nn.MSELoss(reduction="none").to(self.device)
+        recon_losses = dict.fromkeys(x.keys())
+
+        for key in recon_losses.keys():
+            cost = mse_loss(x[key], x_hat[key])
+            recon_losses[key] = (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
+
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
+            x['image'] = x['image'].view(x['image'].size(0), -1)
+            j_x = torch.cat(tuple(x.values()), dim=-1)
+            
+            j_xhat = x_hat['joint']
+            j_xhat['image'] = j_xhat['image'].view(j_xhat['image'].size(0), -1)
+            j_xhat = torch.cat(tuple(x_hat['joint'].values()), dim=-1)
+
+            cost = mse_loss(j_x, j_xhat)
+            recon_losses['joint'] = (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
+
+        loss = sum(recon_losses.values()) / len(recon_losses)
+
+        return loss, recon_losses
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -161,22 +198,33 @@ class DGMC(LightningModule):
 
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(list(batch_representations.values()), batch_size)
         else:
-            loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+            loss, tqdm_dict = self.infonce(list(batch_representations.values()), batch_size)
+        
+        # Compute reconstruction loss
+        recon_loss, loss_dict = self.recon_loss(data, batch_representations)
+        loss = 0.5 * loss + 0.5 *  recon_loss
+
+        return loss, Counter({**tqdm_dict, **loss_dict})
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
 
         # Forward pass through the encoders
         batch_representations = self.forward(data)
+
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(list(batch_representations.values()), batch_size)
         else:
-            loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+            loss, tqdm_dict = self.infonce(list(batch_representations.values()), batch_size)
+
+        # Compute reconstruction loss
+        recon_loss, loss_dict = self.recon_loss(data, batch_representations)
+        loss = loss + recon_loss
+
+        return loss, Counter({**tqdm_dict, **loss_dict})
 
 
 
@@ -219,10 +267,11 @@ class MhdDGMC(DGMC):
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
-        self.decoder = MHDCommonDecoder(common_dim=self.common_dim, latent_dimension=self.latent_dimension)
+        self.decoder = MHDCommonDecoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
+        self.decoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
     def set_modalities(self, exclude_modality):

@@ -39,8 +39,9 @@ class ImageDecoder(nn.Module):
         self.latent_fc = nn.Linear(latent_dim, 512)
 
     def forward(self, z):
-        x_hat = self.feature_reconstructor(self.latent_fc(z))
-        return x_hat.view(x_hat.size(0), 128, 7, 7)
+        x_hat = self.latent_fc(z)
+        x_hat = x_hat.view(x_hat.size(0), 128, 7, 7)
+        return self.feature_reconstructor(x_hat)
 
 
 class TrajectoryEncoder(nn.Module):

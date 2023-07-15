@@ -35,7 +35,7 @@ class GMC(LightningModule):
 
     def encode(self, x, sample=False):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            return self.encoder(self.processors[-1](x))
+            return self.encoder(self.processors['joint'](x))
         else:
             latent_representations = []
             for key in x.keys():
