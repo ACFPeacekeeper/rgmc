@@ -5,7 +5,7 @@ from tqdm import tqdm
 from collections import Counter, defaultdict
 
 from utils.logger import *
-from rmgm_code.utils.command_parser import *
+from utils.command_parser import *
 
 # Assign path to current directory
 m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"

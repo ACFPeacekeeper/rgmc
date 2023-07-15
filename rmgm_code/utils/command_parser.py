@@ -74,7 +74,7 @@ def process_arguments(m_path):
 
     configs_parser = subparsers.add_parser("config")
     configs_parser.add_argument('--load_config', '--load_json', type=str, help='File path where the experiment(s) configurations are to loaded from.')
-    configs_parser.add_argument('--config_permute', '--config_permutations', type=str, help='Generate several config runs from permutations of dict of lists with hyperparams.')
+    configs_parser.add_argument('--config_permute', '--permute_config', type=str, help='Generate several config runs from permutations of dict of lists with hyperparams.')
     configs_parser.add_argument('--seed', '--torch_seed', type=int, default=SEED, help='Seed value for results replication.')
 
     exp_parser = subparsers.add_parser("experiment")
