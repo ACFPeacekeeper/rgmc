@@ -222,6 +222,7 @@ class MHDJointDecoder(nn.Module):
 
         return {"image": img_hat, "trajectory": traj_hat}
 
+
 """
 
 

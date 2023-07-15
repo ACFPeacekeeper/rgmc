@@ -34,7 +34,7 @@ class GMC(LightningModule):
         self.exclude_modality = exclude_modality
 
     def encode(self, x, sample=False):
-        if self.exclude_modality == 'none':
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
             return self.encoder(self.processors[-1](x))
         else:
             latent_representations = []
@@ -67,7 +67,7 @@ class GMC(LightningModule):
 
     def infonce(self, batch_representations, batch_size):
         joint_mod_loss_sum = 0
-        mod_idx = len(batch_representations) - 1 if self.exclude_modality == 'none' else len(batch_representations)
+        mod_idx = len(batch_representations) - 1 if (self.exclude_modality == 'none' or self.exclude_modality is None) else len(batch_representations)
         for mod in range(mod_idx):
             # Negative pairs: everything that is not in the current joint-modality pair
             out_joint_mod = torch.cat(

@@ -16,24 +16,36 @@ class DGMC(LightningModule):
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
+        self.image_reconstructor = None
+        self.trajectory_reconstructor = None
+        self.joint_reconstructor = None
+
         if self.exclude_modality == 'image':
             self.processors = {'trajectory': self.trajectory_processor}
+            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
         elif self.exclude_modality == 'trajectory':
             self.processors = {'image': self.image_processor}
+            self.reconstructors = {'image': self.image_reconstructor}
         else:
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor,
             }
+            self.reconstructors = {
+                'image': self.image_reconstructor,
+                'trajectory': self.trajectory_reconstructor,
+                'joint': self.joint_reconstructor
+            }
 
         self.encoder = None
+        self.decoder = None
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
     def encode(self, x, sample=False):
-        if self.exclude_modality == 'none':
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
             return self.encoder(self.processors[-1](x))
         else:
             latent_representations = []
@@ -59,14 +71,14 @@ class DGMC(LightningModule):
                 batch_representations.append(mod_representations)
 
         # Forward pass through the joint encoder
-        if self.exclude_modality == 'none':
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
             joint_representation = self.encoder(self.processors['joint'](x))
             batch_representations.append(joint_representation)
         return batch_representations
 
     def infonce(self, batch_representations, batch_size):
         joint_mod_loss_sum = 0
-        mod_idx = len(batch_representations) - 1 if self.exclude_modality == 'none' else len(batch_representations)
+        mod_idx = len(batch_representations) - 1 if (self.exclude_modality == 'none' or self.exclude_modality is None) else len(batch_representations)
         for mod in range(mod_idx):
             # Negative pairs: everything that is not in the current joint-modality pair
             out_joint_mod = torch.cat(
@@ -183,24 +195,31 @@ class MhdDGMC(DGMC):
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
 
+        self.image_reconstructor = MHDImageDecoder(common_dim=self.common_dim)
+        self.trajectory_reconstructor = MHDTrajectoryDecoder(common_dim=self.common_dim)
+        self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim)
+
         if exclude_modality == 'image':
-            self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
             self.processors = {'trajectory': self.trajectory_processor}
+            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
         elif exclude_modality == 'trajectory':
-            self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
             self.processors = {'image': self.image_processor}
+            self.reconstructors = {'image': self.image_reconstructor}
         else:
-            self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-            self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-            self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor
             }
+            self.reconstructors = {
+                'image': self.image_reconstructor,
+                'trajectory': self.trajectory_reconstructor,
+                'joint': self.joint_reconstructor
+            }
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
+        self.decoder = MHDCommonDecoder(common_dim=self.common_dim, latent_dimension=self.latent_dimension)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
