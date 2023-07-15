@@ -57,7 +57,13 @@ device_lock = threading.Lock()
 
 def process_arguments(m_path):
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
-    subparsers = parser.add_subparsers(help="command", dest="command")   
+    subparsers = parser.add_subparsers(help="command", dest="command")
+    upload_parser = subparsers.add_parser("upload")
+    upload_parser.add_argument('--configs')
+    upload_parser.add_argument('--saved_models')
+    upload_parser.add_argument('--results')
+    upload_parser.add_argument('--checkpoints')
+
     clear_parser = subparsers.add_parser("clear")
     clear_parser.add_argument('--clear_results', '--clear_res', action="store_false", help="Flag to delete results directory.")
     clear_parser.add_argument('--clear_checkpoints', '--clear_check', action="store_false", help="Flag to delete checkpoints directory.")
