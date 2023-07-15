@@ -18,14 +18,14 @@ import torch.optim as optim
 from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
 from architectures.downstream import classifier
-from architectures.models import vae, dae, gmc, mvae, dgmc
+from architectures.models import vae, dae, gmc, mvae, dgmc, rgmc
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
 from datasets.pendulum.PendulumDataset import PendulumDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc']
+ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc', 'rgmc']
 DATASETS = ['mhd', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 NOISE_TYPES = ['gaussian', None] 
@@ -260,7 +260,7 @@ def config_validation(m_path, config):
             config['batch_size'] = BATCH_SIZE_DEFAULT
 
 
-        if config['architecture'] == 'vae' or config['architecture'] == 'dae' or config['architecture'] == 'mvae':
+        if "ae" in config['architecture']:
             if "image_recon_scale" not in config or config['image_recon_scale'] is None:
                 config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
             if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
@@ -317,7 +317,7 @@ def config_validation(m_path, config):
             if "path_classifier" not in config or config['path_classifier'] is None:
                 config['path_classifier'] = os.path.join(os.path.dirname(config['path_model']), "clf_" + os.path.basename(config['path_model']))
 
-        if config['architecture'] == 'gmc' or config['architecture'] == 'dgmc':
+        if 'gmc' in config['architecture']:
             if "infonce_temperature" not in config or config['infonce_temperature'] is None:
                 config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
         else:
@@ -436,6 +436,8 @@ def setup_experiment(m_path, config, device, train=True):
         model = mvae.MVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
     elif config['architecture'] == 'dgmc':
         model = dgmc.MhdDGMC(config['architecture'], exclude_modality, latent_dim, config['infonce_temperature'])
+    elif config['architecture'] == 'rgmc':
+        model = rgmc.MhdRGMC(config['architecture'], exclude_modality, latent_dim, config['infonce_temperature'])
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))
