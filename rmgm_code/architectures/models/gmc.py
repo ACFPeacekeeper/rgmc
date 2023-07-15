@@ -60,7 +60,7 @@ class GMC(LightningModule):
                 batch_representations.append(mod_representations)
 
         # Forward pass through the joint encoder
-        if self.exclude_modality == 'none':
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
             joint_representation = self.encoder(self.processors['joint'](x))
             batch_representations.append(joint_representation)
         return batch_representations
