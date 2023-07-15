@@ -234,6 +234,7 @@ def call_with_configs(config_ls):
                 device = setup_device(m_path, config)
                 kwargs['device'] = torch.device(device)
                 kwargs['config'] = config
+                print(f'Starting up experiment on device {device}...')
                 run_experiment(**kwargs)
                 print(f'Finishing up experiment on device {device}...')
                 time.sleep(WAIT_TIME)

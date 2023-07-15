@@ -61,15 +61,14 @@ class DGMC(LightningModule):
             return latent
         
     def decode(self, z):
-        reconstructions = dict.fromkeys(z.keys())
-
-        for key in reconstructions.keys():
-            if key != self.exclude_modality:
-                reconstructions[key] = self.reconstructors[key](self.decoder(z[key]))
-
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            reconstructions['joint'] = self.reconstructors['joint'](self.decoder(z['joint']))
-        
+            return {'joint': self.reconstructors['joint'](self.decoder(z['joint']))}
+        else:
+            reconstructions = dict.fromkeys(z.keys())
+            for key in reconstructions.keys():
+                if key != self.exclude_modality:
+                    reconstructions[key] = self.reconstructors[key](self.decoder(z[key]))
+
         return reconstructions
 
     def forward(self, x):
@@ -167,13 +166,7 @@ class DGMC(LightningModule):
     
     def recon_loss(self, x, z):
         x_hat = self.decode(z)
-
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
-        recon_losses = dict.fromkeys(x.keys())
-
-        for key in recon_losses.keys():
-            cost = mse_loss(x[key], x_hat[key])
-            recon_losses[key] = (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             x['image'] = x['image'].view(x['image'].size(0), -1)
@@ -184,7 +177,13 @@ class DGMC(LightningModule):
             j_xhat = torch.cat(tuple(x_hat['joint'].values()), dim=-1)
 
             cost = mse_loss(j_x, j_xhat)
-            recon_losses['joint'] = (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
+            loss = (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
+            return loss, {'joint_recon_loss': loss}
+        else:
+            recon_losses = dict.fromkeys(x.keys())
+            for key in recon_losses.keys():
+                cost = mse_loss(x[key], x_hat[key])
+                recon_losses[key] = (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
         loss = sum(recon_losses.values()) / len(recon_losses)
 
