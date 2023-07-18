@@ -94,11 +94,6 @@ class MVAE(nn.Module):
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        if self.exclude_modality == 'trajectory':
-            recon_losses['trajectory'] = 0.
-        elif self.exclude_modality == 'image':
-            recon_losses['image'] = 0.
-
         loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict

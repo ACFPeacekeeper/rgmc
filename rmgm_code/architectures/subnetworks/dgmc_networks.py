@@ -8,7 +8,6 @@ class MHDCommonEncoder(nn.Module):
         super(MHDCommonEncoder, self).__init__()
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
-
         self.feature_extractor = nn.Sequential(
             nn.Linear(common_dim, 512),
             Swish(),
@@ -30,11 +29,21 @@ class MHDCommonDecoder(nn.Module):
         super(MHDCommonDecoder, self).__init__()
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
-
-        self.projector = nn.Linear()
+        self.latent_fc = nn.Linear(latent_dimension, 512)
         self.feature_reconstructor = nn.Sequential(
-            nn
+            Swish(),
+            nn.Linear(512, 512),
+            Swish(),
+            nn.Linear(512, common_dim)
         )
+
+    def set_latent_dim(self, latent_dim):
+        self.latent_fc = nn.Linear(512, latent_dim)
+        self.latent_dimension = latent_dim
+
+    def forward(self, z):
+        h = self.latent_fc(z)
+        return self.feature_reconstructor(h)
 
 class MHDImageProcessor(nn.Module):
     def __init__(self, common_dim):
@@ -60,15 +69,15 @@ class MHDImageDecoder(nn.Module):
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7)
         self.image_reconstructor = nn.Sequential(
-            nn.Unflatten(),
             Swish(),
-            nn.ConvTranspose2d(),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
             Swish(),
-            nn.ConvTranspose2d()
+            nn.ConvTranspose2d(64, 1, 4, 2, 1)
         )
 
     def forward(self, z):
         x_hat = self.projector(z)
+        x_hat = x_hat.view(x_hat.size(0), 128, 7, 7)
         return self.image_reconstructor(x_hat)
 
 
@@ -106,7 +115,6 @@ class MHDTrajectoryProcessor(nn.Module):
             Swish(),
         )
 
-        # Output layer of the network
         self.projector = nn.Linear(512, common_dim)
 
     def forward(self, x):
@@ -191,7 +199,10 @@ class MHDJointDecoder(nn.Module):
         self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 512)
 
         self.image_reconstructor = nn.Sequential(
-            
+           Swish(),
+           nn.ConvTranspose2d(128, 64, 4, 2, 1),
+           Swish(),
+           nn.ConvTranspose2d(64, 1, 4, 2, 1), 
         )
 
         self.trajectory_reconstructor = nn.Sequential(
@@ -202,8 +213,18 @@ class MHDJointDecoder(nn.Module):
         )
 
     def forward(self, z):
-        h = self.projector(z)
-        return
+        x_hat = self.projector(z)
+
+        # Image recon
+        img_hat = x_hat[:, :128 * 7 * 7]
+        img_hat = img_hat.view(img_hat.size(0), 128, 7, 7)
+        img_hat = self.image_reconstructor(img_hat)
+
+        # Trajectory recon
+        traj_hat = x_hat[:, 128 * 7 * 7:128 * 7 * 7 + 512]
+        traj_hat = self.trajectory_reconstructor(traj_hat)
+
+        return {"image": img_hat, "trajectory": traj_hat}
 
 """
 

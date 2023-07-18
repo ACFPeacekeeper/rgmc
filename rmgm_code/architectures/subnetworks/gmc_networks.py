@@ -9,7 +9,6 @@ class MHDCommonEncoder(nn.Module):
         super(MHDCommonEncoder, self).__init__()
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
-
         self.feature_extractor = nn.Sequential(
             nn.Linear(common_dim, 512),
             Swish(),
@@ -30,7 +29,6 @@ class MHDImageProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDImageProcessor, self).__init__()
         self.common_dim = common_dim
-
         self.image_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             Swish(),
@@ -48,6 +46,7 @@ class MHDImageProcessor(nn.Module):
 class MHDSoundProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDSoundProcessor, self).__init__()
+        self.common_dim = common_dim
         self.sound_features = nn.Sequential(
             nn.Conv2d(in_channels=1, out_channels=128, kernel_size=(1, 128), stride=(1, 1), padding=0, bias=False),
             nn.BatchNorm2d(128),
@@ -59,7 +58,6 @@ class MHDSoundProcessor(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU()
         )
-
         self.projector = nn.Linear(2048, common_dim)
 
     def forward(self, x):
@@ -71,7 +69,7 @@ class MHDSoundProcessor(nn.Module):
 class MHDTrajectoryProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDTrajectoryProcessor, self).__init__()
-
+        self.common_dim = common_dim
         self.trajectory_features = nn.Sequential(
             nn.Linear(200, 512),
             Swish(),
@@ -101,7 +99,7 @@ class MHDJointProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDJointProcessor, self).__init__()
         self.common_dim = common_dim
-        
+
         self.img_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             Swish(),

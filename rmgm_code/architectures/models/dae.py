@@ -68,15 +68,9 @@ class DAE(nn.Module):
             loss = mse_loss(x_hat[key], x[key])
             recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
             
-
         recon_loss = 0
         for value in recon_losses.values():
             recon_loss += value
-
-        if self.exclude_modality == 'trajectory':
-            recon_losses['trajectory'] = 0.
-        elif self.exclude_modality == 'image':
-            recon_losses['image'] = 0.
 
         loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         return recon_loss, loss_dict
