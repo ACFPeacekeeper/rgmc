@@ -19,6 +19,7 @@ from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
 from architectures.downstream import classifier
 from architectures.models import vae, dae, gmc, mvae, dgmc
+from architectures.models import vae, dae, gmc, mvae, dgmc, rgmc
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
@@ -36,11 +37,11 @@ STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'i
 
 SEED = 42
 LR_DEFAULT = 0.001
-EPOCHS_DEFAULT = 15
-BATCH_SIZE_DEFAULT = 256
+EPOCHS_DEFAULT = 100
+BATCH_SIZE_DEFAULT = 64
 CHECKPOINT_DEFAULT = 0
-LATENT_DIM_DEFAULT = 256
-INFONCE_TEMPERATURE_DEFAULT = 0.2
+LATENT_DIM_DEFAULT = 64
+INFONCE_TEMPERATURE_DEFAULT = 0.1
 RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5}
 KLD_BETA_DEFAULT = 0.5
 REPARAMETERIZATION_MEAN_DEFAULT = 0.0
