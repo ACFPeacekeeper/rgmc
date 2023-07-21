@@ -15,6 +15,7 @@ import subprocess
 
 import torch.optim as optim
 
+from utils.logger import plot_metric_compare
 from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
 from architectures.downstream import classifier
@@ -48,6 +49,7 @@ REPARAMETERIZATION_MEAN_DEFAULT = 0.0
 REPARAMETERIZATION_STD_DEFAULT = 1.0
 EXPERTS_FUSION_DEFAULT = "poe"
 POE_EPS_DEFAULT = 1e-8
+MODEL_TRAIN_NOISE_FACTOR_DEFAULT = 1.0
 MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
 NOISE_STD_DEFAULT = 1.0
@@ -59,6 +61,14 @@ device_lock = threading.Lock()
 def process_arguments(m_path):
     parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
     subparsers = parser.add_subparsers(help="command", dest="command")
+    comp_parser = subparsers.add_parser("compare")
+    comp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES, help='Architecture to be used in the comparison.')
+    comp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the comparison.')
+    comp_parser.add_argument('-s', '--stage', type=str, default='train_model', choices=STAGES, help='Stage of the pipeline to be used in the comparison.')
+    comp_parser.add_argument('--model_outs', '--mos', nargs='+')
+    comp_parser.add_argument('--param_comp', '--pc')
+    comp_parser.add_argument('--parent_param', '--pp')
+
     upload_parser = subparsers.add_parser("upload")
     upload_parser.add_argument('--configs')
     upload_parser.add_argument('--saved_models')
@@ -85,7 +95,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('--path_classifier', type=str, default=None, help="Filename of the file where the classifier is to be loaded from.")
     exp_parser.add_argument('-m', '--model_out', type=str, default=None, help="Filename of the file where the model/classifier and results are to be saved to.")
     exp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the experiments.')
-    exp_parser.add_argument('-s', '--stage', type=str, default='train_model', choices=STAGES, help='Stage of the pipeline to execute in the experiment.')
+    exp_parser.add_argument('-s', '--stage', type=str, default='train_model', choices=STAGES, help='Stage of the pipeline to be executed in the experiment.')
     exp_parser.add_argument('-o', '--optimizer', type=str, default='sgd', choices=OPTIMIZERS, help='Optimizer for the model training process.')
     exp_parser.add_argument('-r', '--learning_rate', '--lr', type=float, default=LR_DEFAULT, help='Learning rate value for the optimizer.')
     exp_parser.add_argument('-e', '--epochs', type=int, default=EPOCHS_DEFAULT, help='Number of epochs to train the model.')
@@ -104,6 +114,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('--rep_trick_mean', type=float, default=REPARAMETERIZATION_MEAN_DEFAULT, help='Mean value for the reparameterization trick for the vae and mvae.')
     exp_parser.add_argument('--rep_trick_std', type=float, default=REPARAMETERIZATION_STD_DEFAULT, help='Standard deviation value for the reparameterization trick for the vae and mvae.')
     exp_parser.add_argument('--poe_eps', type=float, default=POE_EPS_DEFAULT, help='Epsilon value for the product of experts fusion for the mvae.')
+    exp_parser.add_argument('--train_noise_factor', type=float)
     exp_parser.add_argument('--adam_betas', nargs=2, type=float, default=ADAM_BETAS_DEFAULTS, help='Beta values for the Adam optimizer.')
     exp_parser.add_argument('--momentum', type=float, default=MOMENTUM_DEFAULT, help='Momentum for the SGD optimizer.')
     exp_parser.add_argument('--noise_std', type=float, default=NOISE_STD_DEFAULT, help='Standard deviation for noise distribution.')
@@ -111,6 +122,19 @@ def process_arguments(m_path):
     exp_parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
     
     args = vars(parser.parse_args())
+
+    if args['command'] == 'compare':
+        config = {
+            'architecture': args['architecture'],
+            'dataset': args['dataset'],
+            'stage': args['stage'],
+            'model_outs': args['model_outs'],
+            'param_comp': args['param_comp'],
+        }
+        if 'parent_param' in args:
+            config['parent_param'] = args['parent_param']
+
+        metrics_analysis(m_path, config)
 
     if args['command'] == 'clear':
         if args['clear_results']:
@@ -266,6 +290,10 @@ def config_validation(m_path, config):
                 config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
             if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
                 config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
+
+            if config['architecture'] == 'dae' or config['architecture'] == 'dgmc':
+                if "train_noise_factor" not in config or config['train_noise_factor'] is None:
+                    config['train_noise_factor'] = MODEL_TRAIN_NOISE_FACTOR_DEFAULT
 
             if "vae" in config['architecture']:
                 if "kld_beta" not in config or config['kld_beta'] is None:
@@ -429,7 +457,7 @@ def setup_experiment(m_path, config, device, train=True):
         model = vae.VAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
     elif config['architecture'] == 'dae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
-        model = dae.DAE(config['architecture'], latent_dim, device, exclude_modality, scales)
+        model = dae.DAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
     elif config['architecture'] == 'gmc':
         model = gmc.MhdGMC(config['architecture'], exclude_modality, latent_dim, config['infonce_temperature'])
     elif config['architecture'] == 'mvae':
@@ -437,7 +465,7 @@ def setup_experiment(m_path, config, device, train=True):
         model = mvae.MVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
     elif config['architecture'] == 'dgmc':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-        model = dgmc.MhdDGMC(config['architecture'], exclude_modality,latent_dim, scales)
+        model = dgmc.MhdDGMC(config['architecture'], exclude_modality,latent_dim, scales, config['train_noise_factor'])
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))
@@ -509,7 +537,7 @@ def setup_experiment(m_path, config, device, train=True):
                notes=notes,
                allow_val_change=True,
                #magic=True,
-               #mode="offline",
+               mode="offline",
                tags=[config['architecture'], config['dataset'], config['stage']])
         wandb.watch(model)
     else:
@@ -522,3 +550,30 @@ def setup_experiment(m_path, config, device, train=True):
                 file.write(f'{ckey}: {cval}\n')
 
     return dataset, model, optimizer
+
+def metrics_analysis(m_path, config):
+    if "model" in config['stage']:
+        if config['architecture'] == 'vae':
+            loss_dict = {'elbo_loss': [], 'kld_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+        elif config['architecture'] == 'dae':
+            loss_dict = {'total_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+        elif config['architecture'] == 'gmc':
+            loss_dict = {'infonce_loss': []}
+        elif config['architecture'] == 'mvae':
+            loss_dict = {'elbo_loss': [], 'kld_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+        elif config['architecture'] == 'dgmc':
+            loss_dict = {'total_loss': [], 'infonce_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+    elif "classifier" in config['stage']:
+        loss_dict = {'nll_loss': [], 'accuracy': []}
+    else:
+        raise ValueError(f"Invalid stage {config['stage']} for metric comparison.")
+
+    for id, model_results in enumerate(config['model_outs']):
+        if model_results.isdigit():
+            if "classifier" in config['stage']:
+                config['model_outs'][id] = f"results/{config['stage']}/clf_{config['architecture']}_{config['dataset']}_exp{config['model_outs'][id]}.txt"
+            else:
+                config['model_outs'][id] = f"results/{config['stage']}/{config['architecture']}_{config['dataset']}_exp{config['model_outs'][id]}.txt"
+
+    plot_metric_compare(m_path, config, loss_dict)
+    return

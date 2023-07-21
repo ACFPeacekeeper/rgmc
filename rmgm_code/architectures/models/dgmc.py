@@ -4,7 +4,7 @@ from collections import Counter
 
 
 class DGMC(LightningModule):
-    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, loss_type="infonce"):
+    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, loss_type="infonce", noise_factor=1.0):
         super(DGMC, self).__init__()
         self.name = name
         self.common_dim = common_dim
@@ -12,6 +12,7 @@ class DGMC(LightningModule):
         self.loss_type = loss_type
         self.exclude_modality = exclude_modality
         self.scales = scales
+        self.noise_factor = noise_factor
 
         self.image_processor = None
         self.trajectory_processor = None
@@ -43,7 +44,16 @@ class DGMC(LightningModule):
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
+    def add_noise(self, x):
+        x_noisy = dict.fromkeys(x.keys())
+        for key, modality in x.items():
+            x_noisy[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
+        return x_noisy
+
     def encode(self, x, sample=False):
+        if sample is False:
+            x = self.add_noise(x)
+
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             return self.encoder(self.processors['joint'](x))
         else:
@@ -71,7 +81,10 @@ class DGMC(LightningModule):
 
         return reconstructions
 
-    def forward(self, x):
+    def forward(self, x, sample=False):
+        if sample is False:
+            x = self.add_noise(x)
+
         # Forward pass through the modality specific encoders
         batch_representations = []
         for key in x.keys():
@@ -189,10 +202,11 @@ class DGMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        
+
         recon_loss, recon_dict = self.recon_loss(data, batch_representations)
-        loss += recon_loss
-        return loss, Counter({**tqdm_dict, **recon_dict})
+        total_loss = loss + recon_loss
+        loss_dict = {'total_loss': total_loss, **tqdm_dict, **recon_dict}
+        return total_loss, Counter(loss_dict)
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -206,8 +220,9 @@ class DGMC(LightningModule):
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         
         recon_loss, recon_dict = self.recon_loss(data, batch_representations)
-        loss += recon_loss
-        return loss, Counter({**tqdm_dict, **recon_dict})
+        total_loss = loss + recon_loss
+        loss_dict = {'total_loss': total_loss, **tqdm_dict, **recon_dict}
+        return loss, Counter(loss_dict)
 
 
 

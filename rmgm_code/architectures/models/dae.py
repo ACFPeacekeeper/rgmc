@@ -5,7 +5,7 @@ from ..subnetworks.dae_networks import *
 
 
 class DAE(nn.Module):
-    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.3):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=1.0):
         super(DAE, self).__init__()
         self.name = name
         self.layer_dim = 28 * 28 + 200

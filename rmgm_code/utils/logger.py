@@ -50,6 +50,9 @@ def plot_loss_graph(m_path, config, loss_list_dict, batch_number, val_losses=Non
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
         plt.plot(range(len(epoch_means)), epoch_means, label="loss values", color="blue", linewidth=2.0)
         plt.fill_between(range(len(epoch_stds)), epoch_means-epoch_stds, epoch_means+epoch_stds, color="blue", alpha=0.2)
+        plt.axhline(y=epoch_means[-1], color="blue", linestyle="dashed")
+        plt.plot(len(epoch_means), epoch_means[-1], marker="o", markersize=5, markeredgecolor="red", markerfacecolor="blue")
+        plt.annotate("{:.3f}".format(epoch_means[-1]), xy=(len(epoch_means), epoch_means[-1]), horizontalalignment="left", verticalalignment="bottom")
         if val_losses is not None and val_bnumber is not None:
             valloss_values = np.array(val_losses[key])
             val_means = np.mean(valloss_values.reshape(-1, val_bnumber), axis=1)
@@ -69,7 +72,7 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     keys = list(losses.keys())
     X_axis = np.arange(len(keys))
     loss_means = [np.mean(loss) for loss in losses.values()]
-    loss_yerr = [[np.min(loss), np.max(loss)] for loss in losses.values()]
+    loss_yerr = [np.std(loss) for loss in losses.values()]
     loss_yerr = np.array(loss_yerr).T.tolist()
     with open(os.path.join(m_path, "results", config["stage"], config["model_out"] + ".txt"), "a") as file:
         for key, mean in zip(keys, loss_means):
@@ -82,7 +85,7 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     ax.set_title("Loss values of the model")
     ax.yaxis.grid(True)
     if val_losses is not None:
-        val_yerr = [[np.min(loss), np.max(loss)] for loss in val_losses.values()]
+        val_yerr = [np.std(loss) for loss in val_losses.values()]
         val_yerr = np.array(val_yerr).T.tolist()
         train_bar = ax.bar(X_axis - 0.2, loss_means, yerr=loss_yerr, width=0.4, label='Training loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
         val_bar = ax.bar(X_axis + 0.2, [np.mean(val_loss) for val_loss in val_losses.values()], yerr=val_yerr, width=0.4, label='Validation loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
@@ -107,4 +110,35 @@ def save_train_results(m_path, config, train_losses, val_losses, dataset):
 
 def save_test_results(m_path, config, loss_list_dict):
     plot_metrics_bar(m_path, config, loss_list_dict)
+    return
+
+def plot_metric_compare(m_path, config, loss_dict):
+    param_values = []
+    for model_results in config['model_outs']:
+        path = os.path.join(m_path, model_results)
+        with open(path, 'r') as res_file:
+            for loss_key in loss_dict.keys():
+                for line in res_file:
+                    if config['param_comp'] in line:
+                        param_values.append(np.double(line.removeprefix(f"{config['param_comp']}: ")))
+                    if loss_key in line:
+                        loss_dict[loss_key].append(np.double(line.removeprefix(f'- {loss_key}: ')))
+
+    X_axis = np.arange(len(config['model_outs']))
+    for loss_key in loss_dict.keys():
+        fig, ax = plt.subplots()
+        fig.figsize=(20, 10)
+        ax.set_xticks(X_axis)
+        ax.set_xticklabels(param_values)
+        title = f"{loss_key} values for different {config['param_comp']} values"
+        if config['parent_param'] is not None:
+            title = title + f" for {config['parent_param']} hyperparameter"
+        ax.set_title(title)
+        ax.yaxis.grid(True)
+        metric_bar = ax.bar(X_axis, loss_dict[loss_key], width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)
+        ax.bar_label(metric_bar)
+        fig.legend()
+        out_path = f"{config['architecture']}_{config['dataset']}_{config['param_comp']}.png"
+        fig.savefig(os.path.join(m_path, "results", config['stage'], out_path))
+        plt.close()
     return
