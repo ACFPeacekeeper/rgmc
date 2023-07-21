@@ -22,7 +22,7 @@ class MNISTClassifier(nn.Module):
         self.latent_dimension = latent_dim
         self.model.set_latent_dim(latent_dim)
 
-    def forward(self, x, sample=False):
+    def forward(self, x, sample=True):
         if 'gmc' in self.model.name:
             z = self.model.encode(x, sample)
         else:
