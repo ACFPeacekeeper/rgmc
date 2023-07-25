@@ -24,7 +24,7 @@ class MNISTClassifier(nn.Module):
 
     def forward(self, x, sample=True):
         if 'gmc' in self.model.name:
-            z = self.model.encode(x)
+            z = self.model.encode(x, sample)
         else:
             _, z = self.model(x, sample)
         encoding = self.fc1(z)

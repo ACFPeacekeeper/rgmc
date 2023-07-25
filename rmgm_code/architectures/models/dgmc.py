@@ -4,7 +4,7 @@ from collections import Counter
 
 
 class DGMC(LightningModule):
-    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, loss_type="infonce"):
+    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
         super(DGMC, self).__init__()
         self.name = name
         self.common_dim = common_dim
@@ -12,6 +12,7 @@ class DGMC(LightningModule):
         self.loss_type = loss_type
         self.exclude_modality = exclude_modality
         self.scales = scales
+        self.noise_factor = noise_factor
 
         self.image_processor = None
         self.trajectory_processor = None
@@ -191,8 +192,10 @@ class DGMC(LightningModule):
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         
         recon_loss, recon_dict = self.recon_loss(data, batch_representations)
-        loss += recon_loss
-        return loss, Counter({**tqdm_dict, **recon_dict})
+        loss_dict = {**tqdm_dict, **recon_dict}
+        total_loss = recon_loss + loss
+        loss_dict = {"total_loss": total_loss, **loss_dict}
+        return total_loss, Counter(loss_dict)
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -206,13 +209,14 @@ class DGMC(LightningModule):
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         
         recon_loss, recon_dict = self.recon_loss(data, batch_representations)
-        loss += recon_loss
-        return loss, Counter({**tqdm_dict, **recon_dict})
-
+        loss_dict = {**tqdm_dict, **recon_dict}
+        total_loss = recon_loss + loss
+        loss_dict = {"total_loss": total_loss, **loss_dict}
+        return loss, Counter(loss_dict)
 
 
 class MhdDGMC(DGMC):
-    def __init__(self, name, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
+    def __init__(self, name, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         if exclude_modality == 'image':
             self.common_dim = 200
         elif exclude_modality == 'trajectory':
@@ -220,7 +224,7 @@ class MhdDGMC(DGMC):
         else:
             self.common_dim = 28 * 28 + 200
 
-        super(MhdDGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
+        super(MhdDGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)

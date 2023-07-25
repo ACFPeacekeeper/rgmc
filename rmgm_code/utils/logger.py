@@ -69,12 +69,12 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     keys = list(losses.keys())
     X_axis = np.arange(len(keys))
     loss_means = [np.mean(loss) for loss in losses.values()]
-    loss_yerr = [[np.min(loss), np.max(loss)] for loss in losses.values()]
+    loss_yerr = [np.std(loss) for loss in losses.values()]
     loss_yerr = np.array(loss_yerr).T.tolist()
     with open(os.path.join(m_path, "results", config["stage"], config["model_out"] + ".txt"), "a") as file:
-        for key, mean in zip(keys, loss_means):
-            print(f'{key}: {mean}')
-            file.write(f'- {key}: {mean}\n')
+        for key, loss in zip(keys, losses[-1]):
+            print(f'{key}: {loss}')
+            file.write(f'- {key}: {loss}\n')
     fig, ax = plt.subplots()
     fig.figsize=(20, 10)
     ax.set_xticks(X_axis)
@@ -82,7 +82,7 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     ax.set_title("Loss values of the model")
     ax.yaxis.grid(True)
     if val_losses is not None:
-        val_yerr = [[np.min(loss), np.max(loss)] for loss in val_losses.values()]
+        val_yerr = [np.std(loss) for loss in val_losses.values()]
         val_yerr = np.array(val_yerr).T.tolist()
         train_bar = ax.bar(X_axis - 0.2, loss_means, yerr=loss_yerr, width=0.4, label='Training loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
         val_bar = ax.bar(X_axis + 0.2, [np.mean(val_loss) for val_loss in val_losses.values()], yerr=val_yerr, width=0.4, label='Validation loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
@@ -99,8 +99,8 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
 
 def save_train_results(m_path, config, train_losses, val_losses, dataset):
     train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
-    train_bnumber = len(iter(DataLoader(train_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)))
-    val_bnumber = len(iter(DataLoader(val_set, batch_size=config['batch_size'], shuffle=True, drop_last=True)))
+    train_bnumber = len(iter(DataLoader(train_set, batch_size=config['batch_size'], drop_last=True)))
+    val_bnumber = len(iter(DataLoader(val_set, batch_size=config['batch_size'], drop_last=True)))
     plot_loss_graph(m_path, config, train_losses, train_bnumber, val_losses, val_bnumber)
     plot_metrics_bar(m_path, config, train_losses, val_losses)
     return
