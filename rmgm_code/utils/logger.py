@@ -72,7 +72,7 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     loss_yerr = [np.std(loss) for loss in losses.values()]
     loss_yerr = np.array(loss_yerr).T.tolist()
     with open(os.path.join(m_path, "results", config["stage"], config["model_out"] + ".txt"), "a") as file:
-        for key, loss in zip(keys, losses[-1]):
+        for key, loss in zip(keys, losses[key][-1]):
             print(f'{key}: {loss}')
             file.write(f'- {key}: {loss}\n')
     fig, ax = plt.subplots()

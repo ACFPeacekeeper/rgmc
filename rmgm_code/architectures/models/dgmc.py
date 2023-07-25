@@ -44,7 +44,16 @@ class DGMC(LightningModule):
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
+    def add_noise(self, x):
+        x_noisy = dict.fromkeys(x.keys())
+        for key, modality in x.items():
+            x_noisy[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
+        return x_noisy
+
     def encode(self, x, sample=False):
+        if sample is False or self.noise_factor == 0:
+            x = self.add_noise(x)
+
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             return self.encoder(self.processors['joint'](x))
         else:
@@ -72,7 +81,10 @@ class DGMC(LightningModule):
 
         return reconstructions
 
-    def forward(self, x):
+    def forward(self, x, sample=False):
+        if sample is False or self.noise_factor == 0:
+            x = self.add_noise(x)
+
         # Forward pass through the modality specific encoders
         batch_representations = []
         for key in x.keys():
