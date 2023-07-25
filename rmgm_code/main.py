@@ -170,9 +170,11 @@ def train_downstream_classifier(config, device):
 
     tracemalloc.stop()
     total_end = time.time()
-    print(f'Total runtime: {total_end - total_start} sec')
+    print("Train resume:")
+    print(f'total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'Total runtime: {total_end - total_start} sec\n')
+        file.write(f'Train resume:')
+        file.write(f'-total runtime: {total_end - total_start} sec\n')
     save_train_results(m_path, config, train_losses, val_losses, dataset)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + '.pt'))
     json_object = json.dumps(config, indent=4)

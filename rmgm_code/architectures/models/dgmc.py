@@ -51,7 +51,7 @@ class DGMC(LightningModule):
         return x_noisy
 
     def encode(self, x, sample=False):
-        if sample is False:
+        if sample is False and self.noise_factor > 0:
             x = self.add_noise(x)
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
@@ -82,7 +82,7 @@ class DGMC(LightningModule):
         return reconstructions
 
     def forward(self, x, sample=False):
-        if sample is False:
+        if sample is False and self.noise_factor > 0:
             x = self.add_noise(x)
 
         # Forward pass through the modality specific encoders
