@@ -26,7 +26,7 @@ from datasets.mosei.MOSEIDataset import MOSEIDataset
 from datasets.pendulum.PendulumDataset import PendulumDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc']
+ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc', 'rgmc']
 DATASETS = ['mhd', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 NOISE_TYPES = ['gaussian', None] 
@@ -269,7 +269,7 @@ def config_validation(m_path, config):
             if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
                 config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
 
-            if config['architecture'] == 'dae' or config['architecture'] == 'dgmc':
+            if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture']:
                 if "train_noise_factor" not in config or config['train_noise_factor'] is None:
                     config['train_noise_factor'] = MODEL_TRAIN_NOISE_FACTOR_DEFAULT
 
@@ -298,12 +298,8 @@ def config_validation(m_path, config):
 
             if config['exclude_modality'] == 'image':
                 config['image_recon_scale'] = 0.
-                if config['target_modality'] == 'image':
-                    config['target_modality'] = None
             elif config['exclude_modality'] == 'trajectory':
                 config['traj_recon_scale'] = 0.
-                if config['target_modality'] == 'trajectory':
-                    config['target_modality'] = None
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
@@ -313,6 +309,11 @@ def config_validation(m_path, config):
             config['experts_fusion'] = None
             config['poe_eps'] = None
             
+        if "gmc" in config['architecture']:
+            if "infonce_temperature" not in config or config['infonce_temperature'] is None:
+                config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
+        else:
+            config['infonce_temperature'] = None
 
         if config['stage'] == "train_model":
             config["path_model"] = None
@@ -323,12 +324,6 @@ def config_validation(m_path, config):
         if config['stage'] == 'test_classifier':
             if "path_classifier" not in config or config['path_classifier'] is None:
                 config['path_classifier'] = os.path.join(os.path.dirname(config['path_model']), "clf_" + os.path.basename(config['path_model']))
-
-        if "gmc" in config['architecture']:
-            if "infonce_temperature" not in config or config['infonce_temperature'] is None:
-                config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
-        else:
-            config['infonce_temperature'] = None
 
         if "noise" not in config:
             config["noise"] = None
@@ -444,6 +439,9 @@ def setup_experiment(m_path, config, device, train=True):
     elif config['architecture'] == 'dgmc':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
         model = dgmc.MhdDGMC(config['architecture'], exclude_modality, latent_dim, scales, noise_factor=config['train_noise_factor'])
+    elif config['architecture'] == 'rgmc':
+        scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
+        model = rgmc.MhdRGMC(config['architecture'], exclude_modality, latent_dim, scales, noise_factor=['train_noise_factor'])
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))

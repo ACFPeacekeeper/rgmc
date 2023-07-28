@@ -1,17 +1,19 @@
+from ..subnetworks.ooo_network import OddOneOutNetwork
 from pytorch_lightning import LightningModule
-from ..subnetworks.gmc_networks import *
+from ..subnetworks.rgmc_networks import *
 from collections import Counter
 
 
 class RGMC(LightningModule):
-    def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
+    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
         super(RGMC, self).__init__()
         self.name = name
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
         self.loss_type = loss_type
         self.exclude_modality = exclude_modality
-        self.infonce_temperature = infonce_temperature
+        self.scales = scales
+        self.noise_factor = noise_factor
 
         self.image_processor = None
         self.trajectory_processor = None
@@ -28,9 +30,18 @@ class RGMC(LightningModule):
             }
 
         self.encoder = None
+        self.o3n = None
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
+
+    def add_perturbation(self, x):
+        for key, modality in x.items():
+            if key == self.target_modality:
+                x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
+            else:
+                x[key] = modality
+        return x
 
     def encode(self, x, sample=False):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
@@ -74,7 +85,7 @@ class RGMC(LightningModule):
             )
             # [2*B, 2*B]
             sim_matrix_joint_mod = torch.exp(
-                torch.mm(out_joint_mod, out_joint_mod.t().contiguous()) / self.infonce_temperature
+                torch.mm(out_joint_mod, out_joint_mod.t().contiguous()) / self.scales['infonce_temp']
             )
             # Mask for remove diagonal that give trivial similarity, [2*B, 2*B]
             mask_joint_mod = (
@@ -91,7 +102,7 @@ class RGMC(LightningModule):
                 torch.sum(
                     batch_representations[-1] * batch_representations[mod], dim=-1
                 )
-                / self.infonce_temperature
+                / self.scales['infonce_temp']
             )
             # [2*B]
             pos_sim_joint_mod = torch.cat([pos_sim_joint_mod, pos_sim_joint_mod], dim=0)
@@ -110,7 +121,7 @@ class RGMC(LightningModule):
             torch.mm(
                 batch_representations[-1], batch_representations[-1].t().contiguous()
             )
-            / self.infonce_temperature
+            / self.scales['infonce_temp']
         )
         # Mask out the diagonals, [B, B]
         mask_joints = (
@@ -130,7 +141,7 @@ class RGMC(LightningModule):
                 torch.sum(
                     batch_representations[-1] * batch_representations[mod], dim=-1
                 )
-                / self.infonce_temperature
+                / self.scales['infonce_temp']
             )
             loss_joint_mod = -torch.log(
                 pos_sim_joint_mod / sim_matrix_joints.sum(dim=-1)
@@ -152,7 +163,13 @@ class RGMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+
+        clean_preds = self.o3n(batch_representations)
+        perturbed_batch = self.add_perturbation(data)
+        perturbed_preds = self.o3n(perturbed_batch)
+        o3n_loss, o3n_dict = self.o3n.loss(perturbed_preds[:-1], clean_preds[-1])
+        total_loss = loss + o3n_loss * self.scales["o3n_loss"]
+        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -169,7 +186,7 @@ class RGMC(LightningModule):
 
 
 class MhdRGMC(RGMC):
-    def __init__(self, name, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
+    def __init__(self, name, exclude_modality, latent_dimension, scales, noise_factor, loss_type="infonce"):
         if exclude_modality == 'image':
             self.common_dim = 200
         elif exclude_modality == 'trajectory':
@@ -177,7 +194,7 @@ class MhdRGMC(RGMC):
         else:
             self.common_dim = 28 * 28 + 200
 
-        super(MhdRGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
+        super(MhdRGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
@@ -201,9 +218,11 @@ class MhdRGMC(RGMC):
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
+        self.o3n = OddOneOutNetwork(common_dim=self.common_dim, latent_dimension=self.latent_dimension, num_modalities=2)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
+        self.o3n.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
     def set_modalities(self, exclude_modality):

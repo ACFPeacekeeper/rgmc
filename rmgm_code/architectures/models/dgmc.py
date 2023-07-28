@@ -204,10 +204,8 @@ class DGMC(LightningModule):
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         
         recon_loss, recon_dict = self.recon_loss(data, batch_representations)
-        loss_dict = {**tqdm_dict, **recon_dict}
         total_loss = recon_loss + loss
-        loss_dict = {"total_loss": total_loss, **loss_dict}
-        return total_loss, Counter(loss_dict)
+        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -221,10 +219,8 @@ class DGMC(LightningModule):
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         
         recon_loss, recon_dict = self.recon_loss(data, batch_representations)
-        loss_dict = {**tqdm_dict, **recon_dict}
         total_loss = recon_loss + loss
-        loss_dict = {"total_loss": total_loss, **loss_dict}
-        return loss, Counter(loss_dict)
+        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
 
 class MhdDGMC(DGMC):
