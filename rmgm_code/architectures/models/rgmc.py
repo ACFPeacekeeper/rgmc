@@ -21,21 +21,22 @@ class RGMC(LightningModule):
         self.trajectory_processor = None
         self.joint_processor = None
         if self.exclude_modality == 'image':
-            self.processors = {'trajectory': self.trajectory_processor}
+            self.num_modalities = 1
             self.modalities = ["trajectory"]
+            self.processors = {'trajectory': self.trajectory_processor}
             self.num_modalities = 1
         elif self.exclude_modality == 'trajectory':
-            self.processors = {'image': self.image_processor}
-            self.modalities = ["image"]
             self.num_modalities = 1
+            self.modalities = ["image"]
+            self.processors = {'image': self.image_processor}
         else:
+            self.num_modalities = 2
             self.modalities = ["image", "trajectory"]
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor,
             }
-            self.num_modalities = 2
 
         self.encoder = None
         self.o3n = None
@@ -52,16 +53,17 @@ class RGMC(LightningModule):
                 x[key] = modality
         return x
 
-    def encode(self, x):
+    def encode(self, x, sample=False):
         latent_representations = []
         for key in x.keys():
             if key != self.exclude_modality:
                 latent_representations.append(self.encoder(self.processors[key](x[key])))
 
         mod_weights = self.o3n(latent_representations)
+        print(mod_weights[0])
 
         for id, latent_repr in enumerate(latent_representations):
-            latent_representations[id] = latent_repr * mod_weights[id]
+            latent_representations[id] = torch.mul(latent_repr, mod_weights[:, id])
 
         # Take the average of the latent representations
         if len(latent_representations) > 1:

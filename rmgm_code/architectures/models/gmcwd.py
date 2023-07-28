@@ -1,13 +1,13 @@
 import random
 
 from pytorch_lightning import LightningModule
-from ..subnetworks.dgmc_networks import *
+from ..subnetworks.gmcwd_networks import *
 from collections import Counter
 
 
-class DGMC(LightningModule):
+class GMCWD(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
-        super(DGMC, self).__init__()
+        super(GMCWD, self).__init__()
         self.name = name
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
@@ -56,7 +56,7 @@ class DGMC(LightningModule):
         target_modality = self.modalities[random.randint(0, self.num_modalities - 1)]
         for key, modality in x.items():
             if key == target_modality:
-                x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), random.uniform(0, self.noise_factor))), torch.min(modality), torch.max(modality))
+                x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
             else:
                 x[key] = modality
         return x
@@ -66,9 +66,7 @@ class DGMC(LightningModule):
             x = self.add_noise(x)
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            encoding = self.forward(x, sample)
-            recons = self.decode(encoding)
-            return self.encoder(self.processors['joint'](recons))
+            return self.encoder(self.processors['joint'](x))
         else:
             latent_representations = []
             for key in x.keys():
@@ -236,11 +234,11 @@ class DGMC(LightningModule):
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
 
-class MhdDGMC(DGMC):
+class MhdGMCWD(GMCWD):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         self.common_dim = common_dim
 
-        super(MhdDGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
+        super(MhdGMCWD, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)

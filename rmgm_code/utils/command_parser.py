@@ -18,15 +18,14 @@ import torch.optim as optim
 from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
 from architectures.downstream import classifier
-from architectures.models import vae, dae, gmc, mvae, dgmc
-from architectures.models import vae, dae, gmc, mvae, dgmc, rgmc
+from architectures.models import vae, dae, gmc, mvae, dgmc, rgmc, gmcwd
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
 from datasets.pendulum.PendulumDataset import PendulumDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc', 'rgmc']
+ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 NOISE_TYPES = ['gaussian', None] 
@@ -265,13 +264,13 @@ def config_validation(m_path, config):
             config['batch_size'] = BATCH_SIZE_DEFAULT
 
 
-        if "ae" in config['architecture'] or config['architecture'] == "dgmc":
+        if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
             if "image_recon_scale" not in config or config['image_recon_scale'] is None:
                 config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
             if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
                 config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
 
-            if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture']:
+            if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
                 if "train_noise_factor" not in config or config['train_noise_factor'] is None:
                     config['train_noise_factor'] = MODEL_TRAIN_NOISE_FACTOR_DEFAULT
 
@@ -448,6 +447,9 @@ def setup_experiment(m_path, config, device, train=True):
     elif config['architecture'] == 'rgmc':
         scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
         model = rgmc.MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+    elif config['architecture'] == 'gmcwd':
+        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+        model = gmcwd.MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))
