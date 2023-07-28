@@ -1,23 +1,30 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 class OddOneOutNetwork(nn.Module):
-    def __init__(self, common_dim, latent_dimension, num_modalities):
+    def __init__(self, latent_dim, num_modalities, device):
         super().__init__()
-        self.common_dim = common_dim
-        self.latent_dimension = latent_dimension
-        self.fc1 = nn.Linear(latent_dimension, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, num_modalities + 1)
+        self.latent_dimension = latent_dim
+        self.num_modalities = num_modalities
+        self.device = device
+        self.embedder = nn.Sequential(
+            nn.Conv1d(num_modalities, 64, 4, 2, 1),
+            nn.SiLU(),
+            nn.Conv1d(64, 128, 4, 2, 1),
+            nn.SiLU(),
+        )
+        self.clf_fc = nn.Linear(2048, num_modalities + 1)
+        self.classificator = nn.Softmax(dim=-1)
 
     def set_latent_dim(self, latent_dim):
         self.latent_dimension = latent_dim
 
     def forward(self, mod_representations):
-        return
-
-    def loss(self, perturbed_preds, clean_pred):
-        preds = torch.concat((perturbed_preds, clean_pred), dim=0)
-        loss = - torch.mean(torch.log(preds))
-        return loss, {"odd_one_out_loss:": loss}
+        batch_size = mod_representations[0].size()[0]
+        representations = mod_representations[0].view(batch_size, 1, self.latent_dimension)
+        for mod_rep in mod_representations[1:]:
+            mod_rep = mod_rep.view(batch_size, 1, self.latent_dimension)
+            representations = torch.cat((representations, mod_rep), dim=1)
+        h = self.embedder(representations)
+        h = self.clf_fc(h.view(h.size(0), -1))
+        return self.classificator(h)

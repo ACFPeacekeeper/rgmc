@@ -51,7 +51,7 @@ class DGMC(LightningModule):
         return x_noisy
 
     def encode(self, x, sample=False):
-        if sample is False or self.noise_factor == 0:
+        if sample is False and self.noise_factor != 0:
             x = self.add_noise(x)
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
@@ -82,7 +82,7 @@ class DGMC(LightningModule):
         return reconstructions
 
     def forward(self, x, sample=False):
-        if sample is False or self.noise_factor == 0:
+        if sample is False and self.noise_factor != 0:
             x = self.add_noise(x)
 
         # Forward pass through the modality specific encoders
@@ -224,13 +224,8 @@ class DGMC(LightningModule):
 
 
 class MhdDGMC(DGMC):
-    def __init__(self, name, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
-        if exclude_modality == 'image':
-            self.common_dim = 200
-        elif exclude_modality == 'trajectory':
-            self.common_dim = 28 * 28
-        else:
-            self.common_dim = 28 * 28 + 200
+    def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
+        self.common_dim = common_dim
 
         super(MhdDGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
 

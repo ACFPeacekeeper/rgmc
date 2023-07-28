@@ -170,13 +170,8 @@ class GMC(LightningModule):
 
 
 class MhdGMC(GMC):
-    def __init__(self, name, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
-        if exclude_modality == 'image':
-            self.common_dim = 200
-        elif exclude_modality == 'trajectory':
-            self.common_dim = 28 * 28
-        else:
-            self.common_dim = 28 * 28 + 200
+    def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, loss_type="infonce"):
+        self.common_dim = common_dim
 
         super(MhdGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
 

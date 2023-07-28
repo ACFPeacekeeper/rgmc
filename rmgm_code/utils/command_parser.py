@@ -41,6 +41,7 @@ EPOCHS_DEFAULT = 100
 BATCH_SIZE_DEFAULT = 64
 CHECKPOINT_DEFAULT = 0
 LATENT_DIM_DEFAULT = 64
+COMMON_DIM_DEFAULT = 64
 INFONCE_TEMPERATURE_DEFAULT = 0.1
 RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5}
 KLD_BETA_DEFAULT = 0.5
@@ -92,7 +93,8 @@ def process_arguments(m_path):
     exp_parser.add_argument('-e', '--epochs', type=int, default=EPOCHS_DEFAULT, help='Number of epochs to train the model.')
     exp_parser.add_argument('-b', '--batch_size', type=int, default=BATCH_SIZE_DEFAULT, help='Number of samples processed for each model update.')
     exp_parser.add_argument('--checkpoint', type=int, default=CHECKPOINT_DEFAULT, help='Epoch interval between checkpoints of the model in training.')
-    exp_parser.add_argument('--latent_dimension', '--latent_dimension', type=int, default=LATENT_DIM_DEFAULT, help='Dimension of the latent space of the models encodings.')
+    exp_parser.add_argument('--latent_dimension', '--latent_dim', type=int, default=LATENT_DIM_DEFAULT, help='Dimension of the latent space of the models encodings.')
+    exp_parser.add_argument('--common_dimension', '--common_dim', type=int, default=COMMON_DIM_DEFAULT, help='Dimension of the common representation space of the models based on GMC.')
     exp_parser.add_argument('--noise', type=str, default=None, choices=NOISE_TYPES, help='Apply a type of noise to the model\'s input.')
     exp_parser.add_argument('--adversarial_attack', '--attack', type=str, default=None, choices=ADVERSARIAL_ATTACKS, help='Execute an adversarial attack against the model.')
     exp_parser.add_argument('--target_modality', type=str, default=None, choices=MODALITIES, help='Modality to target with noisy and/or adversarial samples.')
@@ -312,8 +314,12 @@ def config_validation(m_path, config):
         if "gmc" in config['architecture']:
             if "infonce_temperature" not in config or config['infonce_temperature'] is None:
                 config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
+
+            if "common_dimension" not in config or config['common_dimension'] is None:
+                config['common_dimension'] = COMMON_DIM_DEFAULT
         else:
             config['infonce_temperature'] = None
+            config['common_dimension'] = None
 
         if config['stage'] == "train_model":
             config["path_model"] = None
@@ -432,16 +438,16 @@ def setup_experiment(m_path, config, device, train=True):
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
         model = dae.DAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
     elif config['architecture'] == 'gmc':
-        model = gmc.MhdGMC(config['architecture'], exclude_modality, latent_dim, config['infonce_temperature'])
+        model = gmc.MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
     elif config['architecture'] == 'mvae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
         model = mvae.MVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
     elif config['architecture'] == 'dgmc':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-        model = dgmc.MhdDGMC(config['architecture'], exclude_modality, latent_dim, scales, noise_factor=config['train_noise_factor'])
+        model = dgmc.MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
     elif config['architecture'] == 'rgmc':
         scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
-        model = rgmc.MhdRGMC(config['architecture'], exclude_modality, latent_dim, scales, noise_factor=['train_noise_factor'])
+        model = rgmc.MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))

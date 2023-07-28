@@ -35,7 +35,7 @@ class DAE(nn.Module):
         return x_noisy
 
     def forward(self, x, sample=False):
-        if sample is False:
+        if sample is False and self.noise_factor != 0:
             x = self.add_noise(x)
 
         data_list = list(x.values())
