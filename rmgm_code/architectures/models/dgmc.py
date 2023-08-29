@@ -53,12 +53,8 @@ class DGMC(LightningModule):
         self.exclude_modality = exclude_modality
 
     def add_noise(self, x):
-        target_modality = self.modalities[random.randint(0, self.num_modalities - 1)]
         for key, modality in x.items():
-            if key == target_modality:
-                x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), random.uniform(0, self.noise_factor))), torch.min(modality), torch.max(modality))
-            else:
-                x[key] = modality
+            x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
         return x
 
     def encode(self, x, sample=False):

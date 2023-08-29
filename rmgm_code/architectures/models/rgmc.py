@@ -7,7 +7,7 @@ from collections import Counter
 
 
 class RGMC(LightningModule):
-    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
+    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, num_modalities, noise_factor=0.3, loss_type="infonce"):
         super(RGMC, self).__init__()
         self.name = name
         self.common_dim = common_dim
@@ -16,21 +16,18 @@ class RGMC(LightningModule):
         self.exclude_modality = exclude_modality
         self.scales = scales
         self.noise_factor = noise_factor
+        self.num_modalities = num_modalities
 
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
         if self.exclude_modality == 'image':
-            self.num_modalities = 1
             self.modalities = ["trajectory"]
             self.processors = {'trajectory': self.trajectory_processor}
-            self.num_modalities = 1
         elif self.exclude_modality == 'trajectory':
-            self.num_modalities = 1
             self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
         else:
-            self.num_modalities = 2
             self.modalities = ["image", "trajectory"]
             self.processors = {
                 'image': self.image_processor,
@@ -45,25 +42,23 @@ class RGMC(LightningModule):
         self.exclude_modality = exclude_modality
 
     def add_perturbation(self, x):
-        target_modality = self.modalities[random.randint(0, self.num_modalities - 1)]
         for key, modality in x.items():
-            if key == target_modality:
-                x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
-            else:
-                x[key] = modality
+            x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
         return x
 
-    def encode(self, x, sample=False):
+    def encode(self, x, sample=False): 
         latent_representations = []
         for key in x.keys():
             if key != self.exclude_modality:
                 latent_representations.append(self.encoder(self.processors[key](x[key])))
 
         mod_weights = self.o3n(latent_representations)
-        print(mod_weights[0])
 
         for id, latent_repr in enumerate(latent_representations):
             latent_representations[id] = torch.mul(latent_repr, mod_weights[:, id])
+
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
+            latent_representations.append(torch.mul(self.encoder(self.processors['joint'](x)), mod_weights[:, -1]))
 
         # Take the average of the latent representations
         if len(latent_representations) > 1:
@@ -220,32 +215,31 @@ class RGMC(LightningModule):
 class MhdRGMC(RGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, scales, noise_factor, device, loss_type="infonce"):
         self.common_dim = common_dim
+        if exclude_modality != None:
+            self.num_modalities = 1
+        else:
+            self.num_modalities = 2
 
-        super(MhdRGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
+        super(MhdRGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, scales, self.num_modalities, noise_factor, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-
+        
         if exclude_modality == 'image':
-            self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
             self.processors = {'trajectory': self.trajectory_processor}
         elif exclude_modality == 'trajectory':
-            self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
             self.processors = {'image': self.image_processor}
         else:
-            self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-            self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-            self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor
+                'joint': self.joint_processor,
             }
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
-        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=2, device=device)
+        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, device=device)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)

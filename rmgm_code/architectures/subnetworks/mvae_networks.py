@@ -19,7 +19,6 @@ class ImageEncoder(nn.Module):
         self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dim)
 
     def forward(self, x):
-        print(x.size())
         h = self.feature_extractor(x)
         h = h.view(h.size(0), -1)
         return self.fc_mean(h), self.fc_logvar(h)
