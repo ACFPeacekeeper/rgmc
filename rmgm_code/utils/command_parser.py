@@ -6,7 +6,7 @@ import torch
 import wandb
 import select
 import shutil
-import termios
+#import termios
 import argparse
 import threading
 import itertools
@@ -48,6 +48,7 @@ REPARAMETERIZATION_MEAN_DEFAULT = 0.0
 REPARAMETERIZATION_STD_DEFAULT = 1.0
 EXPERTS_FUSION_DEFAULT = "poe"
 POE_EPS_DEFAULT = 1e-8
+O3N_LOSS_SCALE_DEFAULT = 1.0
 MODEL_TRAIN_NOISE_FACTOR_DEFAULT = 1.0
 MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
@@ -316,6 +317,10 @@ def config_validation(m_path, config):
 
             if "common_dimension" not in config or config['common_dimension'] is None:
                 config['common_dimension'] = COMMON_DIM_DEFAULT
+            
+            if config['architecture'] == 'rgmc':
+                if "o3n_loss_scale" not in config or config['o3n_loss_scale'] is None:
+                    config['o3n_loss_scale'] = O3N_LOSS_SCALE_DEFAULT
         else:
             config['infonce_temperature'] = None
             config['common_dimension'] = None
@@ -498,13 +503,16 @@ def setup_experiment(m_path, config, device, train=True):
         dataset._set_adv_attack(adv_attack)
 
     if "notes" not in config:
-        print('Enter experiment notes:')
-        notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
-        if (notes):
-            notes = sys.stdin.readline().strip()
+        if 2 > 3:
+            print('Enter experiment notes:')
+            notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
+            if (notes):
+                notes = sys.stdin.readline().strip()
+            else:
+                notes = ""
+            #termios.tcflush(sys.stdin, termios.TCIOFLUSH)
         else:
-            notes = ""
-        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+            notes = None
     else:
         notes = config["notes"]
 

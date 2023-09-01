@@ -1,4 +1,4 @@
-import random
+import random, sys
 
 from ..subnetworks.ooo_network import OddOneOutNetwork
 from pytorch_lightning import LightningModule
@@ -42,8 +42,13 @@ class RGMC(LightningModule):
         self.exclude_modality = exclude_modality
 
     def add_perturbation(self, x):
-        for key, modality in x.items():
-            x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
+        # Last id corresponds to targetting none of the modalities
+        target_id = random.randint(0, self.num_modalities)
+        for id, key in enumerate(x.keys()):
+            if id == target_id:
+                x[key] = torch.clamp(torch.add(x[key], torch.mul(torch.randn_like(x[key]), self.noise_factor)), torch.min(x[key]), torch.max(x[key]))
+            else:
+                x[key] = x[key]
         return x
 
     def encode(self, x, sample=False): 
@@ -53,12 +58,17 @@ class RGMC(LightningModule):
                 latent_representations.append(self.encoder(self.processors[key](x[key])))
 
         mod_weights = self.o3n(latent_representations)
+        joint_weights = mod_weights[:, -1]
+        print(f"{mod_weights.size()}")
+        sys.exit()
 
         for id, latent_repr in enumerate(latent_representations):
             latent_representations[id] = torch.mul(latent_repr, mod_weights[:, id])
+            print(f"{id} modality: {mod_weights[:, id]}")
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            latent_representations.append(torch.mul(self.encoder(self.processors['joint'](x)), mod_weights[:, -1]))
+            latent_representations.append(torch.mul(self.encoder(self.processors['joint'](x)), joint_weights))
+            print(f"joint mods: {joint_weights}")
 
         # Take the average of the latent representations
         if len(latent_representations) > 1:
@@ -164,7 +174,7 @@ class RGMC(LightningModule):
         clean_pred = clean_pred.view(clean_pred.size(0), 1)
         preds = torch.cat((perturbed_preds, clean_pred), dim=-1)
         loss = - torch.mean(torch.log(preds)) * self.scales["o3n_loss"]
-        return loss, {"odd_one_out_loss:": loss}
+        return loss, {"odd_one_out_loss": loss}
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -173,17 +183,20 @@ class RGMC(LightningModule):
         batch_representations = self.forward(data)
 
         # Forward pass through odd-one-out network
-        clean_preds = self.o3n(batch_representations[:-1])
+        clean_mod_weights = self.o3n(batch_representations[:-1])
         perturbed_batch = self.add_perturbation(data)
         perturbed_reps = self.forward(perturbed_batch)
-        perturbed_preds = self.o3n(perturbed_reps[:-1])
-        o3n_loss, o3n_dict = self.o3n_loss(perturbed_preds[:, :-1], clean_preds[:, -1])
+        perturbed_mod_weights = self.o3n(perturbed_reps[:-1])
+        o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights[:, :-1], clean_mod_weights[:, -1])
+
+        for id, rep in enumerate(perturbed_reps):
+            perturbed_reps[id] = torch.mul(rep, perturbed_mod_weights[:, id])
 
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(perturbed_reps, batch_size)
         else:
-            loss, tqdm_dict = self.infonce(batch_representations, batch_size)
+            loss, tqdm_dict = self.infonce(perturbed_reps, batch_size)
 
         total_loss = loss + o3n_loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
@@ -195,17 +208,20 @@ class RGMC(LightningModule):
         batch_representations = self.forward(data)
 
         # Forward pass through odd-one-out network
-        clean_preds = self.o3n(batch_representations[:-1])
+        clean_mod_weights = self.o3n(batch_representations[:-1])
         perturbed_batch = self.add_perturbation(data)
         perturbed_reps = self.forward(perturbed_batch)
-        perturbed_preds = self.o3n(perturbed_reps[:-1])
-        o3n_loss, o3n_dict = self.o3n_loss(perturbed_preds[:, :-1], clean_preds[:, -1])
+        perturbed_mod_weights = self.o3n(perturbed_reps[:-1])
+        o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights[:, :-1], clean_mod_weights[:, -1])
+
+        for id, rep in enumerate(perturbed_reps):
+            perturbed_reps[id] = torch.mul(rep, perturbed_mod_weights[:, id])
 
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(perturbed_reps, batch_size)
         else:
-            loss, tqdm_dict = self.infonce(batch_representations, batch_size)
+            loss, tqdm_dict = self.infonce(perturbed_reps, batch_size)
         
         total_loss = loss + o3n_loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
@@ -227,10 +243,13 @@ class MhdRGMC(RGMC):
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
         
         if exclude_modality == 'image':
+            self.o3n_mods = ["trajectory"]
             self.processors = {'trajectory': self.trajectory_processor}
         elif exclude_modality == 'trajectory':
+            self.o3n_mods = ["image"]
             self.processors = {'image': self.image_processor}
         else:
+            self.o3n_mods = ["trajectory", "image", "joint"]
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
@@ -239,7 +258,7 @@ class MhdRGMC(RGMC):
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
-        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, device=device)
+        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.o3n_mods, device=device)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)

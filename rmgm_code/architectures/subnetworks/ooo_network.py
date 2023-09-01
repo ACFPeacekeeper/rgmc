@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 
 class OddOneOutNetwork(nn.Module):
-    def __init__(self, latent_dim, num_modalities, device):
+    def __init__(self, latent_dim, num_modalities, modalities, device):
         super().__init__()
         self.latent_dimension = latent_dim
         self.num_modalities = num_modalities
+        self.modalities = modalities
         self.device = device
         self.embedder = nn.Sequential(
             nn.Conv1d(num_modalities, 64, 4, 2, 1),
@@ -27,4 +28,7 @@ class OddOneOutNetwork(nn.Module):
             representations = torch.cat((representations, mod_rep), dim=1)
         h = self.embedder(representations)
         h = self.clf_fc(h.view(h.size(0), -1))
-        return self.classificator(h)
+        classes = self.classificator(h)
+        results = torch.cat((classes[:, 1].view(classes.size(0), 1), classes[:, 0].view(classes.size(0), 1)), dim=-1)
+        results = torch.cat((results, classes[:, -1].view(classes.size(0), 1)), dim=-1)
+        return results
