@@ -59,16 +59,12 @@ class RGMC(LightningModule):
 
         mod_weights = self.o3n(latent_representations)
         joint_weights = mod_weights[:, -1]
-        print(f"{mod_weights.size()}")
-        sys.exit()
 
         for id, latent_repr in enumerate(latent_representations):
             latent_representations[id] = torch.mul(latent_repr, mod_weights[:, id])
-            print(f"{id} modality: {mod_weights[:, id]}")
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             latent_representations.append(torch.mul(self.encoder(self.processors['joint'](x)), joint_weights))
-            print(f"joint mods: {joint_weights}")
 
         # Take the average of the latent representations
         if len(latent_representations) > 1:
@@ -174,7 +170,7 @@ class RGMC(LightningModule):
         clean_pred = clean_pred.view(clean_pred.size(0), 1)
         preds = torch.cat((perturbed_preds, clean_pred), dim=-1)
         loss = - torch.mean(torch.log(preds)) * self.scales["o3n_loss"]
-        return loss, {"odd_one_out_loss": loss}
+        return loss, {"o3n_loss": loss}
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)

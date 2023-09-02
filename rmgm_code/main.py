@@ -8,7 +8,7 @@ from utils.logger import *
 from utils.command_parser import *
 
 # Assign path to current directory
-m_path = "/home/pkhunter/Repositories/rmgm/rmgm_code"
+m_path = "C:\\Users\\afons\\Repositories\\rmgm\\rmgm_code"
 
 WAIT_TIME = 0 # Seconds to wait between sequential experiments
 
@@ -197,8 +197,11 @@ def test_downstream_classifier(config, device):
     return
 
 def inference(config, device):
-    dataset, model, _, _, _ = setup_experiment(m_path, config, device, train=False)
+    dataset, model, _ = setup_experiment(m_path, config, device, train=False)
     
+    for modality in dataset._get_modalities():
+        os.makedirs(os.path.join(m_path, "checkpoints", modality), exist_ok=True)
+
     print('Performing inference')
     with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
         file.write('Performing inference:\n')
@@ -208,10 +211,12 @@ def inference(config, device):
     inference_start = time.time()
     counter = 0
     for idx, (batch_feats, _) in enumerate(tqdm(dataloader, total=len(dataloader))):
-        if counter % config['checkpoint'] == 0: 
+        if config['checkpoint'] != 0 and counter % config['checkpoint'] == 0: 
             x_hat, _ = model(batch_feats)
-            plt.imsave(os.path.join("images", config['model_out'] + f'_{idx}_orig.png'), torch.reshape(batch_feats, (28,28)).detach().clone().cpu())
-            plt.imsave(os.path.join("images", config['model_out'] + f'_{idx}_recon.png'), torch.reshape(x_hat, (28,28)).detach().clone().cpu())
+            for modality in batch_feats.keys():
+                if modality == 'image':
+                    plt.imsave(os.path.join("checkpoints", "image", config['model_out'] + f'_{idx}_orig.png'), torch.reshape(batch_feats['image'], (28,28)).detach().clone().cpu())
+                    plt.imsave(os.path.join("checkpoints", "image", config['model_out'] + f'_{idx}_recon.png'), torch.reshape(x_hat['image'], (28,28)).detach().clone().cpu())
         counter += 1
 
     inference_stop = time.time()
@@ -256,12 +261,7 @@ def run_experiment(**kwargs):
         elif config['stage'] == 'test_classifier':
             test_downstream_classifier(config, device)
         elif config['stage'] == 'inference':
-            try:
-                os.makedirs(os.path.join(m_path, "images"), exist_ok=True)
-            except IOError as e:
-                traceback.print_exception(*sys.exc_info())
-            finally:
-                inference(config, device)
+            inference(config, device)
     except:
         wandb.finish(exit_code=1)
         traceback.print_exception(*sys.exc_info())

@@ -408,19 +408,17 @@ def setup_device(m_path, config):
 def setup_experiment(m_path, config, device, train=True):
     def setup_dataset(m_path, config, device, train):
         if config['dataset'] == 'mhd':
-            dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MHDDataset('mhd', os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosi':
-            dataset = MOSIDataset(os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MOSIDataset('mosi', os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosei':
-            dataset = MOSEIDataset(os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MOSEIDataset('mosei', os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'pendulum':
-            dataset = PendulumDataset(os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = PendulumDataset('pendulum', os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
 
     if config['stage'] == "inference":
         dataset = setup_dataset(m_path, config, device, True)
-        test_dataset = setup_dataset(m_path, config, device, False)
-        dataset = torch.concat((dataset, test_dataset), dim=0)
     else:
         dataset = setup_dataset(m_path, config, device, train)
 

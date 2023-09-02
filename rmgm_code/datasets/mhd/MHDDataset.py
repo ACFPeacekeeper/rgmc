@@ -6,6 +6,7 @@ from ..MultimodalDataset import *
 class MHDDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
+        self.modalities = ["image", "trajectory"] 
 
     def _download(self):
         call("./download_mhd_dataset.sh", shell=True)
