@@ -217,6 +217,10 @@ def inference(config, device):
                 if modality == 'image':
                     plt.imsave(os.path.join("checkpoints", "image", config['model_out'] + f'_{idx}_orig.png'), torch.reshape(batch_feats['image'], (28,28)).detach().clone().cpu())
                     plt.imsave(os.path.join("checkpoints", "image", config['model_out'] + f'_{idx}_recon.png'), torch.reshape(x_hat['image'], (28,28)).detach().clone().cpu())
+                elif modality == 'trajectory':
+                    save_trajectory(config['model_out'] + f'_{idx}_orig.png', batch_feats['trajectory'])
+                    save_trajectory(config['model_out'] + f'_{idx}_recon.png', x_hat['trajectory'])
+        
         counter += 1
 
     inference_stop = time.time()
