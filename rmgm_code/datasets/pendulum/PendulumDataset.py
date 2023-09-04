@@ -1,5 +1,4 @@
 import os
-import torch
 from subprocess import call
 from ..MultimodalDataset import *
 

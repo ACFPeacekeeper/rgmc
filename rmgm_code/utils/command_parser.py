@@ -24,10 +24,11 @@ from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
 from datasets.pendulum.PendulumDataset import PendulumDataset
+from datasets.mnist_svhn.MNISTSVHNDataset import MNISTSVHNDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
 ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc', 'rgmc', 'gmcwd']
-DATASETS = ['mhd', 'mosi', 'mosei', 'pendulum']
+DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 NOISE_TYPES = ['gaussian', None] 
 ADVERSARIAL_ATTACKS = ["fgsm", None]
@@ -437,6 +438,8 @@ def setup_experiment(m_path, config, device, train=True):
             dataset = MOSEIDataset('mosei', os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'pendulum':
             dataset = PendulumDataset('pendulum', os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+        elif config['dataset'] == 'mnist_svhn':
+            dataset = MNISTSVHNDataset('mnist_svhn', os.path.join(m_path, "datasets", "mnist_svhn"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
 
     if config['stage'] == "inference":
