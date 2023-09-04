@@ -17,8 +17,8 @@ import torch.optim as optim
 
 from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
-from architectures.downstream import classifier
-from architectures.models import vae, dae, gmc, mvae, dgmc, rgmc, gmcwd
+from architectures.mhd.downstream import classifier
+from architectures.mhd.models import vae, dae, gmc, mvae, dgmc, rgmc, gmcwd
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
