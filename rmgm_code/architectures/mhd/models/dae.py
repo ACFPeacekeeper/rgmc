@@ -5,7 +5,7 @@ from ..subnetworks.dae_networks import *
 
 
 class DAE(nn.Module):
-    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=1.0):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.3):
         super(DAE, self).__init__()
         self.name = name
         self.layer_dim = 28 * 28 + 200
@@ -35,7 +35,7 @@ class DAE(nn.Module):
         return x_noisy
 
     def forward(self, x, sample=False):
-        if sample is False and self.noise_factor > 0:
+        if sample is False and self.noise_factor != 0:
             x = self.add_noise(x)
 
         data_list = list(x.values())

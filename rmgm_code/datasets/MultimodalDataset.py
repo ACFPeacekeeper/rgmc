@@ -3,11 +3,12 @@ import torch
 from torch.utils.data import Dataset
 
 class MultimodalDataset(Dataset):
-    def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
+    def __init__(self, name, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
         super().__init__()
         if download:
             self._download()
 
+        self.name = name
         self.device = device
         self.dataset_dir = dataset_dir
         self.exclude_modality = exclude_modality
@@ -17,6 +18,7 @@ class MultimodalDataset(Dataset):
         self.dataset = {}
         self.dataset_len = 0
         self.labels = None
+        self.modalities = None
         self._load_data(train)
 
 
@@ -25,6 +27,12 @@ class MultimodalDataset(Dataset):
     
     def _load_data(self, train):
         raise NotImplementedError
+    
+    def _get_name(self):
+        return self.name
+    
+    def _get_modalities(self):
+        return self.modalities
     
     def _set_transform(self, transform):
         self.transform = transform

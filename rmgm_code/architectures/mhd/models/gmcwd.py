@@ -1,39 +1,66 @@
+import random
+
 from pytorch_lightning import LightningModule
-from ..subnetworks.gmc_networks import *
+from ..subnetworks.gmcwd_networks import *
 from collections import Counter
 
 
-# Code adapted from https://github.com/miguelsvasco/gmc
-class GMC(LightningModule):
-    def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
-        super(GMC, self).__init__()
+class GMCWD(LightningModule):
+    def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
+        super(GMCWD, self).__init__()
         self.name = name
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
         self.loss_type = loss_type
         self.exclude_modality = exclude_modality
-        self.infonce_temperature = infonce_temperature
+        self.scales = scales
+        self.noise_factor = noise_factor
 
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
+        self.image_reconstructor = None
+        self.trajectory_reconstructor = None
+        self.joint_reconstructor = None
         if self.exclude_modality == 'image':
+            self.num_modalities = 1
+            self.modalities = ["trajectory"]
             self.processors = {'trajectory': self.trajectory_processor}
+            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
         elif self.exclude_modality == 'trajectory':
+            self.num_modalities = 1
+            self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
-        else:
+            self.reconstructors = {'image': self.image_reconstructor}
+        else: 
+            self.num_modalities = 2
+            self.modalities = ["image", "trajectory"]
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor,
             }
+            self.reconstructors = {
+                'image': self.image_reconstructor,
+                'trajectory': self.trajectory_reconstructor,
+                'joint': self.joint_reconstructor,
+            }
 
         self.encoder = None
+        self.decoder = None
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
+    def add_noise(self, x):
+        for key, modality in x.items():
+            x[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
+        return x
+
     def encode(self, x, sample=False):
+        if sample is False and self.noise_factor != 0:
+            x = self.add_noise(x)
+
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             return self.encoder(self.processors['joint'](x))
         else:
@@ -48,8 +75,23 @@ class GMC(LightningModule):
             else:
                 latent = latent_representations[0]
             return latent
+        
+    def decode(self, z):
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
+            #reconstructions['joint'] = self.reconstructors['joint'](self.decoder(z))
+            return self.reconstructors['joint'](self.decoder(z[-1]))
 
-    def forward(self, x):
+        reconstructions = dict.fromkeys(z.keys())
+        for key, mod_id in enumerate(reconstructions.keys()):
+            if key != self.exclude_modality:
+                reconstructions[key] = self.reconstructors[key](self.decoder(z[mod_id]))
+
+        return reconstructions
+
+    def forward(self, x, sample=False):
+        if sample is False and self.noise_factor != 0:
+            x = self.add_noise(x)
+
         # Forward pass through the modality specific encoders
         batch_representations = []
         for key in x.keys():
@@ -75,7 +117,7 @@ class GMC(LightningModule):
             )
             # [2*B, 2*B]
             sim_matrix_joint_mod = torch.exp(
-                torch.mm(out_joint_mod, out_joint_mod.t().contiguous()) / self.infonce_temperature
+                torch.mm(out_joint_mod, out_joint_mod.t().contiguous()) / self.scales['infonce_temp']
             )
             # Mask for remove diagonal that give trivial similarity, [2*B, 2*B]
             mask_joint_mod = (
@@ -92,7 +134,7 @@ class GMC(LightningModule):
                 torch.sum(
                     batch_representations[-1] * batch_representations[mod], dim=-1
                 )
-                / self.infonce_temperature
+                / self.scales['infonce_temp']
             )
             # [2*B]
             pos_sim_joint_mod = torch.cat([pos_sim_joint_mod, pos_sim_joint_mod], dim=0)
@@ -111,7 +153,7 @@ class GMC(LightningModule):
             torch.mm(
                 batch_representations[-1], batch_representations[-1].t().contiguous()
             )
-            / self.infonce_temperature
+            / self.scales['infonce_temp']
         )
         # Mask out the diagonals, [B, B]
         mask_joints = (
@@ -131,7 +173,7 @@ class GMC(LightningModule):
                 torch.sum(
                     batch_representations[-1] * batch_representations[mod], dim=-1
                 )
-                / self.infonce_temperature
+                / self.scales['infonce_temp']
             )
             loss_joint_mod = -torch.log(
                 pos_sim_joint_mod / sim_matrix_joints.sum(dim=-1)
@@ -141,6 +183,20 @@ class GMC(LightningModule):
         loss = torch.mean(joint_mod_loss_sum)
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
+
+    def recon_loss(self, x, z):
+        x_hat = self.decode(z)
+
+        mse_loss = nn.MSELoss(reduction="none").to(self.device)
+        recon_losses = dict.fromkeys(x.keys())
+
+        for key in recon_losses.keys():
+            cost = mse_loss(x[key], x_hat[key])
+            recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
+
+        loss = sum(recon_losses.values()) / len(recon_losses)
+
+        return loss, {'image_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']}
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -153,7 +209,10 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+        
+        recon_loss, recon_dict = self.recon_loss(data, batch_representations)
+        total_loss = recon_loss + loss
+        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -165,41 +224,50 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+        
+        recon_loss, recon_dict = self.recon_loss(data, batch_representations)
+        total_loss = recon_loss + loss
+        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
 
+class MhdGMCWD(GMCWD):
+    def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
+        self.common_dim = common_dim
 
-class MhdGMC(GMC):
-    def __init__(self, name, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
-        if exclude_modality == 'image':
-            self.common_dim = 200
-        elif exclude_modality == 'trajectory':
-            self.common_dim = 28 * 28
-        else:
-            self.common_dim = 28 * 28 + 200
-
-        super(MhdGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
+        super(MhdGMCWD, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
 
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
+        self.image_reconstructor = MHDImageDecoder(common_dim=self.common_dim)
+        self.trajectory_reconstructor = MHDTrajectoryDecoder(common_dim=self.common_dim)
+        self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim)
 
         if exclude_modality == 'image':
             self.processors = {'trajectory': self.trajectory_processor}
+            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
         elif exclude_modality == 'trajectory':
             self.processors = {'image': self.image_processor}
+            self.reconstructors = {'image': self.image_reconstructor}
         else:
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor,
             }
+            self.reconstructors = {
+                'image': self.image_reconstructor,
+                'trajectory': self.trajectory_reconstructor,
+                'joint': self.joint_reconstructor,
+            }
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
+        self.decoder = MHDCommonDecoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
+        self.decoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
     def set_modalities(self, exclude_modality):

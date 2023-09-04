@@ -6,7 +6,7 @@ import torch
 import wandb
 import select
 import shutil
-import termios
+#import termios
 import argparse
 import threading
 import itertools
@@ -18,16 +18,15 @@ import torch.optim as optim
 from utils.logger import plot_metric_compare
 from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
-from architectures.downstream import classifier
-from architectures.models import vae, dae, gmc, mvae, dgmc
-from architectures.models import vae, dae, gmc, mvae, dgmc, rgmc
+from architectures.mhd.downstream import classifier
+from architectures.mhd.models import vae, dae, gmc, mvae, dgmc, rgmc, gmcwd
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
 from datasets.pendulum.PendulumDataset import PendulumDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc']
+ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 NOISE_TYPES = ['gaussian', None] 
@@ -42,6 +41,7 @@ EPOCHS_DEFAULT = 100
 BATCH_SIZE_DEFAULT = 64
 CHECKPOINT_DEFAULT = 0
 LATENT_DIM_DEFAULT = 64
+COMMON_DIM_DEFAULT = 64
 INFONCE_TEMPERATURE_DEFAULT = 0.1
 RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5}
 KLD_BETA_DEFAULT = 0.5
@@ -49,6 +49,7 @@ REPARAMETERIZATION_MEAN_DEFAULT = 0.0
 REPARAMETERIZATION_STD_DEFAULT = 1.0
 EXPERTS_FUSION_DEFAULT = "poe"
 POE_EPS_DEFAULT = 1e-8
+O3N_LOSS_SCALE_DEFAULT = 1.0
 MODEL_TRAIN_NOISE_FACTOR_DEFAULT = 1.0
 MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
@@ -101,7 +102,8 @@ def process_arguments(m_path):
     exp_parser.add_argument('-e', '--epochs', type=int, default=EPOCHS_DEFAULT, help='Number of epochs to train the model.')
     exp_parser.add_argument('-b', '--batch_size', type=int, default=BATCH_SIZE_DEFAULT, help='Number of samples processed for each model update.')
     exp_parser.add_argument('--checkpoint', type=int, default=CHECKPOINT_DEFAULT, help='Epoch interval between checkpoints of the model in training.')
-    exp_parser.add_argument('--latent_dimension', '--latent_dimension', type=int, default=LATENT_DIM_DEFAULT, help='Dimension of the latent space of the models encodings.')
+    exp_parser.add_argument('--latent_dimension', '--latent_dim', type=int, default=LATENT_DIM_DEFAULT, help='Dimension of the latent space of the models encodings.')
+    exp_parser.add_argument('--common_dimension', '--common_dim', type=int, default=COMMON_DIM_DEFAULT, help='Dimension of the common representation space of the models based on GMC.')
     exp_parser.add_argument('--noise', type=str, default=None, choices=NOISE_TYPES, help='Apply a type of noise to the model\'s input.')
     exp_parser.add_argument('--adversarial_attack', '--attack', type=str, default=None, choices=ADVERSARIAL_ATTACKS, help='Execute an adversarial attack against the model.')
     exp_parser.add_argument('--target_modality', type=str, default=None, choices=MODALITIES, help='Modality to target with noisy and/or adversarial samples.')
@@ -114,7 +116,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('--rep_trick_mean', type=float, default=REPARAMETERIZATION_MEAN_DEFAULT, help='Mean value for the reparameterization trick for the vae and mvae.')
     exp_parser.add_argument('--rep_trick_std', type=float, default=REPARAMETERIZATION_STD_DEFAULT, help='Standard deviation value for the reparameterization trick for the vae and mvae.')
     exp_parser.add_argument('--poe_eps', type=float, default=POE_EPS_DEFAULT, help='Epsilon value for the product of experts fusion for the mvae.')
-    exp_parser.add_argument('--train_noise_factor', type=float)
+    exp_parser.add_argument('--train_noise_factor', type=float, default=MODEL_TRAIN_NOISE_FACTOR_DEFAULT)
     exp_parser.add_argument('--adam_betas', nargs=2, type=float, default=ADAM_BETAS_DEFAULTS, help='Beta values for the Adam optimizer.')
     exp_parser.add_argument('--momentum', type=float, default=MOMENTUM_DEFAULT, help='Momentum for the SGD optimizer.')
     exp_parser.add_argument('--noise_std', type=float, default=NOISE_STD_DEFAULT, help='Standard deviation for noise distribution.')
@@ -285,13 +287,13 @@ def config_validation(m_path, config):
             config['batch_size'] = BATCH_SIZE_DEFAULT
 
 
-        if "ae" in config['architecture'] or config['architecture'] == "dgmc":
+        if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
             if "image_recon_scale" not in config or config['image_recon_scale'] is None:
                 config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
             if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
                 config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
 
-            if config['architecture'] == 'dae' or config['architecture'] == 'dgmc':
+            if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
                 if "train_noise_factor" not in config or config['train_noise_factor'] is None:
                     config['train_noise_factor'] = MODEL_TRAIN_NOISE_FACTOR_DEFAULT
 
@@ -320,12 +322,8 @@ def config_validation(m_path, config):
 
             if config['exclude_modality'] == 'image':
                 config['image_recon_scale'] = 0.
-                if config['target_modality'] == 'image':
-                    config['target_modality'] = None
             elif config['exclude_modality'] == 'trajectory':
                 config['traj_recon_scale'] = 0.
-                if config['target_modality'] == 'trajectory':
-                    config['target_modality'] = None
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
@@ -335,6 +333,19 @@ def config_validation(m_path, config):
             config['experts_fusion'] = None
             config['poe_eps'] = None
             
+        if "gmc" in config['architecture']:
+            if "infonce_temperature" not in config or config['infonce_temperature'] is None:
+                config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
+
+            if "common_dimension" not in config or config['common_dimension'] is None:
+                config['common_dimension'] = COMMON_DIM_DEFAULT
+            
+            if config['architecture'] == 'rgmc':
+                if "o3n_loss_scale" not in config or config['o3n_loss_scale'] is None:
+                    config['o3n_loss_scale'] = O3N_LOSS_SCALE_DEFAULT
+        else:
+            config['infonce_temperature'] = None
+            config['common_dimension'] = None
 
         if config['stage'] == "train_model":
             config["path_model"] = None
@@ -345,12 +356,6 @@ def config_validation(m_path, config):
         if config['stage'] == 'test_classifier':
             if "path_classifier" not in config or config['path_classifier'] is None:
                 config['path_classifier'] = os.path.join(os.path.dirname(config['path_model']), "clf_" + os.path.basename(config['path_model']))
-
-        if "gmc" in config['architecture']:
-            if "infonce_temperature" not in config or config['infonce_temperature'] is None:
-                config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
-        else:
-            config['infonce_temperature'] = None
 
         if "noise" not in config:
             config["noise"] = None
@@ -425,19 +430,17 @@ def setup_device(m_path, config):
 def setup_experiment(m_path, config, device, train=True):
     def setup_dataset(m_path, config, device, train):
         if config['dataset'] == 'mhd':
-            dataset = MHDDataset(os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MHDDataset('mhd', os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosi':
-            dataset = MOSIDataset(os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MOSIDataset('mosi', os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosei':
-            dataset = MOSEIDataset(os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MOSEIDataset('mosei', os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'pendulum':
-            dataset = PendulumDataset(os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = PendulumDataset('pendulum', os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
 
     if config['stage'] == "inference":
         dataset = setup_dataset(m_path, config, device, True)
-        test_dataset = setup_dataset(m_path, config, device, False)
-        dataset = torch.concat((dataset, test_dataset), dim=0)
     else:
         dataset = setup_dataset(m_path, config, device, train)
 
@@ -459,13 +462,19 @@ def setup_experiment(m_path, config, device, train=True):
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
         model = dae.DAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
     elif config['architecture'] == 'gmc':
-        model = gmc.MhdGMC(config['architecture'], exclude_modality, latent_dim, config['infonce_temperature'])
+        model = gmc.MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
     elif config['architecture'] == 'mvae':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
         model = mvae.MVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
     elif config['architecture'] == 'dgmc':
         scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-        model = dgmc.MhdDGMC(config['architecture'], exclude_modality,latent_dim, scales, config['train_noise_factor'])
+        model = dgmc.MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+    elif config['architecture'] == 'rgmc':
+        scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
+        model = rgmc.MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+    elif config['architecture'] == 'gmcwd':
+        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+        model = gmcwd.MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))
@@ -514,13 +523,16 @@ def setup_experiment(m_path, config, device, train=True):
         dataset._set_adv_attack(adv_attack)
 
     if "notes" not in config:
-        print('Enter experiment notes:')
-        notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
-        if (notes):
-            notes = sys.stdin.readline().strip()
+        if 2 > 3:
+            print('Enter experiment notes:')
+            notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
+            if (notes):
+                notes = sys.stdin.readline().strip()
+            else:
+                notes = ""
+            #termios.tcflush(sys.stdin, termios.TCIOFLUSH)
         else:
-            notes = ""
-        termios.tcflush(sys.stdin, termios.TCIOFLUSH)
+            notes = None
     else:
         notes = config["notes"]
 
