@@ -19,7 +19,14 @@ from utils.logger import plot_metric_compare
 from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
 from architectures.mhd.downstream import classifier
-from architectures.mhd.models import vae, dae, gmc, mvae, dgmc, rgmc, gmcwd
+from architectures.mhd.models.vae import MhdVAE
+from architectures.mhd.models.dae import MhdDAE
+from architectures.mhd.models.mvae import MhdMVAE
+from architectures.mhd.models.gmc import MhdGMC
+from architectures.mhd.models.dgmc import MhdDGMC
+from architectures.mhd.models.rgmc import MhdRGMC
+from architectures.mhd.models.gmcwd import MhdGMCWD
+from architectures.mnist_svhn.models.mvae import MSMVAE
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
@@ -27,7 +34,7 @@ from datasets.pendulum.PendulumDataset import PendulumDataset
 from datasets.mnist_svhn.MNISTSVHNDataset import MNISTSVHNDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'gmc', 'mvae', 'dgmc', 'rgmc', 'gmcwd']
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 NOISE_TYPES = ['gaussian', None] 
@@ -458,26 +465,46 @@ def setup_experiment(m_path, config, device, train=True):
         latent_dim = config["latent_dimension"]
         exclude_modality = config["exclude_modality"]
 
-    if config['architecture'] == 'vae':
-        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = vae.VAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
-    elif config['architecture'] == 'dae':
-        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
-        model = dae.DAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
-    elif config['architecture'] == 'gmc':
-        model = gmc.MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
-    elif config['architecture'] == 'mvae':
-        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
-        model = mvae.MVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
-    elif config['architecture'] == 'dgmc':
-        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-        model = dgmc.MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
-    elif config['architecture'] == 'rgmc':
-        scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
-        model = rgmc.MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
-    elif config['architecture'] == 'gmcwd':
-        scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-        model = gmcwd.MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+    if config['dataset'] == 'mhd':
+        if config['architecture'] == 'vae':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MhdVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
+        elif config['architecture'] == 'dae':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
+            model = MhdDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'mvae':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MhdMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        elif config['architecture'] == 'gmc':
+            model = MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
+        elif config['architecture'] == 'dgmc':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'rgmc':
+            scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
+            model = MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+        elif config['architecture'] == 'gmcwd':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+    elif config['dataset'] == 'mnist_svhn':
+        if config['architecture'] == 'dae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
+            model = dae.MhdDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'mvae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MSMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        elif config['architecture'] == 'gmc':
+            model = gmc.MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
+        elif config['architecture'] == 'dgmc':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = dgmc.MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'rgmc':
+            scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
+            model = rgmc.MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+        elif config['architecture'] == 'gmcwd':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = gmcwd.MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))

@@ -5,9 +5,9 @@ from torch.autograd import Variable
 from ..subnetworks.mvae_networks import *
 
 
-class MhdMVAE(nn.Module):
+class MSMVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps):
-        super(MhdMVAE, self).__init__()
+        super(MSMVAE, self).__init__()
         self.name = name
         self.device = device
         self.mean = mean
@@ -23,23 +23,23 @@ class MhdMVAE(nn.Module):
         self.trajectory_encoder = None
         self.trajectory_decoder = None
 
-        if self.exclude_modality == 'image':
-            self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
-            self.encoders = {'trajectory': self.trajectory_encoder}
-            self.decoders = {'trajectory': self.trajectory_decoder}
-        elif self.exclude_modality == 'trajectory':
-            self.image_encoder = ImageEncoder(latent_dimension)
-            self.image_decoder = ImageDecoder(latent_dimension)
-            self.encoders = {'image': self.image_encoder}
-            self.decoders = {'image': self.image_decoder}
+        if self.exclude_modality == 'mnist':
+            self.svhn_encoder = SVHNEncoder(latent_dimension)
+            self.svhn_decoder = SVHNDecoder(latent_dimension)
+            self.encoders = {'svhn': self.svhn_encoder}
+            self.decoders = {'svhn': self.svhn_decoder}
+        elif self.exclude_modality == 'svhn':
+            self.mnist_encoder = MNISTEncoder(latent_dimension)
+            self.mnist_decoder = MNISTDecoder(latent_dimension)
+            self.encoders = {'mnist': self.mnist_encoder}
+            self.decoders = {'mnist': self.mnist_decoder}
         else:
-            self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
-            self.image_encoder = ImageEncoder(latent_dimension)
-            self.image_decoder = ImageDecoder(latent_dimension)
-            self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
-            self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
+            self.svhn_encoder = SVHNEncoder(latent_dimension)
+            self.svhn_decoder = SVHNDecoder(latent_dimension)
+            self.mnist_encoder = MNISTEncoder(latent_dimension)
+            self.mnist_decoder = MNISTDecoder(latent_dimension)
+            self.encoders = {'mnist': self.mnist_encoder, 'svhn': self.svhn_encoder}
+            self.decoders = {'mnist': self.mnist_decoder, 'svhn': self.svhn_decoder}
 
     def set_latent_dim(self, latent_dim):
         for enc_key, dec_key in zip(self.encoders.keys(), self.decoders.keys()):
@@ -94,7 +94,7 @@ class MhdMVAE(nn.Module):
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
+        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
         self.kld = 0.
         return elbo, loss_dict
 

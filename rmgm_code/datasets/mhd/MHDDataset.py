@@ -8,7 +8,7 @@ class MHDDataset(MultimodalDataset):
         self.modalities = ["image", "trajectory"] 
 
     def _download(self):
-        call("./download_mhd_dataset.sh", shell=True)
+        call("bash download_mhd_dataset.sh", shell=True)
         return
 
     def _load_data(self, train):
@@ -16,7 +16,6 @@ class MHDDataset(MultimodalDataset):
             data_path = os.path.join(self.dataset_dir, "mhd_train.pt")
         else:
             data_path = os.path.join(self.dataset_dir, "mhd_test.pt")
-        
         data = torch.load(data_path)
         self.dataset_len = len(data[0])
 

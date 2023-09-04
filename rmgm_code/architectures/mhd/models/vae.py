@@ -4,9 +4,9 @@ from collections import Counter
 from ..subnetworks.vae_networks import *
 
 
-class VAE(nn.Module):
+class MhdVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
-        super(VAE, self).__init__()
+        super(MhdVAE, self).__init__()
         self.name = name
         self.layer_dim = 28 * 28 + 200
         self.modality_dims = [0, 28 * 28, 200]

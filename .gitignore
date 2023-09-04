@@ -398,6 +398,9 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Datasets, checkpoints and results
+rmgm_code/datasets/mnist_svhn/MNIST
+rmgm_code/datasets/mnist_svhn/*.mat
+rmgm_code/datasets/mnist_svhn/*.pt
 rmgm_code/datasets/pendulum/*.pt
 rmgm_code/datasets/mosei/*.pt
 rmgm_code/datasets/mosi/*.pt

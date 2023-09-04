@@ -1,4 +1,5 @@
 import os
+import torch.utils.data as data
 from torchvision import datasets, transforms
 from ..MultimodalDataset import *
 
@@ -24,30 +25,39 @@ class MNISTSVHNDataset(MultimodalDataset):
     def _download(self):
          # get the individual datasets
         tx = transforms.ToTensor()
-        train_mnist = datasets.MNIST('../data', train=True, download=True, transform=tx)
-        test_mnist = datasets.MNIST('../data', train=False, download=True, transform=tx)
-        train_svhn = datasets.SVHN('../data', split='train', download=True, transform=tx)
-        test_svhn = datasets.SVHN('../data', split='test', download=True, transform=tx)
+        train_mnist = datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=True, download=True, transform=tx)
+        test_mnist = datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=False, download=True, transform=tx)
+        train_svhn = datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='train', download=True, transform=tx)
+        test_svhn = datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='test', download=True, transform=tx)
         # svhn labels need extra work
         train_svhn.labels = torch.LongTensor(train_svhn.labels.squeeze().astype(int)) % 10
         test_svhn.labels = torch.LongTensor(test_svhn.labels.squeeze().astype(int)) % 10
 
         mnist_l, mnist_li = train_mnist.targets.sort()
         svhn_l, svhn_li = train_svhn.labels.sort()
-        idx1, idx2 = self._rand_match_on_idx(mnist_l, mnist_li, svhn_l, svhn_li, max_d=self.max_d, dm=self.dm)
-        print('len train idx:', len(idx1), len(idx2))
-        torch.save(idx1, '../data/train-ms-mnist-idx.pt')
-        torch.save(idx2, '../data/train-ms-svhn-idx.pt')
-
+        concat = data.ConcatDataset([train_mnist, train_svhn])
+        torch.save(concat, os.path.join("datasets", "mnist_svhn", 'mnist_svhn_train.pt'))
         mnist_l, mnist_li = test_mnist.targets.sort()
         svhn_l, svhn_li = test_svhn.labels.sort()
-        idx1, idx2 = self._rand_match_on_idx(mnist_l, mnist_li, svhn_l, svhn_li, max_d=self.max_d, dm=self.dm)
-        print('len test idx:', len(idx1), len(idx2))
-        torch.save(idx1, '../data/test-ms-mnist-idx.pt')
-        torch.save(idx2, '../data/test-ms-svhn-idx.pt')
+        concat = data.ConcatDataset([test_mnist, test_svhn])
+        torch.save(concat, os.path.join("datasets", "mnist_svhn", 'mnist_svhn_test.pt'))
         return
     
     def _load_data(self, train):
         if train:
-            data_path = os.path.join(self.dataset_dir, "data", "")
+            data_path = os.path.join(self.dataset_dir, "mnist_svhn_train.pt")
+        else:
+            data_path = os.path.join(self.dataset_dir, "mnist_svhn_test.pt")
+        
+        data = torch.load(data_path)
+        print(data.datasets)
+        self.dataset_len = len(data)
+
+        if self.exclude_modality == 'mnist':
+            self.dataset = data
+        elif self.exclude_modality == 'svhn':
+            self.dataset = data
+        else:
+            self.dataset = data
         return
+        
