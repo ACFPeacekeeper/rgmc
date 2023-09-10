@@ -16,6 +16,7 @@ class MHDDataset(MultimodalDataset):
             data_path = os.path.join(self.dataset_dir, "mhd_train.pt")
         else:
             data_path = os.path.join(self.dataset_dir, "mhd_test.pt")
+            
         data = torch.load(data_path)
         self.dataset_len = len(data[0])
 
