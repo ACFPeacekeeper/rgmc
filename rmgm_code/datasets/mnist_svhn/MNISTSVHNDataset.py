@@ -1,11 +1,5 @@
-import os, sys
-import numpy as np
-from PIL import Image
-import scipy.io
-import matplotlib.pyplot as plt
-import torch.utils.data as data
+import os
 from torchvision import datasets, transforms
-from torchnet.dataset import TensorDataset, ResampleDataset
 from ..MultimodalDataset import *
 from tqdm import tqdm
 
