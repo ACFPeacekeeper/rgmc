@@ -10,24 +10,17 @@ class Encoder(nn.Module):
             nn.Linear(512, 256),
             nn.SiLU(),
         )
-
-        self.fc_mean = nn.Linear(256, latent_dimension)
-        self.fc_logvar = nn.Linear(256, latent_dimension)
+        self.latent_fc = nn.Linear(256, latent_dimension)
 
     def set_first_layer(self, layer_dim):
         self.fc = nn.Linear(layer_dim, 512)
 
     def set_latent_dim(self, latent_dim):
-        self.fc_mean = nn.Linear(256, latent_dim)
-        self.fc_logvar = nn.Linear(256, latent_dim)
+        self.latent_fc = nn.Linear(256, latent_dim)
     
     def forward(self, x):
         h = self.fc(x)
-        h = self.feature_extractor(h)
-
-        mean = self.fc_mean(h)
-        logvar = self.fc_logvar(h)
-        return mean, logvar
+        return self.latent_fc(self.feature_extractor(h))
     
     
 class Decoder(nn.Module):

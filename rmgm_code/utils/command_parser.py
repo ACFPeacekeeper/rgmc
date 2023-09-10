@@ -26,7 +26,10 @@ from architectures.mhd.models.gmc import MhdGMC
 from architectures.mhd.models.dgmc import MhdDGMC
 from architectures.mhd.models.rgmc import MhdRGMC
 from architectures.mhd.models.gmcwd import MhdGMCWD
+from architectures.mnist_svhn.models.vae import MSVAE
+from architectures.mnist_svhn.models.dae import MSDAE
 from architectures.mnist_svhn.models.mvae import MSMVAE
+from architectures.mnist_svhn.models.gmc import MSGMC
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
@@ -487,14 +490,17 @@ def setup_experiment(m_path, config, device, train=True):
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
     elif config['dataset'] == 'mnist_svhn':
-        if config['architecture'] == 'dae':
+        if config['architecture'] == 'vae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MSVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
+        elif config['architecture'] == 'dae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
-            model = dae.MhdDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+            model = MSDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'mvae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MSMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
         elif config['architecture'] == 'gmc':
-            model = gmc.MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
+            model = MSGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = dgmc.MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
