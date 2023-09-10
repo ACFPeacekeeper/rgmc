@@ -3,22 +3,29 @@ from ..subnetworks.gmc_networks import *
 
 
 class GMC(LightningModule):
-    def __init__(self, name, common_dim, latent_dim, loss_type="infonce"):
+    def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
         super(GMC, self).__init__()
 
         self.name = name
         self.common_dim = common_dim
-        self.latent_dim = latent_dim
+        self.latent_dim = latent_dimension
+        self.infonce_temp = infonce_temperature
+        self.exclude_modality = exclude_modality
         self.loss_type = loss_type
 
         self.image_processor = None
-        self.label_processor = None
+        self.sound_processor = None
         self.joint_processor = None
-        self.processors = [
-            self.image_processor,
-            self.label_processor,
-            self.joint_processor,
-        ]
+        if self.exclude_modality == 'image':
+            self.processors = {'sound': self.sound_processor}
+        elif self.exclude_modality == 'sound':
+            self.processors = {'image': self.image_processor}
+        else:
+            self.processors = {
+                'image': self.image_processor,
+                'sound': self.sound_processor,
+                'joint': self.joint_processor,
+            }
 
         self.encoder = None
 
@@ -52,7 +59,7 @@ class GMC(LightningModule):
         batch_representations.append(joint_representation)
         return batch_representations
 
-    def infonce(self, batch_representations, temperature, batch_size):
+    def infonce(self, batch_representations, batch_size):
         joint_mod_loss_sum = 0
         for mod in range(len(batch_representations) - 1):
             # Negative pairs: everything that is not in the current joint-modality pair
@@ -61,7 +68,7 @@ class GMC(LightningModule):
             )
             # [2*B, 2*B]
             sim_matrix_joint_mod = torch.exp(
-                torch.mm(out_joint_mod, out_joint_mod.t().contiguous()) / temperature
+                torch.mm(out_joint_mod, out_joint_mod.t().contiguous()) / self.infonce_temp
             )
             # Mask for remove diagonal that give trivial similarity, [2*B, 2*B]
             mask_joint_mod = (
@@ -78,7 +85,7 @@ class GMC(LightningModule):
                 torch.sum(
                     batch_representations[-1] * batch_representations[mod], dim=-1
                 )
-                / temperature
+                / self.infonce_temp
             )
             # [2*B]
             pos_sim_joint_mod = torch.cat([pos_sim_joint_mod, pos_sim_joint_mod], dim=0)
@@ -91,15 +98,13 @@ class GMC(LightningModule):
         tqdm_dict = {"loss": loss}
         return loss, tqdm_dict
 
-    def infonce_with_joints_as_negatives(
-        self, batch_representations, temperature, batch_size
-    ):
+    def infonce_with_joints_as_negatives(self, batch_representations, batch_size):
         # Similarity among joints, [B, B]
         sim_matrix_joints = torch.exp(
             torch.mm(
                 batch_representations[-1], batch_representations[-1].t().contiguous()
             )
-            / temperature
+            / self.infonce_temp
         )
         # Mask out the diagonals, [B, B]
         mask_joints = (
@@ -119,7 +124,7 @@ class GMC(LightningModule):
                 torch.sum(
                     batch_representations[-1] * batch_representations[mod], dim=-1
                 )
-                / temperature
+                / self.infonce_temp
             )
             loss_joint_mod = -torch.log(
                 pos_sim_joint_mod / sim_matrix_joints.sum(dim=-1)
@@ -130,9 +135,7 @@ class GMC(LightningModule):
         tqdm_dict = {"loss": loss}
         return loss, tqdm_dict
 
-    def training_step(self, data, train_params):
-
-        temperature = train_params["temperature"]
+    def training_step(self, data):
         batch_size = data[0].shape[0]
 
         # Forward pass through the encoders
@@ -140,31 +143,27 @@ class GMC(LightningModule):
 
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, temperature, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
-            loss, tqdm_dict = self.infonce(batch_representations, temperature, batch_size)
+            loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         return loss, tqdm_dict
 
-    def validation_step(self, data, train_params):
-
-        temperature = train_params["temperature"]
+    def validation_step(self, data):
         batch_size = data[0].shape[0]
 
         # Forward pass through the encoders
         batch_representations = self.forward(data)
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, temperature, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
-            loss, tqdm_dict = self.infonce(batch_representations, temperature, batch_size)
+            loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         return tqdm_dict
 
 
 class PendulumGMC(GMC):
-    def __init__(self, name, common_dim, latent_dim, loss_type="infonce"):
-        super(PendulumGMC, self).__init__(
-            name, common_dim, latent_dim, loss_type="infonce"
-        )
+    def __init__(self, name, exclude_modality, common_dim, latent_dim, infonce_temp, loss_type="infonce"):
+        super(PendulumGMC, self).__init__(name, common_dim, exclude_modality, latent_dim, infonce_temp, loss_type="infonce")
 
         self.image_processor = PendulumImageProcessor(common_dim=common_dim)
         self.sound_processor = PendulumSoundProcessor(common_dim=common_dim)

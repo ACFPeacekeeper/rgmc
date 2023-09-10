@@ -196,7 +196,7 @@ class GMCWD(LightningModule):
 
         loss = sum(recon_losses.values()) / len(recon_losses)
 
-        return loss, {'image_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']}
+        return loss, {'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']}
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
