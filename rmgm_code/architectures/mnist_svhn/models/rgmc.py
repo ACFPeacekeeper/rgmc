@@ -224,7 +224,7 @@ class RGMC(LightningModule):
 
 
 
-class MhdRGMC(RGMC):
+class MSRGMC(RGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, scales, noise_factor, device, loss_type="infonce"):
         self.common_dim = common_dim
         if exclude_modality != None:
@@ -232,7 +232,7 @@ class MhdRGMC(RGMC):
         else:
             self.num_modalities = 2
 
-        super(MhdRGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, scales, self.num_modalities, noise_factor, loss_type)
+        super(MSRGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, scales, self.num_modalities, noise_factor, loss_type)
 
         self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim)
         self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim)

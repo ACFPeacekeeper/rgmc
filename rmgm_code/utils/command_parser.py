@@ -18,7 +18,7 @@ import torch.optim as optim
 from utils.logger import plot_metric_compare
 from torchvision import transforms
 from input_transformations import gaussian_noise, fgsm
-from architectures.mhd.downstream import classifier
+from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mhd.models.vae import MhdVAE
 from architectures.mhd.models.dae import MhdDAE
 from architectures.mhd.models.mvae import MhdMVAE
@@ -26,10 +26,14 @@ from architectures.mhd.models.gmc import MhdGMC
 from architectures.mhd.models.dgmc import MhdDGMC
 from architectures.mhd.models.rgmc import MhdRGMC
 from architectures.mhd.models.gmcwd import MhdGMCWD
+from architectures.mnist_svhn.downstream.classifier import MSClassifier
 from architectures.mnist_svhn.models.vae import MSVAE
 from architectures.mnist_svhn.models.dae import MSDAE
 from architectures.mnist_svhn.models.mvae import MSMVAE
 from architectures.mnist_svhn.models.gmc import MSGMC
+from architectures.mnist_svhn.models.dgmc import MSDGMC
+from architectures.mnist_svhn.models.rgmc import MSRGMC
+from architectures.mnist_svhn.models.gmcwd import MSGMCWD
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
@@ -451,6 +455,13 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['dataset'] == 'mnist_svhn':
             dataset = MNISTSVHNDataset('mnist_svhn', os.path.join(m_path, "datasets", "mnist_svhn"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
+    
+    def setup_classifier(model, config, latent_dim, exclude_mod):
+        if config['dataset'] == 'mhd':
+            clf = MHDClassifier(latent_dim, model, exclude_mod)
+        elif config['dataset'] == 'mnist_svhn':
+            clf = MSClassifier(latent_dim, model, exclude_mod)
+        return clf
 
     if config['stage'] == "inference":
         dataset = setup_dataset(m_path, config, device, True)
@@ -503,13 +514,13 @@ def setup_experiment(m_path, config, device, train=True):
             model = MSGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-            model = dgmc.MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+            model = MSDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'rgmc':
             scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
-            model = rgmc.MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+            model = MSRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
         elif config['architecture'] == 'gmcwd':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-            model = gmcwd.MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+            model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
 
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
@@ -523,13 +534,14 @@ def setup_experiment(m_path, config, device, train=True):
     if 'classifier' in config['stage']:
         if "path_classifier" in config and config["path_classifier"] is not None and config["stage"] == "test_classifier":
             clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", os.path.basename(os.path.splitext(config['path_classifier'])[0]) + '.json')))
-            model = classifier.MNISTClassifier(clf_config['latent_dimension'], model, clf_config['exclude_modality'])
+            model = setup_classifier(latent_dim=clf_config['latent_dimension'], model=model, exclude_mod=clf_config['exclude_modality'])
             model.load_state_dict(torch.load(os.path.join(m_path, config["path_classifier"])))
             model.eval()
             for param in model.parameters():
                 param.requires_grad = False
         else:
-            model = classifier.MNISTClassifier(config['latent_dimension'], model, config['exclude_modality'])
+            model = setup_classifier(latent_dim=config['latent_dimension'], model=model, exclude_mod=config['exclude_modality'])
+
         model.to(device)
 
     if exclude_modality != config["exclude_modality"]:

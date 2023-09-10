@@ -4,9 +4,9 @@ from torch.nn import functional as F
 
 from collections import Counter
 
-class MHDClassifier(nn.Module):
+class MSClassifier(nn.Module):
     def __init__(self, latent_dimension, model, exclude_modality):
-        super(MHDClassifier, self).__init__()
+        super(MSClassifier, self).__init__()
         self.model = model
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
