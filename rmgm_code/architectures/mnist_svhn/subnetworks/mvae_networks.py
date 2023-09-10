@@ -18,7 +18,6 @@ class MNISTEncoder(nn.Module):
         self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dim)
 
     def forward(self, x):
-        print(x.size())
         h = self.feature_extractor(x)
         h = h.view(h.size(0), -1)
         return self.fc_mean(h), self.fc_logvar(h)
@@ -28,20 +27,20 @@ class SVHNEncoder(nn.Module):
     def __init__(self, latent_dimension):
         super(SVHNEncoder, self).__init__()
         self.feature_extractor = nn.Sequential(
-            nn.Conv2d(3, 32, 4, 2, 1, bias=True),
+            nn.Conv2d(3, 32, 4, 2, 1),
             nn.SiLU(),
-            nn.Conv2d(32, 32 * 2, 4, 2, 1, bias=True),
+            nn.Conv2d(32, 32 * 2, 4, 2, 1),
             nn.SiLU(),
-            nn.Conv2d(32 * 2, 32 * 4, 4, 2, 1, bias=True),
+            nn.Conv2d(32 * 2, 32 * 4, 4, 2, 1),
             nn.SiLU(),
         )
 
-        self.fc_mean = nn.Linear(32 * 4, latent_dimension)
-        self.fc_logvar = nn.Linear(32 * 4, latent_dimension)
+        self.fc_mean = nn.Linear(32 * 32 * 2, latent_dimension)
+        self.fc_logvar = nn.Linear(32 * 32 * 2, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        self.fc_mean = nn.Linear(32 * 4, latent_dim)
-        self.fc_logvar = nn.Linear(32 * 4, latent_dim)
+        self.fc_mean = nn.Linear(32 * 32 * 2, latent_dim)
+        self.fc_logvar = nn.Linear(32 * 32 * 2, latent_dim)
 
     def forward(self, x):
         h = self.feature_extractor(x)
@@ -72,21 +71,19 @@ class MNISTDecoder(nn.Module):
 class SVHNDecoder(nn.Module):
     def __init__(self, latent_dimension):
         super(SVHNDecoder, self).__init__()
-        self.latent_fc = nn.Linear(latent_dimension, 32 * 4)
+        self.latent_fc = nn.Linear(latent_dimension, 32 * 32 * 2)
         self.feature_reconstructor = nn.Sequential(
-            nn.ConvTranspose2d(latent_dimension, 32 * 4, 4, 1, 0, bias=True),
+            nn.ConvTranspose2d(32 * 4, 32 * 2, 4, 2, 1),
             nn.SiLU(),
-            nn.ConvTranspose2d(32 * 4, 32 * 2, 4, 2, 1, bias=True),
+            nn.ConvTranspose2d(32 * 2, 32, 4, 2, 1),
             nn.SiLU(),
-            nn.ConvTranspose2d(32 * 2, 32, 4, 2, 1, bias=True),
-            nn.SiLU(),
-            nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=True),
+            nn.ConvTranspose2d(32, 3, 4, 2, 1),
         )
 
     def set_latent_dim(self, latent_dim):
-        self.latent_fc = nn.Linear(latent_dim, 32 * 4)
+        self.latent_fc = nn.Linear(latent_dim, 32 * 32 * 2)
 
     def forward(self, z):
         x_hat = self.latent_fc(z)
-        x_hat = x_hat.view(x_hat.size(0), 32, 4)
+        x_hat = x_hat.view(x_hat.size(0), 128, 4, 4)
         return self.feature_reconstructor(x_hat)
