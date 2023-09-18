@@ -206,7 +206,6 @@ class MSJointDecoder(nn.Module):
 
         # SVHN recon
         svhn_hat = x_hat[:, 128 * 7 * 7:128 * 7 * 7 + 32 * 32 * 2]
-        print(svhn_hat.size())
         svhn_hat = svhn_hat.view(svhn_hat.size(0), 128, 4, 4)
         svhn_hat = self.svhn_reconstructor(svhn_hat)
 
