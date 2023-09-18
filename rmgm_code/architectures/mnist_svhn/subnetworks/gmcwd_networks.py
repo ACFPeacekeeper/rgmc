@@ -51,9 +51,9 @@ class MSMNISTProcessor(nn.Module):
         super(MSMNISTProcessor, self).__init__()
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
+            nn.Conv2d(1, 64, 4, 2, 1),
             Swish(),
-            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.Conv2d(64, 128, 4, 2, 1),
             Swish(),
         )
         self.projector = nn.Linear(128 * 7 * 7, common_dim)
@@ -88,11 +88,11 @@ class MSSVHNProcessor(nn.Module):
         self.common_dim = common_dim
         self.svhn_features = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.Conv2d(32, 32 * 2, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.Conv2d(32 * 2, 32 * 4, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
         )
         self.projector = nn.Linear(32 * 32 * 2, common_dim)
 
@@ -108,9 +108,9 @@ class MSSVHNDecoder(nn.Module):
         self.projector = nn.Linear(common_dim, 32 * 32 * 2)
         self.svhn_reconstructor = nn.Sequential(
             nn.ConvTranspose2d(32 * 4, 32 * 2, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.ConvTranspose2d(32 * 2, 32, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.ConvTranspose2d(32, 3, 4, 2, 1),
         )
 
@@ -145,19 +145,19 @@ class MSJointProcessor(nn.Module):
         self.common_dim = common_dim
 
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
+            nn.Conv2d(1, 64, 4, 2, 1),
             Swish(),
-            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.Conv2d(64, 128, 4, 2, 1),
             Swish(),
         )
 
         self.svhn_features = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.Conv2d(32, 32 * 2, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.Conv2d(32 * 2, 32 * 4, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
         )
 
         self.projector = nn.Linear(128 * 7 * 7 + 32 * 32 * 2, common_dim)
@@ -190,9 +190,9 @@ class MSJointDecoder(nn.Module):
 
         self.svhn_reconstructor = nn.Sequential(
             nn.ConvTranspose2d(32 * 4, 32 * 2, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.ConvTranspose2d(32 * 2, 32, 4, 2, 1),
-            nn.SiLU(),
+            Swish(),
             nn.ConvTranspose2d(32, 3, 4, 2, 1),
         )
 
