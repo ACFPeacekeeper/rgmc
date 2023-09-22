@@ -72,8 +72,6 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     keys = list(losses.keys())
     X_axis = np.arange(len(keys))
     loss_means = [np.mean(loss) for loss in losses.values()]
-    loss_yerr = [np.std(loss) for loss in losses.values()]
-    loss_yerr = np.array(loss_yerr).T.tolist()
     with open(os.path.join(m_path, "results", config["stage"], config["model_out"] + ".txt"), "a") as file:
         for key in keys:
             loss = losses[key][-1]
@@ -86,14 +84,12 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     ax.set_title("Loss values of the model")
     ax.yaxis.grid(True)
     if val_losses is not None:
-        val_yerr = [np.std(loss) for loss in val_losses.values()]
-        val_yerr = np.array(val_yerr).T.tolist()
-        train_bar = ax.bar(X_axis - 0.2, loss_means, yerr=loss_yerr, width=0.4, label='Training loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
-        val_bar = ax.bar(X_axis + 0.2, [np.mean(val_loss) for val_loss in val_losses.values()], yerr=val_yerr, width=0.4, label='Validation loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
+        train_bar = ax.bar(X_axis - 0.2, loss_means, width=0.4, label='Training loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
+        val_bar = ax.bar(X_axis + 0.2, [np.mean(val_loss) for val_loss in val_losses.values()], width=0.4, label='Validation loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
         ax.bar_label(train_bar)
         ax.bar_label(val_bar)
     else:
-        test_bar = ax.bar(X_axis, loss_means, yerr=loss_yerr, width=0.4, label="Testing loss values", align='center', alpha=0.5, ecolor='black', capsize=10)
+        test_bar = ax.bar(X_axis, loss_means, width=0.4, label="Testing loss values", align='center', alpha=0.5, ecolor='black', capsize=10)
         ax.bar_label(test_bar)
 
     fig.legend()
