@@ -17,8 +17,12 @@ class MHDDataset(MultimodalDataset):
         else:
             data_path = os.path.join(self.dataset_dir, "mhd_test.pt")
             
-        data = torch.load(data_path)
+        data = list(torch.load(data_path))
         self.dataset_len = len(data[0])
+
+        # Normalize datasets
+        data[1] = (data[1] - torch.min(data[1])) / (torch.max(data[1]) - torch.min(data[1]))
+        data[2] = (data[2] - torch.min(data[2])) / (torch.max(data[2]) - torch.min(data[2]))
 
         if self.exclude_modality == 'image':
             self.dataset = {'image': torch.full(data[1].size(), -1).to(self.device),'trajectory': data[2].to(self.device)}

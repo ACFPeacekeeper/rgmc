@@ -34,6 +34,7 @@ from architectures.mnist_svhn.models.gmc import MSGMC
 from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
 from architectures.mnist_svhn.models.gmcwd import MSGMCWD
+from architectures.pendulum.models.gmc import PendulumGMC
 from datasets.mhd.MHDDataset import MHDDataset
 from datasets.mosi.MOSIDataset import MOSIDataset
 from datasets.mosei.MOSEIDataset import MOSEIDataset
@@ -456,7 +457,7 @@ def setup_experiment(m_path, config, device, train=True):
             dataset = MNISTSVHNDataset('mnist_svhn', os.path.join(m_path, "datasets", "mnist_svhn"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
     
-    def setup_classifier(model, config, latent_dim, exclude_mod):
+    def setup_classifier(model, latent_dim, exclude_mod):
         if config['dataset'] == 'mhd':
             clf = MHDClassifier(latent_dim, model, exclude_mod)
         elif config['dataset'] == 'mnist_svhn':
@@ -512,6 +513,27 @@ def setup_experiment(m_path, config, device, train=True):
             model = MSMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
         elif config['architecture'] == 'gmc':
             model = MSGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
+        elif config['architecture'] == 'dgmc':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = MSDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'rgmc':
+            scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
+            model = MSRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+        elif config['architecture'] == 'gmcwd':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+    elif config['dataset'] == 'pendulum':
+        if config['architecture'] == 'vae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MSVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
+        elif config['architecture'] == 'dae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
+            model = MSDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'mvae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MSMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        elif config['architecture'] == 'gmc':
+            model = PendulumGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MSDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])

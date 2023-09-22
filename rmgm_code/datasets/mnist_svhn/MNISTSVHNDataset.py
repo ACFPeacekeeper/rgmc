@@ -1,7 +1,9 @@
 import os
-from torchvision import datasets, transforms
-from ..MultimodalDataset import *
+
 from tqdm import tqdm
+from ..MultimodalDataset import *
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 # Adapted from https://github.com/iffsid/mmvae
 class MNISTSVHNDataset(MultimodalDataset):
@@ -10,15 +12,14 @@ class MNISTSVHNDataset(MultimodalDataset):
         self.modalities = ["mnist", "svhn"]
         self.max_d = max_d  # maximum number of datapoints per class
         self.dm = dm        # data multiplier: random permutations to match 
-    
     def _download(self):
-         # get the individual datasets
+        # Get the individual datasets
         tx = transforms.ToTensor()
         train_mnist = datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=True, download=True, transform=tx)
         test_mnist = datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=False, download=True, transform=tx)
         train_svhn = datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='train', download=True, transform=tx)
         test_svhn = datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='test', download=True, transform=tx)
-        # svhn labels need extra work
+        # SVHN labels need extra work
         train_svhn.labels = torch.LongTensor(train_svhn.labels.squeeze().astype(int)) % 10
         test_svhn.labels = torch.LongTensor(test_svhn.labels.squeeze().astype(int)) % 10
 
@@ -78,6 +79,10 @@ class MNISTSVHNDataset(MultimodalDataset):
 
         data = torch.load(data_path)
         self.dataset_len = len(data["labels"])
+
+        # Normalize datasets
+        data['mnist'] = (data['mnist'] - torch.min(data['mnist'])) / (torch.max(data['mnist']) - torch.min(data['mnist']))
+        data['svhn'] = (data['svhn'] - torch.min(data['svhn'])) / (torch.max(data['svhn']) - torch.min(data['svhn']))
 
         if self.exclude_modality == 'mnist':
             self.dataset = {'mnist': torch.full(data["mnist"].size(), -1).to(self.device), 'svhn': data["svhn"].to(self.device)}

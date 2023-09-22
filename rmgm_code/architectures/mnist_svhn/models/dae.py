@@ -65,7 +65,7 @@ class MSDAE(nn.Module):
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
             recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
-            
+
         recon_loss = 0
         for value in recon_losses.values():
             recon_loss += value
