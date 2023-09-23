@@ -59,7 +59,7 @@ CHECKPOINT_DEFAULT = 0
 LATENT_DIM_DEFAULT = 64
 COMMON_DIM_DEFAULT = 64
 INFONCE_TEMPERATURE_DEFAULT = 0.1
-RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5}
+RECON_SCALE_DEFAULTS = {'image': 0.5, 'trajectory': 0.5, 'mnist': 0.5, 'svhn': 0.5}
 KLD_BETA_DEFAULT = 0.5
 REPARAMETERIZATION_MEAN_DEFAULT = 0.0
 REPARAMETERIZATION_STD_DEFAULT = 1.0
@@ -304,10 +304,16 @@ def config_validation(m_path, config):
 
 
         if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
-            if "image_recon_scale" not in config or config['image_recon_scale'] is None:
-                config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
-            if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
-                config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
+            if config['dataset'] == "mhd":
+                if "image_recon_scale" not in config or config['image_recon_scale'] is None:
+                    config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
+                if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
+                    config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
+            elif config['dataset'] == "mnist_svhn":
+                if "mnist_recon_scale" not in config or config['mnist_recon_scale'] is None:
+                    config["mnist_recon_scale"] = RECON_SCALE_DEFAULTS['mnist']
+                if "svhn_recon_scale" not in config or config['svhn_recon_scale'] is None:
+                    config["svhn_recon_scale"] = RECON_SCALE_DEFAULTS['svhn']
 
             if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
                 if "train_noise_factor" not in config or config['train_noise_factor'] is None:
@@ -336,13 +342,21 @@ def config_validation(m_path, config):
                 config['rep_trick_mean'] = None
                 config['rep_trick_std'] = None
 
-            if config['exclude_modality'] == 'image':
-                config['image_recon_scale'] = 0.
-            elif config['exclude_modality'] == 'trajectory':
-                config['traj_recon_scale'] = 0.
+            if config['dataset'] == 'mhd':
+                if config['exclude_modality'] == 'image':
+                    config['image_recon_scale'] = 0.
+                elif config['exclude_modality'] == 'trajectory':
+                    config['traj_recon_scale'] = 0.
+            elif config['mnist_svhn']:
+                if config['exclude_modality'] == 'mnist':
+                    config['mnist_recon_scale'] = 0.
+                elif config['exclude_modality'] == 'svhn':
+                    config['svhn_recon_scale'] = 0.
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
+            config['mnist_recon_scale'] = None
+            config['svhn_recon_scale'] = None
             config['kld_beta'] = None
             config['rep_trick_mean'] = None
             config['rep_trick_std'] = None

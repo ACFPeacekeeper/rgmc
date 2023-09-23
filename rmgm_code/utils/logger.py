@@ -40,25 +40,19 @@ def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=
 
     return
 
-def plot_loss_graph(m_path, config, loss_list_dict, batch_number, val_losses=None, val_bnumber=None):
+def plot_loss_graph(m_path, config, loss_list_dict):
     keys = list(loss_list_dict.keys())
     for idx, key in enumerate(keys):
         loss_values = np.array(loss_list_dict[key])
-        epoch_means = np.mean(loss_values.reshape(-1, batch_number), axis=1)
-        epoch_stds = np.std(loss_values.reshape(-1, batch_number), axis=1)
+        epoch_means = np.mean(loss_values.reshape(-1, config["batch_size"]), axis=1)
+        #epoch_stds = np.std(loss_values.reshape(-1, config["batch_size"]), axis=1)
         plt.figure(idx, figsize=(20, 20))
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
         plt.plot(range(len(epoch_means)), epoch_means, label="loss values", color="blue", linewidth=2.0)
-        plt.fill_between(range(len(epoch_stds)), epoch_means-epoch_stds, epoch_means+epoch_stds, color="blue", alpha=0.2)
+        #plt.fill_between(range(len(epoch_stds)), epoch_means-epoch_stds, epoch_means+epoch_stds, color="blue", alpha=0.2)
         plt.axhline(y=epoch_means[-1], color="blue", linestyle="dashed")
         plt.plot(len(epoch_means), epoch_means[-1], marker="o", markersize=5, markeredgecolor="red", markerfacecolor="blue")
         plt.annotate("{:.3f}".format(epoch_means[-1]), xy=(len(epoch_means), epoch_means[-1]), horizontalalignment="left", verticalalignment="bottom")
-        if val_losses is not None and val_bnumber is not None:
-            valloss_values = np.array(val_losses[key])
-            val_means = np.mean(valloss_values.reshape(-1, val_bnumber), axis=1)
-            #val_stds = np.std(valloss_values.reshape(-1, val_bnumber), axis=1)
-            plt.plot(range(len(val_means)), val_means, label="validation loss values", color="red", linewidth=2.0)
-            #plt.fill_between(range(len(val_stds)), val_means-val_stds, val_means+val_stds, alpha=0.1)
         plt.xlabel("epoch")
         plt.ylabel(key)
         plt.title(f'{key} per epoch')
@@ -68,7 +62,7 @@ def plot_loss_graph(m_path, config, loss_list_dict, batch_number, val_losses=Non
 
     return
 
-def plot_metrics_bar(m_path, config, losses, val_losses=None):
+def plot_metrics_bar(m_path, config, losses):
     keys = list(losses.keys())
     X_axis = np.arange(len(keys))
     loss_means = [np.mean(loss) for loss in losses.values()]
@@ -83,15 +77,8 @@ def plot_metrics_bar(m_path, config, losses, val_losses=None):
     ax.set_xticklabels(keys)
     ax.set_title("Loss values of the model")
     ax.yaxis.grid(True)
-    if val_losses is not None:
-        train_bar = ax.bar(X_axis - 0.2, loss_means, width=0.4, label='Training loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
-        val_bar = ax.bar(X_axis + 0.2, [np.mean(val_loss) for val_loss in val_losses.values()], width=0.4, label='Validation loss values', align="center", alpha=0.5, ecolor='black', capsize=10)
-        ax.bar_label(train_bar)
-        ax.bar_label(val_bar)
-    else:
-        test_bar = ax.bar(X_axis, loss_means, width=0.4, label="Testing loss values", align='center', alpha=0.5, ecolor='black', capsize=10)
-        ax.bar_label(test_bar)
-
+    metrics_bar = ax.bar(X_axis, loss_means, width=0.4, label="Loss values", align='center', alpha=0.5, ecolor='black', capsize=10)
+    ax.bar_label(metrics_bar)
     fig.legend()
     fig.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
     plt.close()
@@ -108,12 +95,9 @@ def save_trajectory(path, traj_feats):
     plt.close()     
     return
 
-def save_train_results(m_path, config, train_losses, val_losses, dataset):
-    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
-    train_bnumber = len(iter(DataLoader(train_set, batch_size=config['batch_size'], drop_last=True)))
-    val_bnumber = len(iter(DataLoader(val_set, batch_size=config['batch_size'], drop_last=True)))
-    plot_loss_graph(m_path, config, train_losses, train_bnumber, val_losses, val_bnumber)
-    plot_metrics_bar(m_path, config, train_losses, val_losses)
+def save_train_results(m_path, config, train_losses):
+    plot_loss_graph(m_path, config, train_losses)
+    plot_metrics_bar(m_path, config, train_losses)
     return
 
 def save_test_results(m_path, config, loss_list_dict):

@@ -37,7 +37,7 @@ def nan_hook(self, input, output):
                 raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
 
-def run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, val_set=None, val_losses=None, optimizer=None):
+def run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, optimizer=None):
     print(f'Epoch {epoch}')
     print('Training:')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
@@ -66,24 +66,6 @@ def run_train_epoch(epoch, config, device, model, train_set, train_losses, check
 
     run_end = time.time()
     save_epoch_results(m_path, config, device, run_end - run_start, train_bnumber, loss_dict)
-    if val_set is not None:
-        val_loader = iter(DataLoader(val_set, batch_size=config['batch_size'], shuffle=True, drop_last=True))
-        val_bnumber = len(val_loader)
-        loss_dict = Counter(dict.fromkeys(val_losses.keys(), 0.))
-        print('Validation:')
-        with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-            file.write('Validation:\n')
-        model.eval()
-        run_start = time.time()
-        for batch_feats, batch_labels in tqdm(val_loader, total=val_bnumber):
-            _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
-            loss_dict = loss_dict + batch_loss_dict
-            #wandb.log({f'val_{key}': value for key, value in batch_loss_dict.items()})
-            for key, value in batch_loss_dict.items():
-                val_losses[key].append(float(value)) 
-
-        run_end = time.time()
-        save_epoch_results(m_path, config, device, run_end - run_start, val_bnumber, loss_dict)
 
     checkpoint_counter -= 1
     if checkpoint_counter == 0:
@@ -95,10 +77,10 @@ def run_train_epoch(epoch, config, device, model, train_set, train_losses, check
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
-    return model, train_losses, val_losses, checkpoint_counter, optimizer
+    return model, train_losses, checkpoint_counter, optimizer
 
 def run_test(config, device, model, dataset):
-    dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
+    dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True))
     bnumber = len(dataloader)
     loss_dict = defaultdict(list)
     tracemalloc.start()
@@ -129,19 +111,17 @@ def train_model(config, device):
         module.register_forward_hook(nan_hook)
 
     train_losses = defaultdict(list)
-    val_losses = defaultdict(list)
-    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, val_set, val_losses, optimizer)
+        model, train_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, train_losses, checkpoint_counter, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
     print(f'Total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, train_losses, val_losses, dataset)
+    save_train_results(m_path, config, train_losses)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
