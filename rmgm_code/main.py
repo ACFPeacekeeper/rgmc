@@ -121,7 +121,7 @@ def train_model(config, device):
     print(f'Total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, train_losses)
+    save_train_results(m_path, config, train_losses, dataset)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
@@ -141,12 +141,10 @@ def train_downstream_classifier(config, device):
         module.register_forward_hook(nan_hook)
 
     train_losses = defaultdict(list)
-    val_losses = defaultdict(list)
-    train_set, val_set = random_split(dataset, [math.ceil(0.8 * dataset.dataset_len), math.floor(0.2 * dataset.dataset_len)])
     total_start = time.time()
     tracemalloc.start()
     for epoch in range(config['epochs']):
-        model, train_losses, val_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, val_set, val_losses, optimizer)
+        model, train_losses, checkpoint_counter, optimizer = run_train_epoch(epoch, config, device, model, dataset, train_losses, checkpoint_counter, optimizer)
 
     tracemalloc.stop()
     total_end = time.time()
@@ -155,7 +153,7 @@ def train_downstream_classifier(config, device):
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Train resume:')
         file.write(f'-total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, train_losses, val_losses, dataset)
+    save_train_results(m_path, config, train_losses, dataset)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + '.pt'))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:

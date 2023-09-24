@@ -40,12 +40,12 @@ def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=
 
     return
 
-def plot_loss_graph(m_path, config, loss_list_dict):
+def plot_loss_graph(m_path, config, loss_list_dict, batch_number):
     keys = list(loss_list_dict.keys())
     for idx, key in enumerate(keys):
         loss_values = np.array(loss_list_dict[key])
-        epoch_means = np.mean(loss_values.reshape(-1, config["batch_size"]), axis=1)
-        #epoch_stds = np.std(loss_values.reshape(-1, config["batch_size"]), axis=1)
+        epoch_means = np.mean(loss_values.reshape(-1, batch_number), axis=1)
+        #epoch_stds = np.std(loss_values.reshape(-1, batch_number), axis=1)
         plt.figure(idx, figsize=(20, 20))
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
         plt.plot(range(len(epoch_means)), epoch_means, label="loss values", color="blue", linewidth=2.0)
@@ -95,8 +95,9 @@ def save_trajectory(path, traj_feats):
     plt.close()     
     return
 
-def save_train_results(m_path, config, train_losses):
-    plot_loss_graph(m_path, config, train_losses)
+def save_train_results(m_path, config, train_losses, dataset):
+    batch_number = len(iter(DataLoader(dataset, batch_size=config['batch_size'], drop_last=True)))
+    plot_loss_graph(m_path, config, train_losses, batch_number)
     plot_metrics_bar(m_path, config, train_losses)
     return
 

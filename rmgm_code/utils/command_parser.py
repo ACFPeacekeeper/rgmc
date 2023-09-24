@@ -435,7 +435,7 @@ def setup_device(m_path, config):
                 device_file.write(str(device_counter))
         else:
             with open(device_idx_path, 'w') as device_file:
-                device_counter = 0
+                device_counter = 1
                 device_file.write('0')
 
         device_id = device_counter % torch.cuda.device_count()
