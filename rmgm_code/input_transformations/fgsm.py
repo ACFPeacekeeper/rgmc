@@ -19,16 +19,18 @@ class FGSM(AdversarialAttack):
             x[key] = torch.unsqueeze(x[key], dim=0)
             
         x_adv = torch.empty(x[self.target_modality].size())
-        print("Generating adversarial examples...")
         result, _ = self.model(x)
         if y.dim() == 0:
             y = torch.unsqueeze(F.one_hot(y, result.size(dim=-1)), dim=0)
-            
+
+        y = y.float()
         cost = loss(result, y)
         grad = torch.autograd.grad(cost, x[self.target_modality], retain_graph=False, create_graph=False)[0]
 
         x_adv = torch.clamp(x[self.target_modality] + self.eps * grad.sign(), torch.min(x[self.target_modality]), torch.max(x[self.target_modality]))
         x[self.target_modality] = x_adv
+        for key in x.keys():
+            x[key] = torch.squeeze(x[key], dim=0)
         return x
     
     def __repr__(self):

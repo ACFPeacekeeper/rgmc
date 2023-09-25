@@ -5,6 +5,7 @@ from torch.autograd import Variable
 from ..subnetworks.mvae_networks import *
 
 
+# Code adapted from https://github.com/mhw32/multimodal-vae-public/blob/master/mnist/model.py
 class MhdMVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps):
         super(MhdMVAE, self).__init__()
@@ -104,7 +105,9 @@ class MhdMVAE(nn.Module):
         return elbo, loss_dict
     
     def validation_step(self, x, labels):
-        return self.training_step(x, labels)
+        x_hat, _ = self.forward(x, sample=True)
+        elbo, loss_dict = self.loss(x, x_hat)
+        return elbo, loss_dict
             
 
 class PoE(nn.Module): 

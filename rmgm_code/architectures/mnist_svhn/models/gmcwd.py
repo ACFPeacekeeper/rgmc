@@ -25,7 +25,7 @@ class GMCWD(LightningModule):
         if self.exclude_modality == 'mnist':
             self.num_modalities = 1
             self.modalities = ["svhn"]
-            self.processors = {'svhn': self.svhn_reconstructor}
+            self.processors = {'svhn': self.svhn_processor}
             self.reconstructors = {'svhn': self.svhn_reconstructor}
         elif self.exclude_modality == 'svhn':
             self.num_modalities = 1
@@ -37,7 +37,7 @@ class GMCWD(LightningModule):
             self.modalities = ["mnist", "svhn"]
             self.processors = {
                 'mnist': self.mnist_processor,
-                'svhn': self.svhn_reconstructor,
+                'svhn': self.svhn_processor,
                 'joint': self.joint_processor,
             }
             self.reconstructors = {

@@ -347,7 +347,7 @@ def config_validation(m_path, config):
                     config['image_recon_scale'] = 0.
                 elif config['exclude_modality'] == 'trajectory':
                     config['traj_recon_scale'] = 0.
-            elif config['mnist_svhn']:
+            elif config['dataset'] == 'mnist_svhn':
                 if config['exclude_modality'] == 'mnist':
                     config['mnist_recon_scale'] = 0.
                 elif config['exclude_modality'] == 'svhn':
@@ -437,7 +437,7 @@ def setup_device(m_path, config):
             with open(device_idx_path, 'w') as device_file:
                 device_counter = 1
                 device_file.write('0')
-
+        #device_counter = 1
         device_id = device_counter % torch.cuda.device_count()
         device = f"cuda:{device_id}"
         device_lock.release()
