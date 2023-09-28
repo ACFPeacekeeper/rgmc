@@ -1,4 +1,4 @@
-import random, sys
+import random
 
 from ..subnetworks.ooo_network import OddOneOutNetwork
 from pytorch_lightning import LightningModule

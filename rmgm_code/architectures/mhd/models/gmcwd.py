@@ -1,5 +1,3 @@
-import random
-
 from pytorch_lightning import LightningModule
 from ..subnetworks.gmcwd_networks import *
 from collections import Counter

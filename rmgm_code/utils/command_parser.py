@@ -16,8 +16,7 @@ import subprocess
 import torch.optim as optim
 
 from utils.logger import plot_metric_compare
-from torchvision import transforms
-from input_transformations import gaussian_noise, fgsm
+from input_transformations import gaussian_noise, fgsm, pgd
 from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mhd.models.vae import MhdVAE
 from architectures.mhd.models.dae import MhdDAE
@@ -46,7 +45,7 @@ ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 NOISE_TYPES = ['gaussian', None] 
-ADVERSARIAL_ATTACKS = ["fgsm", None]
+ADVERSARIAL_ATTACKS = ["fgsm", "pgd", None]
 EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
 MODALITIES = ['image', 'trajectory', None]
 STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference']
@@ -71,6 +70,8 @@ MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
 NOISE_STD_DEFAULT = 1.0
 ADV_EPSILON_DEFAULT = 8 / 255
+ADV_ALPHA_DEFAULT = 2 / 255
+ADV_STEPS_DEFAULT = 10
 
 idx_lock = threading.Lock()
 device_lock = threading.Lock()
@@ -387,24 +388,29 @@ def config_validation(m_path, config):
             if "path_classifier" not in config or config['path_classifier'] is None:
                 config['path_classifier'] = os.path.join(os.path.dirname(config['path_model']), "clf_" + os.path.basename(config['path_model']))
 
-        if "noise" not in config:
-            config["noise"] = None
-
-        if config['noise'] is None:
-            config["noise_std"] = None
-        else:
-            if "noise_std" not in config or config["noise_std"] is None:
-                config["noise_std"] = NOISE_STD_DEFAULT
-
         if "adversarial_attack" not in config:
             config["adversarial_attack"] = None
 
         if config["adversarial_attack"] is None:
+            config["noise_std"] = None
             config['adv_epsilon'] = None
-        elif 'adv_epsilon' not in config or config['adv_epsilon'] is None:
-            config['adv_epsilon'] = ADV_EPSILON_DEFAULT
+            config['adv_alpha'] = None
+            config['adv_steps'] = None
+        else:
+            if config["adversarial_attack"] == 'gaussian_noise':
+                if "noise_std" not in config or config["noise_std"] is None:
+                    config["noise_std"] = NOISE_STD_DEFAULT
+            if config["adversarial_attack"] == 'fgsm' or config["adversarial_attack"] == 'pgd':
+                if 'adv_epsilon' not in config or config['adv_epsilon'] is None:
+                    config['adv_epsilon'] = ADV_EPSILON_DEFAULT
+                    
+                if config["adversarial_attack"] == 'pgd':
+                    if 'adv_alpha' not in config or config['adv_alpha'] is None:
+                        config['adv_alpha'] = ADV_ALPHA_DEFAULT
+                    if 'adv_steps' not in config or config['adv_steps'] is None:
+                        config['adv_steps'] = ADV_STEPS_DEFAULT
 
-        if config["noise"] is not None or config["adversarial_attack"] is not None:
+        if config["adversarial_attack"] is not None:
             if config["target_modality"] is None:
                 raise argparse.ArgumentError("Argument error: must define the target_modality for noise/adversarial attack.")
 
@@ -435,8 +441,9 @@ def setup_device(m_path, config):
                 device_file.write(str(device_counter))
         else:
             with open(device_idx_path, 'w') as device_file:
-                device_counter = 1
+                device_counter = 0
                 device_file.write('0')
+        
         #device_counter = 1
         device_id = device_counter % torch.cuda.device_count()
         device = f"cuda:{device_id}"
@@ -588,23 +595,20 @@ def setup_experiment(m_path, config, device, train=True):
 
     model.to(device)
 
-    if config['adversarial_attack'] is not None or config['noise'] is not None:
+    if config['adversarial_attack'] is not None:
         target_modality = config['target_modality']
-        noise = config['noise']
-        
-        if noise == "gaussian":
-            transform = transforms.Compose([gaussian_noise.GaussianNoise(device, target_modality, 0. ,config['noise_std'])])
+
+        if config['adversarial_attack'] == 'gaussian_noise':
+            attack = gaussian_noise.GaussianNoise(model=model, device=device, std=config['noise_std'], target_modality=target_modality)
+        elif config['adversarial_attack'] == 'fgsm':
+            attack = fgsm.FGSM(device=device, model=model, eps=config['adv_std'], target_modality=target_modality)
+        elif config['adversarial_attack'] == 'pgd':
+            attack = pgd.PGD(device=device, model=model, eps=config['adv_eps'], target_modality=target_modality)
+
+        if "classifier" in config['stage']:
+            dataset.dataset = attack(dataset.dataset, dataset.labels)
         else:
-            transform = None
-
-        dataset._set_transform(transform)
-
-        if config['adversarial_attack'] == 'fgsm':
-            adv_attack = fgsm.FGSM(device, model, target_modality, eps=config['adv_epsilon'])
-        else:
-            adv_attack = None
-
-        dataset._set_adv_attack(adv_attack)
+            dataset.dataset = attack(dataset.dataset)
 
     if "notes" not in config:
         if 2 > 3:

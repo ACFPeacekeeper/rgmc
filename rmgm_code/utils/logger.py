@@ -1,5 +1,4 @@
 import os
-import math
 import torch
 import wandb
 import tracemalloc
@@ -7,8 +6,8 @@ import tracemalloc
 import numpy as np
 import matplotlib.pyplot as plt
 
+from torch.utils.data import DataLoader
 from matplotlib.ticker import StrMethodFormatter
-from torch.utils.data import DataLoader, random_split
 
 
 def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=None):
