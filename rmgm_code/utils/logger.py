@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from matplotlib.ticker import StrMethodFormatter
 
 
-def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=None):
+def save_epoch_results(m_path, config, device, runtime, loss_dict=None):
     print(f'Runtime: {runtime} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'- Runtime: {runtime} sec\n')
@@ -18,10 +18,9 @@ def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=
     if loss_dict is not None:
         with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             for key, value in loss_dict.items():
-                value = value / batch_number
                 print(f'{key}: {value}')
                 file.write(f'- {key}: {value}\n')
-                wandb.log({key: value})
+                #wandb.log({key: value})
 
     print('Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
     print('Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
@@ -39,17 +38,17 @@ def save_epoch_results(m_path, config, device, runtime, batch_number, loss_dict=
 
     return
 
-def plot_loss_graph(m_path, config, loss_list_dict, batch_number):
+def plot_loss_graph(m_path, config, loss_list_dict):
     keys = list(loss_list_dict.keys())
     for idx, key in enumerate(keys):
-        loss_values = np.array(loss_list_dict[key])
-        epoch_means = np.mean(loss_values.reshape(-1, batch_number), axis=1)
+        epoch_means = np.array(loss_list_dict[key])
+        #epoch_means = np.mean(loss_values.reshape(-1, batch_number), axis=1)
         #epoch_stds = np.std(loss_values.reshape(-1, batch_number), axis=1)
         plt.figure(idx, figsize=(20, 20))
         plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
         plt.plot(range(len(epoch_means)), epoch_means, label="loss values", color="blue", linewidth=2.0)
         #plt.fill_between(range(len(epoch_stds)), epoch_means-epoch_stds, epoch_means+epoch_stds, color="blue", alpha=0.2)
-        plt.axhline(y=epoch_means[-1], color="blue", linestyle="dashed")
+        plt.axhline(y=epoch_means[-1], color="red", linestyle="dashed")
         plt.plot(len(epoch_means), epoch_means[-1], marker="o", markersize=5, markeredgecolor="red", markerfacecolor="blue")
         plt.annotate("{:.3f}".format(epoch_means[-1]), xy=(len(epoch_means), epoch_means[-1]), horizontalalignment="left", verticalalignment="bottom")
         plt.xlabel("epoch")
@@ -94,9 +93,8 @@ def save_trajectory(path, traj_feats):
     plt.close()     
     return
 
-def save_train_results(m_path, config, train_losses, dataset):
-    batch_number = len(iter(DataLoader(dataset, batch_size=config['batch_size'], drop_last=True)))
-    plot_loss_graph(m_path, config, train_losses, batch_number)
+def save_train_results(m_path, config, train_losses):
+    plot_loss_graph(m_path, config, train_losses)
     plot_metrics_bar(m_path, config, train_losses)
     return
 

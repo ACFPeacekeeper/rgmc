@@ -456,7 +456,7 @@ def setup_device(m_path, config):
         device_info = ""
         for line in all_info.split("\n"):
             if "model name" in line:
-                device_info = re.sub( ".*model name.*:", "", line,1)
+                device_info = re.sub( ".*model name.*:", "", line, 1)
                 break
 
         config['device'] = device_info

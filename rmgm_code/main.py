@@ -61,11 +61,12 @@ def run_train_epoch(epoch, config, device, model, train_set, train_losses, check
 
         wandb.log({**batch_loss_dict})
 
-        for key, value in batch_loss_dict.items():
-            train_losses[key].append(float(value))
+    for key, value in loss_dict.items():
+        loss_dict[key] = value / train_bnumber
+        train_losses[key].append(float(loss_dict[key]))
 
     run_end = time.time()
-    save_epoch_results(m_path, config, device, run_end - run_start, train_bnumber, loss_dict)
+    save_epoch_results(m_path, config, device, run_end - run_start, loss_dict)
 
     checkpoint_counter -= 1
     if checkpoint_counter == 0:
@@ -81,15 +82,17 @@ def run_train_epoch(epoch, config, device, model, train_set, train_losses, check
 
 def run_test(config, device, model, dataset):
     dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True))
-    bnumber = len(dataloader)
-    loss_dict = defaultdict(list)
+    test_bnumber = len(dataloader)
+    loss_dict = dict.fromkeys(dataset.dataset.keys(), 0.)
     tracemalloc.start()
     test_start = time.time()
-    for batch_feats, batch_labels in tqdm(dataloader, total=bnumber):
+    for batch_feats, batch_labels in tqdm(dataloader, total=test_bnumber):
         _, batch_loss_dict = model.validation_step(batch_feats, batch_labels)
 
-        for key, value in batch_loss_dict.items():
-            loss_dict[key].append(float(value))
+        loss_dict = loss_dict + batch_loss_dict
+
+    for key in loss_dict.keys():
+        loss_dict[key] = loss_dict[key] / test_bnumber
 
     test_end = time.time()
     tracemalloc.stop()
@@ -121,7 +124,7 @@ def train_model(config, device):
     print(f'Total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, train_losses, dataset)
+    save_train_results(m_path, config, train_losses)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
@@ -153,7 +156,7 @@ def train_downstream_classifier(config, device):
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'Train resume:')
         file.write(f'-total runtime: {total_end - total_start} sec\n')
-    save_train_results(m_path, config, train_losses, dataset)
+    save_train_results(m_path, config, train_losses)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + '.pt'))
     json_object = json.dumps(config, indent=4)
     with open(os.path.join(m_path, "configs", config['stage'], config["model_out"] + '.json'), "w") as json_file:
