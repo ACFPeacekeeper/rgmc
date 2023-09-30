@@ -1,8 +1,8 @@
 import os
 from subprocess import call
-from ..MultimodalDataset import *
+from ..multimodal_dataset import *
 
-class MHDDataset(MultimodalDataset):
+class MhdDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
         self.modalities = ["image", "trajectory"] 

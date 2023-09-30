@@ -1,8 +1,8 @@
 import os
 from subprocess import call
-from ..MultimodalDataset import *
+from ..multimodal_dataset import *
 
-class MOSIDataset(MultimodalDataset):
+class MosiDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', train=True, transform=None, adv_attack=None, target_modality='none'):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
 

@@ -1,12 +1,11 @@
 import os
 
 from tqdm import tqdm
-from ..MultimodalDataset import *
-from torch.utils.data import DataLoader
+from ..multimodal_dataset import *
 from torchvision import datasets, transforms
 
 # Adapted from https://github.com/iffsid/mmvae
-class MNISTSVHNDataset(MultimodalDataset):
+class MnistSvhnDataset(MultimodalDataset):
     def __init__(self, name, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None, max_d = 10000, dm=30):
         super().__init__(name, dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
         self.modalities = ["mnist", "svhn"]

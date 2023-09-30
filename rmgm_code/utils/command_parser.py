@@ -34,11 +34,11 @@ from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
 from architectures.mnist_svhn.models.gmcwd import MSGMCWD
 from architectures.pendulum.models.gmc import PendulumGMC
-from datasets.mhd.MHDDataset import MHDDataset
-from datasets.mosi.MOSIDataset import MOSIDataset
-from datasets.mosei.MOSEIDataset import MOSEIDataset
-from datasets.pendulum.PendulumDataset import PendulumDataset
-from datasets.mnist_svhn.MNISTSVHNDataset import MNISTSVHNDataset
+from datasets.mhd.mhd_dataset import MhdDataset
+from datasets.mosi.mosi_dataset import MosiDataset
+from datasets.mosei.mosi_dataset import MoseiDataset
+from datasets.pendulum.pendulum_dataset import PendulumDataset
+from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
 ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
@@ -141,7 +141,6 @@ def process_arguments(m_path):
     exp_parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
     
     args = vars(parser.parse_args())
-
     if args['command'] == 'compare':
         config = {
             'architecture': args['architecture'],
@@ -250,25 +249,23 @@ def config_validation(m_path, config):
         raise argparse.ArgumentError("Argument error: must specify an architecture for the experiments.")
     if "dataset" not in config or config["dataset"] not in DATASETS:
         raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
-    
+    if config['batch_size'] < 1:
+            raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
+    if "adversarial_attack" in config and config["adversarial_attack"] is not None:
+        if config["target_modality"] is None:
+            raise argparse.ArgumentError("Argument error: must define the target_modality for noise/adversarial attack.")
+            
     try:
         os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
-    except IOError as e:
-        traceback.print_exception(*sys.exc_info())
-    finally:
-        if config['stage'] == 'train_model' and config['model_out'] is None:
-            raise argparse.ArgumentError('Argument error: the --model_out argument must be set when the --stage argument is ' + config['stage'] + '.')
-        if config['batch_size'] < 1:
-            raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
-        
         if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
             os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
+            if "epochs" not in config or config["epochs"] is None:
+                config['epochs'] = EPOCHS_DEFAULT
+                
             if config['checkpoint'] < 0:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be an integer greater than or equal to 0.")
             elif config['checkpoint'] > config['epochs']:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
-            if "epochs" not in config or config["epochs"] is None:
-                config['epochs'] = EPOCHS_DEFAULT
         else:
             if "epochs" in config and config["epochs"] is not None:
                 config["epochs"] = None
@@ -278,7 +275,9 @@ def config_validation(m_path, config):
                 config['optimizer'] = None
             if config["stage"] != "inference" and "checkpoint" in config and config["checkpoint"] is not None:
                 config["checkpoint"] = None
-
+    except IOError as e:
+        traceback.print_exception(*sys.exc_info())
+    finally:
         if "seed" not in config or config['seed'] is None:
             config["seed"] = SEED
     
@@ -302,7 +301,6 @@ def config_validation(m_path, config):
 
         if "batch_size" not in config or config["batch_size"] is None:
             config['batch_size'] = BATCH_SIZE_DEFAULT
-
 
         if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
             if config['dataset'] == "mhd":
@@ -410,10 +408,6 @@ def config_validation(m_path, config):
                     if 'adv_steps' not in config or config['adv_steps'] is None:
                         config['adv_steps'] = ADV_STEPS_DEFAULT
 
-        if config["adversarial_attack"] is not None:
-            if config["target_modality"] is None:
-                raise argparse.ArgumentError("Argument error: must define the target_modality for noise/adversarial attack.")
-
         if "optimizer" not in config:
             config["optimizer"] = None
         
@@ -444,7 +438,6 @@ def setup_device(m_path, config):
                 device_counter = 0
                 device_file.write('0')
         
-        #device_counter = 1
         device_id = device_counter % torch.cuda.device_count()
         device = f"cuda:{device_id}"
         device_lock.release()
@@ -467,15 +460,15 @@ def setup_device(m_path, config):
 def setup_experiment(m_path, config, device, train=True):
     def setup_dataset(m_path, config, device, train):
         if config['dataset'] == 'mhd':
-            dataset = MHDDataset('mhd', os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MhdDataset('mhd', os.path.join(m_path, "datasets", "mhd"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosi':
-            dataset = MOSIDataset('mosi', os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MosiDataset('mosi', os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosei':
-            dataset = MOSEIDataset('mosei', os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MoseiDataset('mosei', os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'pendulum':
             dataset = PendulumDataset('pendulum', os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mnist_svhn':
-            dataset = MNISTSVHNDataset('mnist_svhn', os.path.join(m_path, "datasets", "mnist_svhn"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+            dataset = MnistSvhnDataset('mnist_svhn', os.path.join(m_path, "datasets", "mnist_svhn"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
     
     def setup_classifier(model, latent_dim, exclude_mod):
@@ -565,7 +558,6 @@ def setup_experiment(m_path, config, device, train=True):
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
 
-
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))
         model.eval()
@@ -573,7 +565,6 @@ def setup_experiment(m_path, config, device, train=True):
             param.requires_grad = False
 
     model.to(device)
-
     if 'classifier' in config['stage']:
         if "path_classifier" in config and config["path_classifier"] is not None and config["stage"] == "test_classifier":
             clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", os.path.basename(os.path.splitext(config['path_classifier'])[0]) + '.json')))
@@ -594,7 +585,6 @@ def setup_experiment(m_path, config, device, train=True):
         model.set_latent_dim(config["latent_dimension"])
 
     model.to(device)
-
     if config['adversarial_attack'] is not None:
         target_modality = config['target_modality']
 
@@ -650,6 +640,7 @@ def setup_experiment(m_path, config, device, train=True):
                 file.write(f'{ckey}: {cval}\n')
 
     return dataset, model, optimizer
+
 
 def metrics_analysis(m_path, config):
     if "model" in config['stage']:

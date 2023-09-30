@@ -1,6 +1,6 @@
 import os, sys
 from subprocess import call
-from ..MultimodalDataset import *
+from ..multimodal_dataset import *
 
 class PendulumDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none',  train=True, transform=None, adv_attack=None):
