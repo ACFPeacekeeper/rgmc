@@ -266,13 +266,6 @@ def config_validation(m_path, config):
             elif config['checkpoint'] > config['epochs']:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
         else:
-            config['image_recon_scale'] = None
-            config['traj_recon_scale'] = None
-            config['mnist_recon_scale'] = None
-            config['svhn_recon_scale'] = None
-            config['infonce_temperature'] = None
-            config['o3n_loss_scale'] = None
-            config['kld_beta'] = None
             if "epochs" in config and config["epochs"] is not None:
                 config["epochs"] = None
             if "learning_rate" in config and config['learning_rate'] is not None:
@@ -387,6 +380,14 @@ def config_validation(m_path, config):
 
         if "model" in config['stage']:
             config["path_classifier"] = None
+        else:
+            config['image_recon_scale'] = None
+            config['traj_recon_scale'] = None
+            config['mnist_recon_scale'] = None
+            config['svhn_recon_scale'] = None
+            config['infonce_temperature'] = None
+            config['o3n_loss_scale'] = None
+            config['kld_beta'] = None
         
         if config['stage'] == 'test_classifier':
             if "path_classifier" not in config or config['path_classifier'] is None:
@@ -444,6 +445,7 @@ def setup_device(m_path, config):
                 device_file.write('0')
         
         device_id = device_counter % torch.cuda.device_count()
+        #device_id = 0
         device = f"cuda:{device_id}"
         device_lock.release()
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())

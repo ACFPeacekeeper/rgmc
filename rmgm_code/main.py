@@ -82,7 +82,7 @@ def run_train_epoch(epoch, config, device, model, train_set, train_losses, check
 def run_test(config, device, model, dataset):
     dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True))
     test_bnumber = len(dataloader)
-    loss_dict = dict.fromkeys(dataset.dataset.keys(), 0.)
+    loss_dict = Counter(dict.fromkeys(dataset.dataset.keys(), 0.))
     tracemalloc.start()
     test_start = time.time()
     for batch_feats, batch_labels in tqdm(dataloader, total=test_bnumber):
@@ -91,7 +91,7 @@ def run_test(config, device, model, dataset):
         loss_dict = loss_dict + batch_loss_dict
 
     for key in loss_dict.keys():
-        loss_dict[key] = loss_dict[key] / test_bnumber
+        loss_dict[key] = [loss_dict[key] / test_bnumber]
 
     test_end = time.time()
     tracemalloc.stop()
@@ -121,7 +121,8 @@ def train_model(config, device):
     total_end = time.time()
     print(f'Total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'Total runtime: {total_end - total_start} sec\n')
+        file.write(f'Train resume:\n')
+        file.write(f'- total runtime: {total_end - total_start} sec\n')
     save_train_results(m_path, config, train_losses)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + ".pt"))
     json_object = json.dumps(config, indent=4)
@@ -151,8 +152,8 @@ def train_downstream_classifier(config, device):
     print("Train resume:")
     print(f'total runtime: {total_end - total_start} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
-        file.write(f'Train resume:')
-        file.write(f'-total runtime: {total_end - total_start} sec\n')
+        file.write(f'Train resume:\n')
+        file.write(f'- total runtime: {total_end - total_start} sec\n')
     save_train_results(m_path, config, train_losses)
     torch.save(model.state_dict(), os.path.join(m_path, "saved_models", config['model_out'] + '.pt'))
     json_object = json.dumps(config, indent=4)

@@ -45,7 +45,7 @@ class MSVAE(nn.Module):
 
         mean, logvar = self.encoder(data)
         std = torch.exp(torch.mul(logvar, 0.5))
-        if sample is False:
+        if sample is False and not isinstance(self.scales['kld_beta'], type(None)):
             z = self.reparameterization(mean, std)
             self.kld = - self.scales['kld_beta'] * torch.mean(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dimension / data_list[0].size(dim=0))
         else:

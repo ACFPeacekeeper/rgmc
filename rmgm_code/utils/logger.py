@@ -63,7 +63,14 @@ def plot_loss_graph(m_path, config, loss_list_dict):
 def plot_metrics_bar(m_path, config, losses):
     keys = list(losses.keys())
     X_axis = np.arange(len(keys))
-    loss_means = [np.mean(loss) for loss in losses.values()]
+    lst_last = list(losses.values())
+    last_losses = []
+    for row in lst_last:
+        if isinstance(row[-1], torch.Tensor):
+            tensor = torch.unsqueeze(row[-1], dim=0)
+            last_losses.extend(tensor.detach().cpu().numpy())
+        else:
+            last_losses.extend([row[-1]])
     with open(os.path.join(m_path, "results", config["stage"], config["model_out"] + ".txt"), "a") as file:
         for key in keys:
             loss = losses[key][-1]
@@ -75,7 +82,7 @@ def plot_metrics_bar(m_path, config, losses):
     ax.set_xticklabels(keys)
     ax.set_title("Loss values of the model")
     ax.yaxis.grid(True)
-    metrics_bar = ax.bar(X_axis, loss_means, width=0.4, label="Loss values", align='center', alpha=0.5, ecolor='black', capsize=10)
+    metrics_bar = ax.bar(X_axis, last_losses, width=1, label="Loss values", align='center', alpha=0.5, ecolor='black', capsize=10)
     ax.bar_label(metrics_bar)
     fig.legend()
     fig.savefig(os.path.join(m_path, "results", config['stage'], config['model_out'] + '_metrics.png'))
