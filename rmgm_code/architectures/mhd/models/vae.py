@@ -62,7 +62,6 @@ class MhdVAE(nn.Module):
 
         return x_hat, z
     
-    
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())

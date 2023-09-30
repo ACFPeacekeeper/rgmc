@@ -32,6 +32,22 @@ class GMC(LightningModule):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
+        if self.exclude_modality == 'mnist':
+            self.num_modalities = 1
+            self.modalities = ["svhn"]
+            self.processors = {'svhn': self.svhn_processor}
+        elif self.exclude_modality == 'svhn':
+            self.num_modalities = 1
+            self.modalities = ["mnist"]
+            self.processors = {'mnist': self.mnist_processor}
+        else:
+            self.num_modalities = 2
+            self.modalities = ["mnist", "svhn"]
+            self.processors = {
+                'mnist': self.mnist_processor,
+                'svhn': self.svhn_processor,
+                'joint': self.joint_processor,
+            }
 
     def encode(self, x, sample=False):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
@@ -197,6 +213,9 @@ class MSGMC(GMC):
         self.encoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
+    def set_common_dim(self, common_dim):
+        self.encoder.set_common_dim(common_dim)
+        self.common_dim = common_dim
+
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        

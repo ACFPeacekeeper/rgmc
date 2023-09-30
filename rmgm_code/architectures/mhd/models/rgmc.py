@@ -254,7 +254,12 @@ class MhdRGMC(RGMC):
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
+        self.o3n.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
+
+    def set_common_dim(self, common_dim):
+        self.encoder.set_common_dim(common_dim)
+        self.common_dim = common_dim
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality

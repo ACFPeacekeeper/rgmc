@@ -48,7 +48,6 @@ class MhdMVAE(nn.Module):
             self.decoders[dec_key].set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
-
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
@@ -110,6 +109,7 @@ class MhdMVAE(nn.Module):
         return elbo, loss_dict
             
 
+
 class PoE(nn.Module): 
     def forward(self, mean, logvar, eps=1e-8):
         var       = torch.exp(logvar) + eps
@@ -124,4 +124,3 @@ class PoE(nn.Module):
         mean   = Variable(torch.zeros(size)).to(device)
         logvar = Variable(torch.zeros(size)).to(device)
         return mean, logvar
-    

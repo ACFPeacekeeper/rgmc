@@ -85,5 +85,3 @@ class TrajectoryDecoder(nn.Module):
 
     def forward(self, z):
         return self.feature_reconstructor(self.latent_fc(z))
-    
-    

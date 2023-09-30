@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from ..utils.rl_utils import OUNoise
+from pendulum.utils.rl_utils import OUNoise
 
 
 class Policy(object):

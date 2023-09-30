@@ -19,11 +19,11 @@ class MSMVAE(nn.Module):
         self.kld = 0.
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.poe_eps = poe_eps
+
         self.image_encoder = None
         self.image_decoder = None
         self.trajectory_encoder = None
         self.trajectory_decoder = None
-
         if self.exclude_modality == 'mnist':
             self.svhn_encoder = SVHNEncoder(latent_dimension)
             self.svhn_decoder = SVHNDecoder(latent_dimension)
@@ -48,9 +48,25 @@ class MSMVAE(nn.Module):
             self.decoders[dec_key].set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
-
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
+        if self.exclude_modality == 'mnist':
+            self.svhn_encoder = SVHNEncoder(self.latent_dimension)
+            self.svhn_decoder = SVHNDecoder(self.latent_dimension)
+            self.encoders = {'svhn': self.svhn_encoder}
+            self.decoders = {'svhn': self.svhn_decoder}
+        elif self.exclude_modality == 'svhn':
+            self.mnist_encoder = MNISTEncoder(self.latent_dimension)
+            self.mnist_decoder = MNISTDecoder(self.latent_dimension)
+            self.encoders = {'mnist': self.mnist_encoder}
+            self.decoders = {'mnist': self.mnist_decoder}
+        else:
+            self.svhn_encoder = SVHNEncoder(self.latent_dimension)
+            self.svhn_decoder = SVHNDecoder(self.latent_dimension)
+            self.mnist_encoder = MNISTEncoder(self.latent_dimension)
+            self.mnist_decoder = MNISTDecoder(self.latent_dimension)
+            self.encoders = {'mnist': self.mnist_encoder, 'svhn': self.svhn_encoder}
+            self.decoders = {'mnist': self.mnist_decoder, 'svhn': self.svhn_decoder}
 
     def reparameterization(self, mean, std):
         dist = torch.distributions.Normal(self.mean, self.std)
@@ -124,4 +140,3 @@ class PoE(nn.Module):
         mean   = Variable(torch.zeros(size)).to(device)
         logvar = Variable(torch.zeros(size)).to(device)
         return mean, logvar
-    

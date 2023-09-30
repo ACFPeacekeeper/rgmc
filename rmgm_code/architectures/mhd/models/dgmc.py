@@ -49,6 +49,29 @@ class DGMC(LightningModule):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
+        if self.exclude_modality == 'image':
+            self.num_modalities = 1
+            self.modalities = ["trajectory"]
+            self.processors = {'trajectory': self.trajectory_processor}
+            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
+        elif self.exclude_modality == 'trajectory':
+            self.num_modalities = 1
+            self.modalities = ["image"]
+            self.processors = {'image': self.image_processor}
+            self.reconstructors = {'image': self.image_reconstructor}
+        else: 
+            self.num_modalities = 2
+            self.modalities = ["image", "trajectory"]
+            self.processors = {
+                'image': self.image_processor,
+                'trajectory': self.trajectory_processor,
+                'joint': self.joint_processor,
+            }
+            self.reconstructors = {
+                'image': self.image_reconstructor,
+                'trajectory': self.trajectory_reconstructor,
+                'joint': self.joint_reconstructor,
+            }
 
     def add_noise(self, x):
         for key, modality in x.items():
@@ -265,6 +288,11 @@ class MhdDGMC(DGMC):
         self.encoder.set_latent_dim(latent_dim)
         self.decoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
+
+    def set_common_dim(self, common_dim):
+        self.encoder.set_common_dim(common_dim)
+        self.decoder.set_common_dim(common_dim)
+        self.common_dim = common_dim
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality

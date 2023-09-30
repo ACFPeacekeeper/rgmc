@@ -39,16 +39,20 @@ class MHDCommonDecoder(nn.Module):
             Swish(),
             nn.Linear(512, 512),
             Swish(),
-            nn.Linear(512, common_dim)
         )
+        self.common_fc = nn.Linear(512, common_dim)
 
     def set_latent_dim(self, latent_dim):
         self.latent_fc = nn.Linear(512, latent_dim)
         self.latent_dimension = latent_dim
 
+    def set_common_dim(self, common_dim):
+        self.common_fc = nn.Linear(512, common_dim)
+        self.common_dim = common_dim
+
     def forward(self, z):
         h = self.latent_fc(z)
-        return self.feature_reconstructor(h)
+        return self.common_fc(self.feature_reconstructor(h))
     
 
 class MHDImageProcessor(nn.Module):

@@ -2,7 +2,7 @@ import random
 import torch
 import numpy as np
 from collections import deque
-from ..utils.rl_utils import Transition
+from pendulum.utils.rl_utils import Transition
 
 
 class FrameBuffer:

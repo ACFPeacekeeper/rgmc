@@ -30,10 +30,18 @@ class GMC(LightningModule):
 
         self.encoder = None
 
-
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-
+        if self.exclude_modality == 'image':
+            self.processors = {'trajectory': self.trajectory_processor}
+        elif self.exclude_modality == 'trajectory':
+            self.processors = {'image': self.image_processor}
+        else:
+            self.processors = {
+                'image': self.image_processor,
+                'trajectory': self.trajectory_processor,
+                'joint': self.joint_processor,
+            }
 
     def encode(self, x, sample=False):
         # If we have complete observations
@@ -52,7 +60,6 @@ class GMC(LightningModule):
                 latent = latent_representations[0]
             return latent
 
-
     def forward(self, x):
         # Forward pass through the modality specific encoders
         batch_representations = []
@@ -68,7 +75,6 @@ class GMC(LightningModule):
             joint_representation = self.encoder(self.processors['joint'](x))
             batch_representations.append(joint_representation)
         return batch_representations
-
 
     def infonce(self, batch_representations, batch_size):
         joint_mod_loss_sum = 0
@@ -110,7 +116,6 @@ class GMC(LightningModule):
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
 
-
     def infonce_with_joints_as_negatives(self, batch_representations, batch_size):
         # Similarity among joints, [B, B]
         sim_matrix_joints = torch.exp(
@@ -148,7 +153,6 @@ class GMC(LightningModule):
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
 
-
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
 
@@ -161,7 +165,6 @@ class GMC(LightningModule):
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         return loss, Counter(tqdm_dict)
-
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -198,11 +201,13 @@ class MhdGMC(GMC):
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
-
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
+    def set_common_dim(self, common_dim):
+        self.encoder.set_common_dim(common_dim)
+        self.common_dim = common_dim
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality

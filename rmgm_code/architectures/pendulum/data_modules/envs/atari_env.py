@@ -66,8 +66,4 @@ class AtariEnv(gym.Env):
         self._save_data = bool
 
     def clear_save_data(self):
-        self._env_data = {'image': [],
-                          'sound': []}
-
-
-
+        self._env_data = {'image': [], 'sound': []}

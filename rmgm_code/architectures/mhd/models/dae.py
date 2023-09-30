@@ -82,4 +82,3 @@ class MhdDAE(nn.Module):
     
     def validation_step(self, x, labels):
         return self.training_step(x, labels)
-    

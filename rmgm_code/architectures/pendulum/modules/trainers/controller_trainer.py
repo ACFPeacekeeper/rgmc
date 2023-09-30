@@ -3,12 +3,12 @@ import torch.optim as optim
 import torch.nn.functional as F
 from pytorch_lightning import LightningModule
 from gym.wrappers.time_limit import TimeLimit as TimeLimitWrapper
-from gmc_code.rl.utils.rl_utils import *
-from gmc_code.rl.architectures.downstream.buffers import FrameBuffer
-from gmc_code.rl.data_modules.MultiAtari_dataset import AtariDataset
-from gmc_code.rl.architectures.downstream.processor import PendulumProcessor
-from gmc_code.rl.architectures.downstream.buffers import PendulumReplayMemory
-from gmc_code.rl.architectures.downstream.policy import PendulumPolicy
+from utils.rl_utils import *
+from pendulum.downstream.buffers import FrameBuffer
+from pendulum.data_modules.MultiAtari_dataset import AtariDataset
+from pendulum.downstream.processor import PendulumProcessor
+from pendulum.downstream.buffers import PendulumReplayMemory
+from pendulum.downstream.policy import PendulumPolicy
 
 
 class ControllerLearner(LightningModule):

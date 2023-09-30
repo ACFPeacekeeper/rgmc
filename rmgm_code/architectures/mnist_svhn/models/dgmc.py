@@ -51,6 +51,29 @@ class DGMC(LightningModule):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
+        if self.exclude_modality == 'mnist':
+            self.num_modalities = 1
+            self.modalities = ["svhn"]
+            self.processors = {'svhn': self.svhn_processor}
+            self.reconstructors = {'svhn': self.svhn_reconstructor}
+        elif self.exclude_modality == 'svhn':
+            self.num_modalities = 1
+            self.modalities = ["mnist"]
+            self.processors = {'mnist': self.mnist_processor}
+            self.reconstructors = {'mnist': self.mnist_reconstructor}
+        else: 
+            self.num_modalities = 2
+            self.modalities = ["mnist", "svhn"]
+            self.processors = {
+                'mnist': self.mnist_processor,
+                'svhn': self.svhn_processor,
+                'joint': self.joint_processor,
+            }
+            self.reconstructors = {
+                'mnist': self.mnist_reconstructor,
+                'svhn': self.svhn_reconstructor,
+                'joint': self.joint_reconstructor,
+            }
 
     def add_noise(self, x):
         for key, modality in x.items():
@@ -264,14 +287,15 @@ class MSDGMC(DGMC):
         self.encoder = MSCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
         self.decoder = MSCommonDecoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
-    def set_common_dim(self, common_dim):
-        self.encoder
-
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
         self.decoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
+    def set_common_dim(self, common_dim):
+        self.encoder.set_common_dim(common_dim)
+        self.decoder.set_common_dim(common_dim)
+        self.common_dim = common_dim
+
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        

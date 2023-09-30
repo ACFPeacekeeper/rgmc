@@ -43,4 +43,3 @@ class Decoder(nn.Module):
     def forward(self, z):
         x_hat = self.feature_reconstructor(self.latent_fc(z))
         return self.fc(x_hat)
-
