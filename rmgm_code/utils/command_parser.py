@@ -647,15 +647,27 @@ def setup_experiment(m_path, config, device, train=True):
 def metrics_analysis(m_path, config):
     if "model" in config['stage']:
         if config['architecture'] == 'vae':
-            loss_dict = {'elbo_loss': [], 'kld_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+            loss_dict = {'elbo_loss': [], 'kld_loss': []}
         elif config['architecture'] == 'dae':
-            loss_dict = {'total_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+            loss_dict = {'total_loss': []}
         elif config['architecture'] == 'gmc':
             loss_dict = {'infonce_loss': []}
         elif config['architecture'] == 'mvae':
-            loss_dict = {'elbo_loss': [], 'kld_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+            loss_dict = {'elbo_loss': [], 'kld_loss': []}
         elif config['architecture'] == 'dgmc':
-            loss_dict = {'total_loss': [], 'infonce_loss': [], 'img_recon_loss': [], 'traj_recon_loss': []}
+            loss_dict = {'total_loss': [], 'infonce_loss': []}
+        elif config['architecture'] == 'rgmc':
+            loss_dict = {'total_loss': [], 'infonce_loss': [], 'o3n_loss': []}
+        elif config['architecture'] == 'gmcwd':
+            loss_dict = {'total_loss': [], 'infonce_loss': []}
+        
+        if config['dataset'] == 'mhd':
+            if 'ae' in config['architecture'] or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
+                loss_dict = {**loss_dict, 'img_recon_loss': [], 'traj_recon_loss': []}
+        elif config['dataset'] == 'mnist_svhn':
+            if 'ae' in config['architecture'] or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
+                loss_dict = {**loss_dict, 'mnist_recon_loss': [], 'svhn_recon_loss': []}
+
     elif "classifier" in config['stage']:
         loss_dict = {'nll_loss': [], 'accuracy': []}
     else:

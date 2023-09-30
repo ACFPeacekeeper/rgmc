@@ -6,13 +6,13 @@ from collections import Counter
 class DGMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
         super(DGMC, self).__init__()
-        self.name = name
-        self.common_dim = common_dim
-        self.latent_dimension = latent_dimension
-        self.loss_type = loss_type
-        self.exclude_modality = exclude_modality
+        self.name = name        
         self.scales = scales
+        self.loss_type = loss_type
+        self.common_dim = common_dim
         self.noise_factor = noise_factor
+        self.exclude_modality = exclude_modality
+        self.latent_dimension = latent_dimension
 
         self.image_processor = None
         self.trajectory_processor = None
@@ -232,17 +232,13 @@ class DGMC(LightningModule):
 
 class MhdDGMC(DGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
-        self.common_dim = common_dim
-
-        super(MhdDGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
-
+        super(MhdDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
         self.image_reconstructor = MHDImageDecoder(common_dim=self.common_dim)
         self.trajectory_reconstructor = MHDTrajectoryDecoder(common_dim=self.common_dim)
         self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim)
-
         if exclude_modality == 'image':
             self.processors = {'trajectory': self.trajectory_processor}
             self.reconstructors = {'trajectory': self.trajectory_reconstructor}

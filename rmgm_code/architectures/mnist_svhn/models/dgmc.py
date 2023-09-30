@@ -9,12 +9,12 @@ class DGMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
         super(DGMC, self).__init__()
         self.name = name
-        self.common_dim = common_dim
-        self.latent_dimension = latent_dimension
-        self.loss_type = loss_type
-        self.exclude_modality = exclude_modality
         self.scales = scales
+        self.loss_type = loss_type
+        self.common_dim = common_dim
         self.noise_factor = noise_factor
+        self.exclude_modality = exclude_modality
+        self.latent_dimension = latent_dimension
 
         self.mnist_processor = None
         self.svhn_processor = None
@@ -77,7 +77,7 @@ class DGMC(LightningModule):
             else:
                 latent = latent_representations[0]
             return latent
-        
+
     def decode(self, z):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             #reconstructions['joint'] = self.reconstructors['joint'](self.decoder(z))
@@ -232,19 +232,16 @@ class DGMC(LightningModule):
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
 
+
 class MSDGMC(DGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
-        self.common_dim = common_dim
-
-        super(MSDGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
-
+        super(MSDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
         self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim)
         self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim)
         self.joint_processor = MSJointProcessor(common_dim=self.common_dim)
         self.mnist_reconstructor = MSMNISTDecoder(common_dim=self.common_dim)
         self.svhn_reconstructor = MSSVHNDecoder(common_dim=self.common_dim)
         self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim)
-
         if exclude_modality == 'mnist':
             self.processors = {'svhn': self.svhn_processor}
             self.reconstructors = {'svhn': self.svhn_reconstructor}
@@ -266,6 +263,9 @@ class MSDGMC(DGMC):
         self.loss_type = loss_type
         self.encoder = MSCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
         self.decoder = MSCommonDecoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
+
+    def set_common_dim(self, common_dim):
+        self.encoder
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)

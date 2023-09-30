@@ -176,6 +176,7 @@ class GMC(LightningModule):
 class PendulumGMC(GMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dim, infonce_temp, loss_type="infonce"):
         super(PendulumGMC, self).__init__(name, common_dim, exclude_modality, latent_dim, infonce_temp, loss_type="infonce")
+        self.common_dim = common_dim
         self.image_processor = PendulumImageProcessor(common_dim=common_dim)
         self.sound_processor = PendulumSoundProcessor(common_dim=common_dim)
         self.joint_processor = PendulumJointProcessor(common_dim=common_dim)
