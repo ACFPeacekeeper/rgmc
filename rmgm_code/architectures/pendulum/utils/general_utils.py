@@ -1,7 +1,6 @@
 from ..models.gmc import PendulumGMC
 from ..downstream.ddpg import DDPG
 from ..modules.trainers.controller_trainer import DDPGLearner
-from ..modules.trainers.dca_evaluation_trainer import DCAEvaluator
 from ..data_modules.DCAMultiAtari_dataset import *
 from ..data_modules.MultiAtari_dataset import MultiAtariDataModule
 
@@ -55,18 +54,6 @@ def setup_data_module(scenario, experiment_config, scenario_config, train_config
         raise ValueError(
             "[Data Module Setup] Selected Module not yet implemented: " + str(scenario)
         )
-
-
-def setup_dca_evaluation_trainer(model, machine_path, scenario, config):
-    return DCAEvaluator(
-        model=model,
-        scenario=scenario,
-        machine_path=machine_path,
-        minimum_cluster_size=config["minimum_cluster_size"],
-        unique_modality_idxs=config["unique_modality_idxs"],
-        unique_modality_dims=config["unique_modality_dims"],
-        partial_modalities_idxs=config["partial_modalities_idxs"],
-    )
 
 
 def setup_downstream_controller(scenario, model_config, n_actions, layer_sizes):

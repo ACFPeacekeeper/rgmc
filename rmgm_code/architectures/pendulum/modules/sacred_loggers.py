@@ -9,12 +9,13 @@ try:
 except ImportError:
     raise ImportError("Missing sacred package.  Run `pip install sacred`")
 
-from pytorch_lightning.loggers.base import LightningLoggerBase, rank_zero_only
+from pytorch_lightning.loggers.logger import Logger
+from lightning_fabric.utilities.rank_zero import rank_zero_only
 
 logger = getLogger(__name__)
 
 
-class SacredLogger(LightningLoggerBase):
+class SacredLogger(Logger):
     def __init__(self, sacred_experiment):
         """Initialize a sacred logger.
         :param sacred.experiment.Experiment sacred_experiment: Required. Experiment object with desired observers

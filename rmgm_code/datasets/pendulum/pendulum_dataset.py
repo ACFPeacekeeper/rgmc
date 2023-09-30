@@ -34,4 +34,3 @@ class PendulumDataset(MultimodalDataset):
             self.dataset["audio_t+1"] = data[5]
 
         return
-        

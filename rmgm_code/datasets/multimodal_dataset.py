@@ -20,7 +20,6 @@ class MultimodalDataset(Dataset):
         self.modalities = None
         self._load_data(train)
 
-
     def _download(self):
         raise NotImplementedError
     

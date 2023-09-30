@@ -93,4 +93,3 @@ class MnistSvhnDataset(MultimodalDataset):
 
         self.labels = data["labels"].to(self.device)
         return
-        

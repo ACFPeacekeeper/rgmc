@@ -241,7 +241,6 @@ def create_idx_dict():
             idx_dict[stage][dataset] = dict.fromkeys(ARCHITECTURES, 0)
     return idx_dict
 
-
 def config_validation(m_path, config):
     if "stage" not in config or config["stage"] not in STAGES:
         raise argparse.ArgumentError("Argument error: must specify a valid pipeline stage.")
@@ -267,6 +266,13 @@ def config_validation(m_path, config):
             elif config['checkpoint'] > config['epochs']:
                 raise argparse.ArgumentError("Argument error: checkpoint value must be smaller than or equal to the number of epochs.")
         else:
+            config['image_recon_scale'] = None
+            config['traj_recon_scale'] = None
+            config['mnist_recon_scale'] = None
+            config['svhn_recon_scale'] = None
+            config['infonce_temperature'] = None
+            config['o3n_loss_scale'] = None
+            config['kld_beta'] = None
             if "epochs" in config and config["epochs"] is not None:
                 config["epochs"] = None
             if "learning_rate" in config and config['learning_rate'] is not None:
@@ -297,21 +303,21 @@ def config_validation(m_path, config):
             raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
 
         if "download" not in config:
-            config["download"] = False
+            config["download"] = None
 
         if "batch_size" not in config or config["batch_size"] is None:
             config['batch_size'] = BATCH_SIZE_DEFAULT
 
         if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
             if config['dataset'] == "mhd":
-                if "image_recon_scale" not in config or config['image_recon_scale'] is None:
+                if "image_recon_scale" not in config:
                     config["image_recon_scale"] = RECON_SCALE_DEFAULTS['image']
-                if "traj_recon_scale" not in config or config['traj_recon_scale'] is None:
+                if "traj_recon_scale" not in config:
                     config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['trajectory']
             elif config['dataset'] == "mnist_svhn":
-                if "mnist_recon_scale" not in config or config['mnist_recon_scale'] is None:
+                if "mnist_recon_scale" not in config:
                     config["mnist_recon_scale"] = RECON_SCALE_DEFAULTS['mnist']
-                if "svhn_recon_scale" not in config or config['svhn_recon_scale'] is None:
+                if "svhn_recon_scale" not in config:
                     config["svhn_recon_scale"] = RECON_SCALE_DEFAULTS['svhn']
 
             if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
@@ -319,11 +325,11 @@ def config_validation(m_path, config):
                     config['train_noise_factor'] = MODEL_TRAIN_NOISE_FACTOR_DEFAULT
 
             if "vae" in config['architecture']:
-                if "kld_beta" not in config or config['kld_beta'] is None:
+                if "kld_beta" not in config:
                     config['kld_beta'] = KLD_BETA_DEFAULT
-                if "rep_trick_mean" not in config:
+                if "rep_trick_mean" not in config or config['rep_trick_mean'] is None:
                     config['rep_trick_mean'] = REPARAMETERIZATION_MEAN_DEFAULT
-                if "rep_trick_std" not in config:
+                if "rep_trick_std" not in config or config['rep_trick_std'] is None:
                     config['rep_trick_std'] = REPARAMETERIZATION_STD_DEFAULT
 
                 if config['architecture'] == 'mvae':
@@ -363,14 +369,14 @@ def config_validation(m_path, config):
             config['poe_eps'] = None
             
         if "gmc" in config['architecture']:
-            if "infonce_temperature" not in config or config['infonce_temperature'] is None:
+            if "infonce_temperature" not in config:
                 config["infonce_temperature"] = INFONCE_TEMPERATURE_DEFAULT
 
             if "common_dimension" not in config or config['common_dimension'] is None:
                 config['common_dimension'] = COMMON_DIM_DEFAULT
             
             if config['architecture'] == 'rgmc':
-                if "o3n_loss_scale" not in config or config['o3n_loss_scale'] is None:
+                if "o3n_loss_scale" not in config:
                     config['o3n_loss_scale'] = O3N_LOSS_SCALE_DEFAULT
         else:
             config['infonce_temperature'] = None
@@ -422,7 +428,6 @@ def config_validation(m_path, config):
 
     return config
 
-
 def setup_device(m_path, config):
     if torch.cuda.is_available():
         device_idx_path = os.path.join(m_path, "device_idx.txt")
@@ -455,7 +460,6 @@ def setup_device(m_path, config):
         config['device'] = device_info
 
     return device
-
 
 def setup_experiment(m_path, config, device, train=True):
     def setup_dataset(m_path, config, device, train):
@@ -642,7 +646,6 @@ def setup_experiment(m_path, config, device, train=True):
                 file.write(f'{ckey}: {cval}\n')
 
     return dataset, model, optimizer
-
 
 def metrics_analysis(m_path, config):
     if "model" in config['stage']:

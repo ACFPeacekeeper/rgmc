@@ -36,7 +36,6 @@ def nan_hook(self, input, output):
                 print("In", self.__class__.__name__)
                 raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
-
 def run_train_epoch(epoch, config, device, model, train_set, train_losses, checkpoint_counter, optimizer=None):
     print(f'Epoch {epoch}')
     print('Training:')
@@ -106,7 +105,6 @@ def run_test(config, device, model, dataset):
 
     return
 
-
 def train_model(config, device):
     dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
     checkpoint_counter = config['checkpoint'] 
@@ -135,7 +133,6 @@ def train_model(config, device):
 
     wandb.finish()
     return model
-
 
 def train_downstream_classifier(config, device):
     dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
@@ -167,7 +164,6 @@ def train_downstream_classifier(config, device):
     
     wandb.finish()
     return model
-
 
 def test_model(config, device):
     dataset, model, _ = setup_experiment(m_path, config, device, train=False)
@@ -217,7 +213,6 @@ def inference(config, device):
     
     return
 
-
 def call_with_configs(config_ls):
     def decorate(run_experiment):
         def wrapper(*args, **kwargs):
@@ -233,11 +228,9 @@ def call_with_configs(config_ls):
         return wrapper
     return decorate
 
-
 def run_experiment(**kwargs):
     config = kwargs['config']
     device = kwargs['device']
-
     try:
         if config['stage'] == 'train_model':
             train_model(config, device)
