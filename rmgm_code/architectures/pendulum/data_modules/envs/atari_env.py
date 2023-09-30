@@ -1,5 +1,5 @@
 import gym
-import gmc_code.rl.data_modules.envs.pendulum_env as ps
+import data_modules.envs.pendulum_env as ps
 
 class AtariEnv(gym.Env):
     def __init__(self,

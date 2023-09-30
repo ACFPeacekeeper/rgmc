@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import umap
 import pickle
-from gmc_code.DelaunayComponentAnalysis.schemes import DelaunayGraphNetworkStats
 
 CB_color_cycle = [
     "#377eb8",

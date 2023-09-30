@@ -1,17 +1,17 @@
 from pytorch_lightning import LightningModule
 from ..subnetworks.gmc_networks import *
+from collections import Counter
 
-
+# Code adapted from https://github.com/miguelsvasco/gmc
 class GMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
         super(GMC, self).__init__()
-
         self.name = name
+        self.loss_type = loss_type
         self.common_dim = common_dim
         self.latent_dim = latent_dimension
         self.infonce_temp = infonce_temperature
         self.exclude_modality = exclude_modality
-        self.loss_type = loss_type
 
         self.image_processor = None
         self.sound_processor = None
@@ -29,23 +29,30 @@ class GMC(LightningModule):
 
         self.encoder = None
 
-    def encode(self, x, sample=False):
 
+    def set_modalities(self, exclude_modality):
+        self.exclude_modality = exclude_modality
+
+
+    def encode(self, x, sample=False):
         # If we have complete observations
-        if None not in x:
-            return self.encoder(self.processors[-1](x))
+        if self.exclude_modality == 'none' or self.exclude_modality is None:
+            return self.encoder(self.processors['joint'](x))
         else:
             latent_representations = []
-            for id_mod in range(len(x)):
-                if x[id_mod] is not None:
-                    latent_representations.append(self.encoder(self.processors[id_mod](x[id_mod])))
+            for key in x.keys():
+                if key != self.exclude_modality:
+                    latent_representations.append(self.encoder(self.processors[key](x[key])))
 
             # Take the average of the latent representations
-            latent = torch.stack(latent_representations, dim=0).mean(0)
+            if len(latent_representations) > 1:
+                latent = torch.stack(latent_representations, dim=0).mean(0)
+            else:
+                latent = latent_representations[0]
             return latent
 
-    def forward(self, x):
 
+    def forward(self, x):
         # Forward pass through the modality specific encoders
         batch_representations = []
         for processor_idx in range(len(self.processors) - 1):
@@ -58,6 +65,7 @@ class GMC(LightningModule):
         joint_representation = self.encoder(self.processors[-1](x))
         batch_representations.append(joint_representation)
         return batch_representations
+
 
     def infonce(self, batch_representations, batch_size):
         joint_mod_loss_sum = 0
@@ -98,6 +106,7 @@ class GMC(LightningModule):
         tqdm_dict = {"loss": loss}
         return loss, tqdm_dict
 
+
     def infonce_with_joints_as_negatives(self, batch_representations, batch_size):
         # Similarity among joints, [B, B]
         sim_matrix_joints = torch.exp(
@@ -135,8 +144,9 @@ class GMC(LightningModule):
         tqdm_dict = {"loss": loss}
         return loss, tqdm_dict
 
-    def training_step(self, data):
-        batch_size = data[0].shape[0]
+
+    def training_step(self, data, labels):
+        batch_size = list(data.values())[0].size(dim=0)
 
         # Forward pass through the encoders
         batch_representations = self.forward(data)
@@ -146,10 +156,11 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, tqdm_dict
+        return loss, Counter(tqdm_dict)
 
-    def validation_step(self, data):
-        batch_size = data[0].shape[0]
+
+    def validation_step(self, data, labels):
+        batch_size = list(data.values())[0].size(dim=0)
 
         # Forward pass through the encoders
         batch_representations = self.forward(data)
@@ -158,23 +169,35 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return tqdm_dict
+        return loss, Counter(tqdm_dict)
+
 
 
 class PendulumGMC(GMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dim, infonce_temp, loss_type="infonce"):
         super(PendulumGMC, self).__init__(name, common_dim, exclude_modality, latent_dim, infonce_temp, loss_type="infonce")
-
         self.image_processor = PendulumImageProcessor(common_dim=common_dim)
         self.sound_processor = PendulumSoundProcessor(common_dim=common_dim)
         self.joint_processor = PendulumJointProcessor(common_dim=common_dim)
-        self.processors = [
-            self.image_processor,
-            self.sound_processor,
-            self.joint_processor,
-        ]
-        self.loss_type = loss_type
+        if exclude_modality == 'image':
+            self.processors = {'trajectory': self.sound_processor}
+        elif exclude_modality == 'sound':
+            self.processors = {'image': self.image_processor}
+        else:
+            self.processors = {
+                'image': self.image_processor,
+                'sound': self.sound_processor,
+                'joint': self.joint_processor,
+            }
 
-        self.encoder = PendulumCommonEncoder(
-            common_dim=common_dim, latent_dim=latent_dim
-        )
+        self.loss_type = loss_type
+        self.encoder = PendulumCommonEncoder(common_dim=common_dim, latent_dim=latent_dim)
+
+
+    def set_latent_dim(self, latent_dim):
+        self.encoder.set_latent_dim(latent_dim)
+        self.latent_dimension = latent_dim
+
+
+    def set_modalities(self, exclude_modality):
+        self.exclude_modality = exclude_modality

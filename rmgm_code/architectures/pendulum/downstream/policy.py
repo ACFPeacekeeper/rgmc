@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from gmc_code.rl.utils.rl_utils import OUNoise
+from ..utils.rl_utils import OUNoise
 
 
 class Policy(object):

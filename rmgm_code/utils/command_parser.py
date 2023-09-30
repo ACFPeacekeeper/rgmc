@@ -16,7 +16,7 @@ import subprocess
 import torch.optim as optim
 
 from utils.logger import plot_metric_compare
-from input_transformations import gaussian_noise, fgsm, pgd
+from input_transformations import gaussian_noise, fgsm, pgd, cw
 from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mhd.models.vae import MhdVAE
 from architectures.mhd.models.dae import MhdDAE
@@ -589,11 +589,13 @@ def setup_experiment(m_path, config, device, train=True):
         target_modality = config['target_modality']
 
         if config['adversarial_attack'] == 'gaussian_noise':
-            attack = gaussian_noise.GaussianNoise(model=model, device=device, std=config['noise_std'], target_modality=target_modality)
+            attack = gaussian_noise.GaussianNoise(model=model, device=device, target_modality=target_modality, std=config['noise_std'])
         elif config['adversarial_attack'] == 'fgsm':
-            attack = fgsm.FGSM(device=device, model=model, eps=config['adv_std'], target_modality=target_modality)
+            attack = fgsm.FGSM(device=device, model=model, target_modality=target_modality, eps=config['adv_std'])
         elif config['adversarial_attack'] == 'pgd':
-            attack = pgd.PGD(device=device, model=model, eps=config['adv_eps'], target_modality=target_modality)
+            attack = pgd.PGD(device=device, model=model, target_modality=target_modality, eps=config['adv_eps'], alpha=config['adv_alpha'], steps=config['adv_steps'])
+        elif config['adversarial_attack'] == 'cw':
+            attack = cw.CW(device=device, model=model, target_modality=target_modality, c_val=config['adv_c'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
 
         if "classifier" in config['stage']:
             dataset.dataset = attack(dataset.dataset, dataset.labels)

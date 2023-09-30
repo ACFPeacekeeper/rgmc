@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning import LightningModule
 
 class Actor(nn.Module):
     def __init__(self, n_states, n_actions, hidden1=256, hidden2=256):

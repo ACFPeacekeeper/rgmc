@@ -4,8 +4,8 @@ import errno
 import torch
 import numpy as np
 from collections import deque
-import gmc_code.rl.data_modules.envs.pendulum_env as ps
-from gmc_code.rl.data_modules.utils.game_utils import pendulum_image_preprocess
+import data_modules.envs.pendulum_env as ps
+from data_modules.utils.game_utils import pendulum_image_preprocess
 
 def _random_action(env):
     if type(env.action_space) is gym.spaces.discrete.Discrete:  # For discrete Action Spaces

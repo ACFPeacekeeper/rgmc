@@ -8,9 +8,9 @@ class GMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
         super(GMC, self).__init__()
         self.name = name
+        self.loss_type = loss_type
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
-        self.loss_type = loss_type
         self.exclude_modality = exclude_modality
         self.infonce_temperature = infonce_temperature
 
@@ -30,10 +30,13 @@ class GMC(LightningModule):
 
         self.encoder = None
 
+
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
+
     def encode(self, x, sample=False):
+        # If we have complete observations
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             return self.encoder(self.processors['joint'](x))
         else:
@@ -48,6 +51,7 @@ class GMC(LightningModule):
             else:
                 latent = latent_representations[0]
             return latent
+
 
     def forward(self, x):
         # Forward pass through the modality specific encoders
@@ -64,6 +68,7 @@ class GMC(LightningModule):
             joint_representation = self.encoder(self.processors['joint'](x))
             batch_representations.append(joint_representation)
         return batch_representations
+
 
     def infonce(self, batch_representations, batch_size):
         joint_mod_loss_sum = 0
@@ -105,6 +110,7 @@ class GMC(LightningModule):
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
 
+
     def infonce_with_joints_as_negatives(self, batch_representations, batch_size):
         # Similarity among joints, [B, B]
         sim_matrix_joints = torch.exp(
@@ -142,6 +148,7 @@ class GMC(LightningModule):
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
 
+
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
 
@@ -154,6 +161,7 @@ class GMC(LightningModule):
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         return loss, Counter(tqdm_dict)
+
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -171,14 +179,10 @@ class GMC(LightningModule):
 
 class MhdGMC(GMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, loss_type="infonce"):
-        self.common_dim = common_dim
-
-        super(MhdGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
-
+        super(MhdGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-
         if exclude_modality == 'image':
             self.processors = {'trajectory': self.trajectory_processor}
         elif exclude_modality == 'trajectory':
@@ -193,10 +197,11 @@ class MhdGMC(GMC):
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
+
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
         self.latent_dimension = latent_dim
 
+
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        
