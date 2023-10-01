@@ -8,8 +8,8 @@ class MHDCommonEncoder(nn.Module):
         super(MHDCommonEncoder, self).__init__()
         self.common_dim = common_dim
         self.latent_dimension = latent_dimension
+        self.common_fc = nn.Linear(common_dim, 512)
         self.feature_extractor = nn.Sequential(
-            nn.Linear(common_dim, 512),
             Swish(),
             nn.Linear(512, 512),
             Swish(),
