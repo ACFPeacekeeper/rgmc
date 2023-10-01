@@ -67,6 +67,10 @@ class MHDImageProcessor(nn.Module):
         )
         self.projector = nn.Linear(128 * 7 * 7, common_dim)
 
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(128 * 7 * 7,  common_dim)
+        self.common_dim = common_dim
+
     def forward(self, x):
         h = self.image_features(x)
         h = h.view(h.size(0), -1)
@@ -84,6 +88,10 @@ class MHDImageDecoder(nn.Module):
             Swish(),
             nn.ConvTranspose2d(64, 1, 4, 2, 1)
         )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, 128 * 7 * 7)
+        self.common_dim = common_dim
 
     def forward(self, z):
         x_hat = self.projector(z)
@@ -126,6 +134,10 @@ class MHDTrajectoryProcessor(nn.Module):
         )
         self.projector = nn.Linear(512, common_dim)
 
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(512,  common_dim)
+        self.common_dim = common_dim
+
     def forward(self, x):
         h = self.trajectory_features(x)
         return self.projector(h)
@@ -142,6 +154,10 @@ class MHDTrajectoryDecoder(nn.Module):
             Swish(),
             nn.Linear(512, 200)
         )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, 512)
+        self.common_dim = common_dim
 
     def forward(self, h):
         x_hat = self.projector(h)
@@ -188,6 +204,10 @@ class MHDJointProcessor(nn.Module):
 
         self.projector = nn.Linear(128 * 7 * 7 + 512, common_dim)
 
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(128 * 7 * 7 + 512,  common_dim)
+        self.common_dim = common_dim
+
     def forward(self, x):
         x_img, x_trajectory = x['image'], x['trajectory']
 
@@ -219,6 +239,10 @@ class MHDJointDecoder(nn.Module):
             Swish(),
             nn.Linear(512, 200)
         )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 512)
+        self.common_dim = common_dim
 
     def forward(self, z):
         x_hat = self.projector(z)

@@ -207,6 +207,8 @@ class MhdGMC(GMC):
 
     def set_common_dim(self, common_dim):
         self.encoder.set_common_dim(common_dim)
+        for proc in self.processors.values():
+            proc.set_common_dim(common_dim)
         self.common_dim = common_dim
 
     def set_modalities(self, exclude_modality):

@@ -67,6 +67,10 @@ class MSMNISTProcessor(nn.Module):
         )
         self.projector = nn.Linear(128 * 7 * 7, common_dim)
 
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(128 * 7 * 7,  common_dim)
+        self.common_dim = common_dim
+
     def forward(self, x):
         h = self.mnist_features(x)
         h = h.view(h.size(0), -1)
@@ -84,6 +88,10 @@ class MSMNISTDecoder(nn.Module):
             Swish(),
             nn.ConvTranspose2d(64, 1, 4, 2, 1)
         )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, 128 * 7 * 7)
+        self.common_dim = common_dim
 
     def forward(self, z):
         x_hat = self.projector(z)
@@ -105,6 +113,10 @@ class MSSVHNProcessor(nn.Module):
         )
         self.projector = nn.Linear(32 * 32 * 2, common_dim)
 
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(32 * 32 * 2, common_dim)
+        self.common_dim = common_dim
+
     def forward(self, x):
         h = self.svhn_features(x)
         h = h.view(h.size(0), -1)
@@ -122,6 +134,10 @@ class MSSVHNDecoder(nn.Module):
             Swish(),
             nn.ConvTranspose2d(32, 3, 4, 2, 1),
         )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, 32 * 32 * 2)
+        self.common_dim = common_dim
 
     def forward(self, h):
         x_hat = self.projector(h)
@@ -171,6 +187,10 @@ class MSJointProcessor(nn.Module):
 
         self.projector = nn.Linear(128 * 7 * 7 + 32 * 32 * 2, common_dim)
 
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(128 * 7 * 7 + 32 * 32 * 2, common_dim)
+        self.common_dim = common_dim
+
     def forward(self, x):
         x_mnist, x_svhn = x['mnist'], x['svhn']
 
@@ -204,6 +224,10 @@ class MSJointDecoder(nn.Module):
             Swish(),
             nn.ConvTranspose2d(32, 3, 4, 2, 1),
         )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 32 * 32 * 2)
+        self.common_dim = common_dim
 
     def forward(self, z):
         x_hat = self.projector(z)

@@ -42,6 +42,10 @@ class MHDImageProcessor(nn.Module):
         )
         self.projector = nn.Linear(128 * 7 * 7, common_dim)
 
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(128 * 7 * 7,  common_dim)
+        self.common_dim = common_dim
+
     def forward(self, x):
         h = self.image_features(x)
         h = h.view(h.size(0), -1)
@@ -74,15 +78,17 @@ class MHDSoundProcessor(nn.Module):
 class MHDTrajectoryProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDTrajectoryProcessor, self).__init__()
-
         self.trajectory_features = nn.Sequential(
             nn.Linear(200, 512),
             Swish(),
             nn.Linear(512, 512),
             Swish(),
         )
-
         self.projector = nn.Linear(512, common_dim)
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(512,  common_dim)
+        self.common_dim = common_dim
 
     def forward(self, x):
         h = self.trajectory_features(x)
@@ -104,7 +110,6 @@ class MHDJointProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDJointProcessor, self).__init__()
         self.common_dim = common_dim
-        
         self.img_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             Swish(),
@@ -118,8 +123,11 @@ class MHDJointProcessor(nn.Module):
             nn.Linear(512, 512),
             Swish(),
         )
-
         self.projector = nn.Linear(128 * 7 * 7 + 512, common_dim)
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(128 * 7 * 7 + 512,  common_dim)
+        self.common_dim = common_dim
 
     def forward(self, x):
         x_img, x_trajectory = x['image'], x['trajectory']
