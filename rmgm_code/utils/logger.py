@@ -113,45 +113,70 @@ def plot_loss_compare_graph(m_path, config, loss_dict):
     return
 
 def plot_metric_compare_bar(m_path, config, loss_dict):
-    param_values = []
+    if config["param_comp"] is not None:
+        param_values = []
+
     for model_results in config['model_outs']:
-        if model_results.isdigit():
+        if "number_seeds" in config and config["number_seeds"] > 1:
+            seed_results = [x for x in range(model_results, model_results + config['number_seeds'])]
+        else:
+            seed_results = [model_results]
+
+        for id, seed_res in enumerate(seed_results):
             if "classifier" in config['stage']:
-                model_results = f"results/{config['stage']}/clf_{config['architecture']}_{config['dataset']}_exp{model_results}.txt"
+                seed_results[id] = f"results/{config['stage']}/clf_{config['architecture']}_{config['dataset']}_exp{seed_res}.txt"
             else:
-                model_results = f"results/{config['stage']}/{config['architecture']}_{config['dataset']}_exp{model_results}.txt"
-        path = os.path.join(m_path, model_results)
-        with open(path, 'r') as res_file:
-            for loss_key in loss_dict.keys():
-                for line in res_file:
-                    if config['param_comp'] in line:
-                        param_values.append(np.double(line.removeprefix(f"{config['param_comp']}: ")))
-                    if loss_key in line:
-                        loss_dict[loss_key].append(np.double(line.removeprefix(f'- {loss_key}: ')))
+                seed_results[id] = f"results/{config['stage']}/{config['architecture']}_{config['dataset']}_exp{seed_res}.txt"
+
+        for loss_key in loss_dict.keys():
+            tmp_loss = []
+            for seed_res in seed_results:
+                path = os.path.join(m_path, seed_res)
+                with open(path, 'r') as res_file:
+                    for line in res_file:
+                        if config["param_comp"] is not None and config['param_comp'] in line:
+                            param_values.append(np.double(line.removeprefix(f"{config['param_comp']}: ")))
+                        if loss_key in line:
+                            tmp_loss.append(np.double(line.removeprefix(f'- {loss_key}: ')))
+            
+            loss_dict[loss_key].append([np.mean(tmp_loss), np.std(tmp_loss)])
 
     X_axis = np.arange(len(config['model_outs']))
     for loss_key in loss_dict.keys():
+        loss_means, loss_stds = zip(*loss_dict[loss_key])
+        out_path = out_path = f"{config['architecture']}_{config['dataset']}_metrics.txt"
+        with open(os.path.join(m_path, "compare", config['stage'], out_path), 'a') as res_file:
+            print(f"Values for {loss_key}:")
+            print(f'- mean: {loss_means}')
+            print(f'- std: {loss_stds}')
+            res_file.write(f'Values for {loss_key}:\n')
+            res_file.write(f'- mean: {loss_means}\n')
+            res_file.write(f'- std: {loss_stds}\n')
         fig, ax = plt.subplots()
         fig.figsize=(20, 10)
         ax.set_xticks(X_axis)
-        ax.set_xticklabels(param_values)
-        title = f"{loss_key} for different {config['param_comp']} values"
-        if "parent_param" in config and config['parent_param'] is not None:
-            title = title + f" for {config['parent_param']} hyperparameter"
-        if "target_modality" in config and config['target_modality'] is not None:
-            title = title + f"targetting the {config['target_modality']} modality"
+        if config["param_comp"] is not None:
+            ax.set_xticklabels(param_values)
+            title = f"{loss_key} for different {config['param_comp']} values"
+            if "parent_param" in config and config['parent_param'] is not None:
+                title = title + f" for {config['parent_param']} hyperparameter"
+            if "target_modality" in config and config['target_modality'] is not None:
+                title = title + f"targetting the {config['target_modality']} modality"
+            out_path = f"{config['architecture']}_{config['dataset']}_{config['param_comp']}_{loss_key}.png"
+        else:
+            ax.set_xticklabels([config['architecture']])
+            title = f"{loss_key} values"
+            out_path = f"{config['architecture']}_{config['dataset']}_{loss_key}.png"
         ax.set_title(title)
         ax.yaxis.grid(True)
-        metric_bar = ax.bar(X_axis, loss_dict[loss_key], width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)
+        metric_bar = ax.bar(X_axis, loss_means, yerr=loss_stds, width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)
         ax.bar_label(metric_bar)
-        fig.legend()
-        out_path = f"{config['architecture']}_{config['dataset']}_{config['param_comp']}_{loss_key}.png"
         fig.savefig(os.path.join(m_path, "compare", config['stage'], out_path))
         plt.close()
     return
 
-def plot_bar_across_seeds(m_path, config, loss_dict):
+def plot_bar_across_models(m_path, config, loss_dict):
     return
 
-def plot_graph_across_seeds(m_path, config, loss_dict):
+def plot_graph_across_models(m_path, config, loss_dict):
     return

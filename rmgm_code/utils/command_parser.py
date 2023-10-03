@@ -15,7 +15,7 @@ import subprocess
 
 import torch.optim as optim
 
-from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_seeds, plot_graph_across_seeds
+from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, plot_graph_across_models
 from input_transformations import gaussian_noise, fgsm, pgd, cw
 from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mhd.models.vae import MhdVAE
@@ -92,7 +92,8 @@ def process_arguments(m_path):
     comp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES, help='Architecture to be used in the comparison.')
     comp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the comparison.')
     comp_parser.add_argument('-s', '--stage', type=str, default='train_model', choices=STAGES, help='Stage of the pipeline to be used in the comparison.')
-    comp_parser.add_argument('--model_outs', '--mos', nargs='+')
+    comp_parser.add_argument('--model_outs', '--mos', type=int, nargs='+')
+    comp_parser.add_argument('--compare_models', '--cm', type=bool)
     comp_parser.add_argument('--param_comp', '--pc', type=str)
     comp_parser.add_argument('--parent_param', '--pp', type=str)
     comp_parser.add_argument('--number_seeds', '--ns', type=int)
@@ -158,9 +159,10 @@ def process_arguments(m_path):
             'stage': args['stage'],
             'model_outs': args['model_outs'],
             'param_comp': args['param_comp'],
+            'parent_param': args['parent_param'],
+            'number_seeds': args['number_seeds'],
+            'compare_models': args['compare_models']
         }
-        if 'parent_param' in args:
-            config['parent_param'] = args['parent_param']
 
         metrics_analysis(m_path, config)
         sys.exit(0)
@@ -673,8 +675,6 @@ def setup_experiment(m_path, config, device, train=True):
 
 @base_validation
 def metrics_analysis(m_path, config):
-    if "param_comp" not in config or config["param_comp"] is None:
-        raise argparse.ArgumentError("Argument error: must define the hyperparameter to compare values.")
     if ("parent_param" in config and "parent_param" in ADVERSARIAL_ATTACKS) or "param_comp" in ADVERSARIAL_ATTACKS:
         if "target_modality" not in config or config["target_modality"] not in MODALITIES[config['dataset']]:
             raise argparse.ArgumentError(f"Argument error: must specify valid target modality to compare adversarial attacks.\n")
@@ -705,7 +705,7 @@ def metrics_analysis(m_path, config):
                 loss_dict = {**loss_dict, 'mnist_recon_loss': [], 'svhn_recon_loss': []}
 
     elif "classifier" in config['stage']:
-        loss_dict = {'accuracy': []}
+        loss_dict = {'nll_loss': [], 'accuracy': []}
     else:
         raise ValueError(f"Invalid stage {config['stage']} for metric comparison.")
 
@@ -714,17 +714,26 @@ def metrics_analysis(m_path, config):
     except IOError as e:
         traceback.print_exception(*sys.exc_info())
     finally:
-        if "number_seeds" not in config or config["number_seeds"] is None or config["number_seeds"] == 0:
+        out_path = out_path = f"{config['architecture']}_{config['dataset']}_metrics.txt"
+        with open(os.path.join(m_path, "compare", config['stage'], out_path), 'w') as res_file:
+            for ckey, cval in config.items():
+                if cval is not None:
+                    print(f'{ckey}: {cval}')
+                    res_file.write(f'{ckey}: {cval}\n')
+
+        if config['compare_models']:
+            if "train" in config['stage']:
+                plot_graph_across_models(m_path, config, loss_dict)
+            elif "test" in config['stage']:
+                plot_bar_across_models(m_path, config, loss_dict)
+            else:
+                raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
+        else:
             if "train" in config['stage']:
                 plot_loss_compare_graph(m_path, config, loss_dict)
             elif "test" in config['stage']:
                 plot_metric_compare_bar(m_path, config, loss_dict)
-        elif config["number_seeds"] > 1:
-            if "train" in config['stage']:
-                plot_bar_across_seeds(m_path, config, loss_dict)
-            elif "test" in config['stage']:
-                plot_graph_across_seeds(m_path, config, loss_dict)
-        else:
-            raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
+            else:
+                raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
             
     return

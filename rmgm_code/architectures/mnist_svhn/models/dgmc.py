@@ -103,8 +103,10 @@ class DGMC(LightningModule):
 
     def decode(self, z):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            #reconstructions['joint'] = self.reconstructors['joint'](self.decoder(z))
-            return self.reconstructors['joint'](self.decoder(z[-1]))
+            if isinstance(z, list):
+                return self.reconstructors['joint'](self.decoder(z[-1]))
+            else:
+                return self.reconstructors['joint'](self.decoder(z))
 
         reconstructions = dict.fromkeys(z.keys())
         for key, mod_id in enumerate(reconstructions.keys()):
