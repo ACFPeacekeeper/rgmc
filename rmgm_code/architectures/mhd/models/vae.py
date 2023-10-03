@@ -82,5 +82,7 @@ class MhdVAE(nn.Module):
         return elbo, loss_dict
 
     def validation_step(self, x, labels):
-        return self.training_step(x, labels)
+        x_hat, _ = self.forward(x, sample=True)
+        elbo, loss_dict = self.loss(x, x_hat)
+        return elbo, loss_dict
         

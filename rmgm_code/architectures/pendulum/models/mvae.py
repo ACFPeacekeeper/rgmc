@@ -6,9 +6,9 @@ from ..subnetworks.mvae_networks import *
 
 
 # Code adapted from https://github.com/mhw32/multimodal-vae-public/blob/master/mnist/model.py
-class MSMVAE(nn.Module):
+class PendulumMVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps):
-        super(MSMVAE, self).__init__()
+        super(PendulumMVAE, self).__init__()
         self.name = name
         self.device = device
         self.mean = mean
@@ -19,28 +19,28 @@ class MSMVAE(nn.Module):
         self.kld = 0.
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.poe_eps = poe_eps
-
         self.image_encoder = None
         self.image_decoder = None
-        self.trajectory_encoder = None
-        self.trajectory_decoder = None
-        if self.exclude_modality == 'mnist':
-            self.svhn_encoder = SVHNEncoder(latent_dimension)
-            self.svhn_decoder = SVHNDecoder(latent_dimension)
-            self.encoders = {'svhn': self.svhn_encoder}
-            self.decoders = {'svhn': self.svhn_decoder}
-        elif self.exclude_modality == 'svhn':
-            self.mnist_encoder = MNISTEncoder(latent_dimension)
-            self.mnist_decoder = MNISTDecoder(latent_dimension)
-            self.encoders = {'mnist': self.mnist_encoder}
-            self.decoders = {'mnist': self.mnist_decoder}
+        self.sound_encoder = None
+        self.sound_decoder = None
+
+        if self.exclude_modality == 'image':
+            self.sound_encoder = SoundEncoder(latent_dimension)
+            self.sound_decoder = SoundDecoder(latent_dimension)
+            self.encoders = {'sound': self.sound_encoder}
+            self.decoders = {'sound': self.sound_decoder}
+        elif self.exclude_modality == 'sound':
+            self.image_encoder = ImageEncoder(latent_dimension)
+            self.image_decoder = ImageDecoder(latent_dimension)
+            self.encoders = {'image': self.image_encoder}
+            self.decoders = {'image': self.image_decoder}
         else:
-            self.svhn_encoder = SVHNEncoder(latent_dimension)
-            self.svhn_decoder = SVHNDecoder(latent_dimension)
-            self.mnist_encoder = MNISTEncoder(latent_dimension)
-            self.mnist_decoder = MNISTDecoder(latent_dimension)
-            self.encoders = {'mnist': self.mnist_encoder, 'svhn': self.svhn_encoder}
-            self.decoders = {'mnist': self.mnist_decoder, 'svhn': self.svhn_decoder}
+            self.sound_encoder = SoundEncoder(latent_dimension)
+            self.sound_decoder = SoundDecoder(latent_dimension)
+            self.image_encoder = ImageEncoder(latent_dimension)
+            self.image_decoder = ImageDecoder(latent_dimension)
+            self.encoders = {'image': self.image_encoder, 'sound': self.sound_encoder}
+            self.decoders = {'image': self.image_decoder, 'sound': self.sound_decoder}
 
     def set_latent_dim(self, latent_dim):
         for enc_key, dec_key in zip(self.encoders.keys(), self.decoders.keys()):
@@ -50,23 +50,6 @@ class MSMVAE(nn.Module):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        if self.exclude_modality == 'mnist':
-            self.svhn_encoder = SVHNEncoder(self.latent_dimension)
-            self.svhn_decoder = SVHNDecoder(self.latent_dimension)
-            self.encoders = {'svhn': self.svhn_encoder}
-            self.decoders = {'svhn': self.svhn_decoder}
-        elif self.exclude_modality == 'svhn':
-            self.mnist_encoder = MNISTEncoder(self.latent_dimension)
-            self.mnist_decoder = MNISTDecoder(self.latent_dimension)
-            self.encoders = {'mnist': self.mnist_encoder}
-            self.decoders = {'mnist': self.mnist_decoder}
-        else:
-            self.svhn_encoder = SVHNEncoder(self.latent_dimension)
-            self.svhn_decoder = SVHNDecoder(self.latent_dimension)
-            self.mnist_encoder = MNISTEncoder(self.latent_dimension)
-            self.mnist_decoder = MNISTDecoder(self.latent_dimension)
-            self.encoders = {'mnist': self.mnist_encoder, 'svhn': self.svhn_encoder}
-            self.decoders = {'mnist': self.mnist_decoder, 'svhn': self.svhn_decoder}
 
     def reparameterization(self, mean, std):
         dist = torch.distributions.Normal(self.mean, self.std)
@@ -111,7 +94,7 @@ class MSMVAE(nn.Module):
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
+        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['sound']})
         self.kld = 0.
         return elbo, loss_dict
 
@@ -125,6 +108,7 @@ class MSMVAE(nn.Module):
         elbo, loss_dict = self.loss(x, x_hat)
         return elbo, loss_dict
             
+
 
 class PoE(nn.Module): 
     def forward(self, mean, logvar, eps=1e-8):

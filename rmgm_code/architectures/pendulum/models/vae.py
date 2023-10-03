@@ -4,12 +4,12 @@ from collections import Counter
 from ..subnetworks.vae_networks import *
 
 
-class MSVAE(nn.Module):
+class PendulumVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
-        super(MSVAE, self).__init__()
+        super(PendulumVAE, self).__init__()
         self.name = name
-        self.layer_dim = 28 * 28 + 3 * 32 * 32
-        self.modality_dims = [0, 28 * 28, 3 * 32 * 32]
+        self.layer_dim = 28 * 28 + 200
+        self.modality_dims = [0, 28 * 28, 200]
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
         self.encoder = Encoder(self.latent_dimension, self.layer_dim)
@@ -37,10 +37,12 @@ class MSVAE(nn.Module):
 
     def forward(self, x, sample=False):
         data_list = list(x.values())
-        data = torch.flatten(data_list[0], start_dim=1)
+        if len(data_list[0].size()) > 2:
+            data = torch.flatten(data_list[0], start_dim=1)
+        else:
+            data = data_list[0]
 
         for id in range(1, len(data_list)):
-            data_list[id] = torch.flatten(data_list[id], start_dim=1)
             data = torch.concat((data, data_list[id]), dim=-1)
 
         mean, logvar = self.encoder(data)
@@ -55,13 +57,10 @@ class MSVAE(nn.Module):
         x_hat = dict.fromkeys(x.keys())
         for id, key in enumerate(x_hat.keys()):
             x_hat[key] = tmp[:, self.modality_dims[id]:self.modality_dims[id]+self.modality_dims[id+1]]
-            if key == 'mnist':
+            if key == 'image':
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
-            elif key == 'svhn':
-                x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 3, 32, 32))
 
         return x_hat, z
-    
     
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
@@ -73,7 +72,7 @@ class MSVAE(nn.Module):
 
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
+        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
     
@@ -83,6 +82,5 @@ class MSVAE(nn.Module):
         return elbo, loss_dict
 
     def validation_step(self, x, labels):
-        x_hat, _ = self.forward(x, sample=True)
-        elbo, loss_dict = self.loss(x, x_hat)
-        return elbo, loss_dict
+        return self.training_step(x, labels)
+        

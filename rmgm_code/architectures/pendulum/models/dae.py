@@ -4,12 +4,12 @@ from collections import Counter
 from ..subnetworks.dae_networks import *
 
 
-class MSDAE(nn.Module):
+class PendulumDAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.3):
-        super(MSDAE, self).__init__()
+        super(PendulumDAE, self).__init__()
         self.name = name
-        self.layer_dim = 28 * 28 + 3 * 32 * 32
-        self.modality_dims = [0, 28 * 28, 3 * 32 * 32]
+        self.layer_dim = 28 * 28 + 200
+        self.modality_dims = [0, 28 * 28, 200]
         self.exclude_modality = exclude_modality
 
         self.exclude_modality
@@ -39,10 +39,14 @@ class MSDAE(nn.Module):
             x = self.add_noise(x)
 
         data_list = list(x.values())
-        data = torch.flatten(data_list[0], start_dim=1)
+        if len(data_list[0].size()) > 2:
+            data = torch.flatten(data_list[0], start_dim=1)
+        else:
+            data = data_list[0]
 
         for id in range(1, len(data_list)):
-            data_list[id] = torch.flatten(data_list[id], start_dim=1)
+            if len(data_list[id].size()) > 2:
+                data_list[id] = torch.flatten(data_list[id], start_dim=1)
             data = torch.concat((data, data_list[id]), dim=-1)
 
         z = self.encoder(data)
@@ -51,10 +55,8 @@ class MSDAE(nn.Module):
         x_hat = dict.fromkeys(x.keys())
         for id, key in enumerate(x_hat.keys()):
             x_hat[key] = tmp[:, self.modality_dims[id]:self.modality_dims[id]+self.modality_dims[id+1]]
-            if key == 'mnist':
+            if key == 'image':
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
-            elif key == 'svhn':
-                x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 3, 32, 32))
 
         return x_hat, z
     
@@ -65,20 +67,18 @@ class MSDAE(nn.Module):
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
             recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
-
+            
         recon_loss = 0
         for value in recon_losses.values():
             recon_loss += value
 
-        loss_dict = Counter({'total_loss': recon_loss, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
+        loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         return recon_loss, loss_dict
 
     def training_step(self, x, labels):
-        x_hat, _ = self.forward(x, sample=False)
-        recon_loss, loss_dict = self.loss(x, x_hat)
-        return recon_loss, loss_dict
+            x_hat, _ = self.forward(x, sample=False)
+            recon_loss, loss_dict = self.loss(x, x_hat)
+            return recon_loss, loss_dict
     
     def validation_step(self, x, labels):
-        x_hat, _ = self.forward(x, sample=True)
-        recon_loss, loss_dict = self.loss(x, x_hat)
-        return recon_loss, loss_dict
+        return self.training_step(x, labels)

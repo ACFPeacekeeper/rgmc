@@ -1,46 +1,46 @@
 from pytorch_lightning import LightningModule
-from ..subnetworks.dgmc_networks import *
+from ..subnetworks.gmcwd_networks import *
 from collections import Counter
 
 
-class DGMC(LightningModule):
+class GMCWD(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
-        super(DGMC, self).__init__()
-        self.name = name        
-        self.scales = scales
-        self.loss_type = loss_type
+        super(GMCWD, self).__init__()
+        self.name = name
         self.common_dim = common_dim
-        self.noise_factor = noise_factor
-        self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
+        self.loss_type = loss_type
+        self.exclude_modality = exclude_modality
+        self.scales = scales
+        self.noise_factor = noise_factor
 
         self.image_processor = None
-        self.trajectory_processor = None
+        self.sound_processor = None
         self.joint_processor = None
         self.image_reconstructor = None
-        self.trajectory_reconstructor = None
+        self.sound_reconstructor = None
         self.joint_reconstructor = None
         if self.exclude_modality == 'image':
             self.num_modalities = 1
-            self.modalities = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
-        elif self.exclude_modality == 'trajectory':
+            self.modalities = ["sound"]
+            self.processors = {'sound': self.sound_processor}
+            self.reconstructors = {'sound': self.sound_reconstructor}
+        elif self.exclude_modality == 'sound':
             self.num_modalities = 1
             self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
             self.reconstructors = {'image': self.image_reconstructor}
         else: 
             self.num_modalities = 2
-            self.modalities = ["image", "trajectory"]
+            self.modalities = ["image", "sound"]
             self.processors = {
                 'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
+                'sound': self.sound_processor,
                 'joint': self.joint_processor,
             }
             self.reconstructors = {
                 'image': self.image_reconstructor,
-                'trajectory': self.trajectory_reconstructor,
+                'sound': self.sound_reconstructor,
                 'joint': self.joint_reconstructor,
             }
 
@@ -51,25 +51,25 @@ class DGMC(LightningModule):
         self.exclude_modality = exclude_modality
         if self.exclude_modality == 'image':
             self.num_modalities = 1
-            self.modalities = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
-        elif self.exclude_modality == 'trajectory':
+            self.modalities = ["sound"]
+            self.processors = {'sound': self.sound_processor}
+            self.reconstructors = {'sound': self.sound_reconstructor}
+        elif self.exclude_modality == 'sound':
             self.num_modalities = 1
             self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
             self.reconstructors = {'image': self.image_reconstructor}
         else: 
             self.num_modalities = 2
-            self.modalities = ["image", "trajectory"]
+            self.modalities = ["image", "sound"]
             self.processors = {
                 'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
+                'sound': self.sound_processor,
                 'joint': self.joint_processor,
             }
             self.reconstructors = {
                 'image': self.image_reconstructor,
-                'trajectory': self.trajectory_reconstructor,
+                'sound': self.sound_reconstructor,
                 'joint': self.joint_reconstructor,
             }
 
@@ -83,9 +83,7 @@ class DGMC(LightningModule):
             x = self.add_noise(x)
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            encoding = self.forward(x, sample)
-            recons = self.decode(encoding)
-            return self.encoder(self.processors['joint'](recons))
+            return self.encoder(self.processors['joint'](x))
         else:
             latent_representations = []
             for key in x.keys():
@@ -98,7 +96,7 @@ class DGMC(LightningModule):
             else:
                 latent = latent_representations[0]
             return latent
-        
+
     def decode(self, z):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             #reconstructions['joint'] = self.reconstructors['joint'](self.decoder(z))
@@ -219,7 +217,7 @@ class DGMC(LightningModule):
 
         loss = sum(recon_losses.values()) / len(recon_losses)
 
-        return loss, {'image_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']}
+        return loss, {'image_recon_loss': recon_losses['image'], 'sound_recon_loss': recon_losses['sound']}
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -241,7 +239,7 @@ class DGMC(LightningModule):
         batch_size = list(data.values())[0].size(dim=0)
 
         # Forward pass through the encoders
-        batch_representations = self.forward(data, sample=True)
+        batch_representations = self.forward(data)
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
@@ -253,36 +251,36 @@ class DGMC(LightningModule):
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
 
-class MhdDGMC(DGMC):
+class PendulumGMCWD(GMCWD):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
-        super(MhdDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
-        self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-        self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-        self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-        self.image_reconstructor = MHDImageDecoder(common_dim=self.common_dim)
-        self.trajectory_reconstructor = MHDTrajectoryDecoder(common_dim=self.common_dim)
-        self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim)
+        super(PendulumGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
+        self.image_processor = PendulumImageProcessor(common_dim=self.common_dim)
+        self.sound_processor = PendulumSoundProcessor(common_dim=self.common_dim)
+        self.joint_processor = PendulumJointProcessor(common_dim=self.common_dim)
+        self.image_reconstructor = PendulumImageDecoder(common_dim=self.common_dim)
+        self.sound_reconstructor = PendulumSoundDecoder(common_dim=self.common_dim)
+        self.joint_reconstructor = PendulumJointDecoder(common_dim=self.common_dim)
         if exclude_modality == 'image':
-            self.processors = {'trajectory': self.trajectory_processor}
-            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
-        elif exclude_modality == 'trajectory':
+            self.processors = {'sound': self.sound_processor}
+            self.reconstructors = {'sound': self.sound_reconstructor}
+        elif exclude_modality == 'sound':
             self.processors = {'image': self.image_processor}
             self.reconstructors = {'image': self.image_reconstructor}
         else:
             self.processors = {
                 'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
+                'sound': self.sound_processor,
                 'joint': self.joint_processor,
             }
             self.reconstructors = {
                 'image': self.image_reconstructor,
-                'trajectory': self.trajectory_reconstructor,
+                'sound': self.sound_reconstructor,
                 'joint': self.joint_reconstructor,
             }
 
         self.loss_type = loss_type
-        self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
-        self.decoder = MHDCommonDecoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
+        self.encoder = PendulumCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
+        self.decoder = PendulumCommonDecoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)
@@ -300,4 +298,3 @@ class MhdDGMC(DGMC):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        

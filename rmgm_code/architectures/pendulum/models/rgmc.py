@@ -10,27 +10,30 @@ class RGMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
         super(RGMC, self).__init__()
         self.name = name
-        self.scales = scales
-        self.loss_type = loss_type
         self.common_dim = common_dim
-        self.noise_factor = noise_factor
-        self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
+        self.loss_type = loss_type
+        self.exclude_modality = exclude_modality
+        self.scales = scales
+        self.noise_factor = noise_factor
 
         self.image_processor = None
-        self.trajectory_processor = None
+        self.sound_processor = None
         self.joint_processor = None
         if self.exclude_modality == 'image':
-            self.modalities = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif self.exclude_modality == 'trajectory':
+            self.num_modalities = 1
+            self.modalities = ["sound"]
+            self.processors = {'sound': self.sound_processor}
+        elif self.exclude_modality == 'sound':
+            self.num_modalities = 1
             self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
         else:
-            self.modalities = ["image", "trajectory"]
+            self.num_modalities = 2
+            self.modalities = ["image", "sound"]
             self.processors = {
                 'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
+                'sound': self.sound_processor,
                 'joint': self.joint_processor,
             }
 
@@ -39,6 +42,22 @@ class RGMC(LightningModule):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
+        if self.exclude_modality == 'image':
+            self.num_modalities = 1
+            self.modalities = ["sound"]
+            self.processors = {'sound': self.sound_processor}
+        elif self.exclude_modality == 'sound':
+            self.num_modalities = 1
+            self.modalities = ["image"]
+            self.processors = {'image': self.image_processor}
+        else:
+            self.num_modalities = 2
+            self.modalities = ["image", "sound"]
+            self.processors = {
+                'image': self.image_processor,
+                'sound': self.sound_processor,
+                'joint': self.joint_processor,
+            }
 
     def add_perturbation(self, x):
         # Last id corresponds to targetting none of the modalities
@@ -164,7 +183,7 @@ class RGMC(LightningModule):
         loss = torch.mean(joint_mod_loss_sum)
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
-
+    
     def o3n_loss(self, perturbed_preds, clean_pred):
         clean_pred = clean_pred.view(clean_pred.size(0), 1)
         preds = torch.cat((perturbed_preds, clean_pred), dim=-1)
@@ -195,12 +214,12 @@ class RGMC(LightningModule):
 
         total_loss = loss + o3n_loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
-    
+
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
 
         # Forward pass through the encoders
-        batch_representations = self.forward(data, sample=True)
+        batch_representations = self.forward(data)
 
         # Forward pass through odd-one-out network
         clean_mod_weights = self.o3n(batch_representations[:-1])
@@ -223,33 +242,28 @@ class RGMC(LightningModule):
 
 
 
-class MhdRGMC(RGMC):
+class PendulumRGMC(RGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, scales, noise_factor, device, loss_type="infonce"):
-        if exclude_modality != None:
-            self.num_modalities = 1
-        else:
-            self.num_modalities = 2
-
-        super(MhdRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
-        self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-        self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-        self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
+        super(PendulumRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
+        self.image_processor = PendulumImageProcessor(common_dim=self.common_dim)
+        self.sound_processor = PendulumSoundProcessor(common_dim=self.common_dim)
+        self.joint_processor = PendulumJointProcessor(common_dim=self.common_dim)
         if exclude_modality == 'image':
-            self.o3n_mods = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif exclude_modality == 'trajectory':
+            self.o3n_mods = ["sound"]
+            self.processors = {'sound': self.sound_processor}
+        elif exclude_modality == 'sound':
             self.o3n_mods = ["image"]
             self.processors = {'image': self.image_processor}
         else:
-            self.o3n_mods = ["trajectory", "image", "joint"]
+            self.o3n_mods = ["sound", "image", "joint"]
             self.processors = {
                 'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
+                'sound': self.sound_processor,
                 'joint': self.joint_processor,
             }
 
         self.loss_type = loss_type
-        self.encoder = MHDCommonEncoder(common_dim=common_dim, latent_dimension=latent_dimension)
+        self.encoder = PendulumCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
         self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.o3n_mods, device=device)
 
     def set_latent_dim(self, latent_dim):
@@ -265,4 +279,3 @@ class MhdRGMC(RGMC):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        

@@ -411,6 +411,7 @@ rmgm_code/*.json
 rmgm_code/*.txt
 rmgm_code/configs
 rmgm_code/results
+rmgm_code/compare
 rmgm_code/images
 rmgm_code/wandb
 gmc/

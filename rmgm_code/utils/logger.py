@@ -109,9 +109,17 @@ def save_test_results(m_path, config, loss_list_dict):
     plot_metrics_bar(m_path, config, loss_list_dict)
     return
 
-def plot_metric_compare(m_path, config, loss_dict):
+def plot_loss_compare_graph(m_path, config, loss_dict):
+    return
+
+def plot_metric_compare_bar(m_path, config, loss_dict):
     param_values = []
     for model_results in config['model_outs']:
+        if model_results.isdigit():
+            if "classifier" in config['stage']:
+                model_results = f"results/{config['stage']}/clf_{config['architecture']}_{config['dataset']}_exp{model_results}.txt"
+            else:
+                model_results = f"results/{config['stage']}/{config['architecture']}_{config['dataset']}_exp{model_results}.txt"
         path = os.path.join(m_path, model_results)
         with open(path, 'r') as res_file:
             for loss_key in loss_dict.keys():
@@ -127,15 +135,23 @@ def plot_metric_compare(m_path, config, loss_dict):
         fig.figsize=(20, 10)
         ax.set_xticks(X_axis)
         ax.set_xticklabels(param_values)
-        title = f"{loss_key} values for different {config['param_comp']} values"
-        if config['parent_param'] is not None:
+        title = f"{loss_key} for different {config['param_comp']} values"
+        if "parent_param" in config and config['parent_param'] is not None:
             title = title + f" for {config['parent_param']} hyperparameter"
+        if "target_modality" in config and config['target_modality'] is not None:
+            title = title + f"targetting the {config['target_modality']} modality"
         ax.set_title(title)
         ax.yaxis.grid(True)
         metric_bar = ax.bar(X_axis, loss_dict[loss_key], width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)
         ax.bar_label(metric_bar)
         fig.legend()
-        out_path = f"{config['architecture']}_{config['dataset']}_{config['param_comp']}.png"
-        fig.savefig(os.path.join(m_path, "results", config['stage'], out_path))
+        out_path = f"{config['architecture']}_{config['dataset']}_{config['param_comp']}_{loss_key}.png"
+        fig.savefig(os.path.join(m_path, "compare", config['stage'], out_path))
         plt.close()
+    return
+
+def plot_bar_across_seeds(m_path, config, loss_dict):
+    return
+
+def plot_graph_across_seeds(m_path, config, loss_dict):
     return

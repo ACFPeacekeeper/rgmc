@@ -250,6 +250,7 @@ def run_experiment(**kwargs):
 def main():
     try:
         os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
+        os.makedirs(os.path.join(m_path, "compare"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "configs"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)

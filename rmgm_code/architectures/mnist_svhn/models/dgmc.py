@@ -243,7 +243,7 @@ class DGMC(LightningModule):
         batch_size = list(data.values())[0].size(dim=0)
 
         # Forward pass through the encoders
-        batch_representations = self.forward(data)
+        batch_representations = self.forward(data, sample=True)
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)

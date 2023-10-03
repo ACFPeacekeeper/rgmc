@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 # Pendulum
 class PendulumCommonEncoder(nn.Module):
     def __init__(self, common_dim, latent_dim):
@@ -107,8 +108,7 @@ class PendulumJointProcessor(nn.Module):
         self.common_dim = common_dim
 
     def forward(self, x):
-
-        x_img, x_snd = x[0], x[1]
+        x_img, x_snd = x['image'], x['sound']
 
         x_img = self.img_features(x_img)
         x_img = x_img.view(x_img.size(0), -1)

@@ -15,7 +15,7 @@ import subprocess
 
 import torch.optim as optim
 
-from utils.logger import plot_metric_compare
+from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_seeds, plot_graph_across_seeds
 from input_transformations import gaussian_noise, fgsm, pgd, cw
 from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mhd.models.vae import MhdVAE
@@ -33,7 +33,13 @@ from architectures.mnist_svhn.models.gmc import MSGMC
 from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
 from architectures.mnist_svhn.models.gmcwd import MSGMCWD
+from architectures.pendulum.models.vae import PendulumVAE
+from architectures.pendulum.models.dae import PendulumDAE
+from architectures.pendulum.models.mvae import PendulumMVAE
 from architectures.pendulum.models.gmc import PendulumGMC
+from architectures.pendulum.models.dgmc import PendulumDGMC
+from architectures.pendulum.models.gmcwd import PendulumGMCWD
+from architectures.pendulum.models.rgmc import PendulumRGMC
 from datasets.mhd.mhd_dataset import MhdDataset
 from datasets.mosi.mosi_dataset import MosiDataset
 from datasets.mosei.mosi_dataset import MoseiDataset
@@ -41,13 +47,16 @@ from datasets.pendulum.pendulum_dataset import PendulumDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd', None]
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
-NOISE_TYPES = ['gaussian', None] 
-ADVERSARIAL_ATTACKS = ["fgsm", "pgd", None]
+ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]
 EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
-MODALITIES = ['image', 'trajectory', None]
+MODALITIES = {
+    'mhd': ['image', 'trajectory'],
+    'mnist_svhn': ['mnist', 'svhn'],
+    'pendulum': ['image', 'sound']
+    }
 STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference']
 
 SEED = 42
@@ -84,8 +93,10 @@ def process_arguments(m_path):
     comp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the comparison.')
     comp_parser.add_argument('-s', '--stage', type=str, default='train_model', choices=STAGES, help='Stage of the pipeline to be used in the comparison.')
     comp_parser.add_argument('--model_outs', '--mos', nargs='+')
-    comp_parser.add_argument('--param_comp', '--pc')
-    comp_parser.add_argument('--parent_param', '--pp')
+    comp_parser.add_argument('--param_comp', '--pc', type=str)
+    comp_parser.add_argument('--parent_param', '--pp', type=str)
+    comp_parser.add_argument('--number_seeds', '--ns', type=int)
+    comp_parser.add_argument('--target_modality', '--tm', type=str)
 
     upload_parser = subparsers.add_parser("upload")
     upload_parser.add_argument('--configs')
@@ -121,10 +132,9 @@ def process_arguments(m_path):
     exp_parser.add_argument('--checkpoint', type=int, default=CHECKPOINT_DEFAULT, help='Epoch interval between checkpoints of the model in training.')
     exp_parser.add_argument('--latent_dimension', '--latent_dim', type=int, default=LATENT_DIM_DEFAULT, help='Dimension of the latent space of the models encodings.')
     exp_parser.add_argument('--common_dimension', '--common_dim', type=int, default=COMMON_DIM_DEFAULT, help='Dimension of the common representation space of the models based on GMC.')
-    exp_parser.add_argument('--noise', type=str, default=None, choices=NOISE_TYPES, help='Apply a type of noise to the model\'s input.')
     exp_parser.add_argument('--adversarial_attack', '--attack', type=str, default=None, choices=ADVERSARIAL_ATTACKS, help='Execute an adversarial attack against the model.')
-    exp_parser.add_argument('--target_modality', type=str, default=None, choices=MODALITIES, help='Modality to target with noisy and/or adversarial samples.')
-    exp_parser.add_argument('--exclude_modality', type=str, default=None, choices=MODALITIES, help='Exclude a modality from the training/testing process.')
+    exp_parser.add_argument('--target_modality', type=str, default=None, help='Modality to target with noisy and/or adversarial samples.')
+    exp_parser.add_argument('--exclude_modality', type=str, default=None, help='Exclude a modality from the training/testing process.')
     exp_parser.add_argument('--infonce_temperature', '--infonce_temp', type=float, default=INFONCE_TEMPERATURE_DEFAULT, help='Temperature for the infonce loss.')
     exp_parser.add_argument('--image_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['image'], help='Weight for the image reconstruction loss.')
     exp_parser.add_argument('--traj_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['trajectory'], help='Weight for the trajectory reconstruction loss.')
@@ -153,6 +163,7 @@ def process_arguments(m_path):
             config['parent_param'] = args['parent_param']
 
         metrics_analysis(m_path, config)
+        sys.exit(0)
 
     if args['command'] == 'clear':
         if args['clear_results']:
@@ -241,19 +252,43 @@ def create_idx_dict():
             idx_dict[stage][dataset] = dict.fromkeys(ARCHITECTURES, 0)
     return idx_dict
 
+def base_validation(function):
+    def wrapper(m_path, config):
+        if "stage" not in config or config["stage"] not in STAGES:
+            raise argparse.ArgumentError("Argument error: must specify a valid pipeline stage.")
+        if "architecture" not in config or config["architecture"] not in ARCHITECTURES:
+            raise argparse.ArgumentError("Argument error: must specify an architecture for the experiments.")
+        if "dataset" not in config or config["dataset"] not in DATASETS:
+            raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
+        return function(m_path, config)
+    return wrapper
+
+@base_validation
 def config_validation(m_path, config):
-    if "stage" not in config or config["stage"] not in STAGES:
-        raise argparse.ArgumentError("Argument error: must specify a valid pipeline stage.")
-    if "architecture" not in config or config["architecture"] not in ARCHITECTURES:
-        raise argparse.ArgumentError("Argument error: must specify an architecture for the experiments.")
-    if "dataset" not in config or config["dataset"] not in DATASETS:
-        raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
-    if config['batch_size'] < 1:
-            raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
-    if "adversarial_attack" in config and config["adversarial_attack"] is not None:
-        if config["target_modality"] is None:
-            raise argparse.ArgumentError("Argument error: must define the target_modality for noise/adversarial attack.")
-            
+    if "batch_size" not in config or config["batch_size"] is None:
+            config['batch_size'] = BATCH_SIZE_DEFAULT
+    elif config['batch_size'] < 1:
+        raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
+    if "latent_dimension" not in config or config['latent_dimension'] is None:
+        config['latent_dimension'] = LATENT_DIM_DEFAULT
+    elif config['latent_dimension'] < 1:
+        raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
+    
+    if config['architecture'] is None:
+        raise argparse.ArgumentError("Argument error: must define a valid architecture.")
+    if "exclude_modality" in config and config["exclude_modality"] not in MODALITIES[config['dataset']]:
+        raise argparse.ArgumentError("Argument error: must define a valid modality to exclude.")
+    if "adversarial_attack" in config and config['adversarial_attack'] is not None:
+        if config["adversarial_attack"] not in ADVERSARIAL_ATTACKS:
+            raise argparse.ArgumentError("Argument error: must define valid adversarial attack.")
+        if "target_modality" not in config or config['target_modality'] not in MODALITIES[config['dataset']]:
+            raise argparse.ArgumentError("Argument error: must specify valid target_modality for adversarial attack.")
+    else:
+        config["target_modality"] = None
+
+    if ("exclude_modality" in config and config['exclude_modality'] is not None) and config['target_modality'] is not None and config['exclude_modality'] == config['target_modality']:
+        raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
+    
     try:
         os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
         if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
@@ -279,12 +314,6 @@ def config_validation(m_path, config):
     finally:
         if "seed" not in config or config['seed'] is None:
             config["seed"] = SEED
-    
-        if "latent_dimension" not in config or config['latent_dimension'] is None:
-            config['latent_dimension'] = LATENT_DIM_DEFAULT
-
-        if config['latent_dimension'] < 1:
-            raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
 
         if "exclude_modality" not in config:
             config["exclude_modality"] = None
@@ -292,14 +321,8 @@ def config_validation(m_path, config):
         if "target_modality" not in config:
             config['target_modality'] = None
 
-        if config['exclude_modality'] is not None and config['target_modality'] is not None and config['exclude_modality'] == config['target_modality']:
-            raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
-
         if "download" not in config:
             config["download"] = None
-
-        if "batch_size" not in config or config["batch_size"] is None:
-            config['batch_size'] = BATCH_SIZE_DEFAULT
 
         if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
             if config['dataset'] == "mhd":
@@ -543,25 +566,25 @@ def setup_experiment(m_path, config, device, train=True):
             model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
     elif config['dataset'] == 'pendulum':
         if config['architecture'] == 'vae':
-            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
-            model = MSVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
+            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = PendulumVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
         elif config['architecture'] == 'dae':
-            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
-            model = MSDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale']}
+            model = PendulumDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'mvae':
-            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
-            model = MSMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = PendulumMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
         elif config['architecture'] == 'gmc':
             model = PendulumGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
-            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-            model = MSDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = PendulumDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'rgmc':
             scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
-            model = MSRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+            model = PendulumRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
         elif config['architecture'] == 'gmcwd':
-            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-            model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'infonce_temp': config['infonce_temperature']}
+            model = PendulumGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
 
     if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
         model.load_state_dict(torch.load(os.path.join(m_path, config["path_model"])))
@@ -648,8 +671,17 @@ def setup_experiment(m_path, config, device, train=True):
 
     return dataset, model, optimizer
 
+@base_validation
 def metrics_analysis(m_path, config):
+    if "param_comp" not in config or config["param_comp"] is None:
+        raise argparse.ArgumentError("Argument error: must define the hyperparameter to compare values.")
+    if ("parent_param" in config and "parent_param" in ADVERSARIAL_ATTACKS) or "param_comp" in ADVERSARIAL_ATTACKS:
+        if "target_modality" not in config or config["target_modality"] not in MODALITIES[config['dataset']]:
+            raise argparse.ArgumentError(f"Argument error: must specify valid target modality to compare adversarial attacks.\n")
     if "model" in config['stage']:
+        if config['architecture'] is None:
+            raise argparse.ArgumentError("Argument error: must define a valid architecture when comparing metrics for train_model or test_model stages.")
+        
         if config['architecture'] == 'vae':
             loss_dict = {'elbo_loss': [], 'kld_loss': []}
         elif config['architecture'] == 'dae':
@@ -673,16 +705,26 @@ def metrics_analysis(m_path, config):
                 loss_dict = {**loss_dict, 'mnist_recon_loss': [], 'svhn_recon_loss': []}
 
     elif "classifier" in config['stage']:
-        loss_dict = {'nll_loss': [], 'accuracy': []}
+        loss_dict = {'accuracy': []}
     else:
         raise ValueError(f"Invalid stage {config['stage']} for metric comparison.")
 
-    for id, model_results in enumerate(config['model_outs']):
-        if model_results.isdigit():
-            if "classifier" in config['stage']:
-                config['model_outs'][id] = f"results/{config['stage']}/clf_{config['architecture']}_{config['dataset']}_exp{config['model_outs'][id]}.txt"
-            else:
-                config['model_outs'][id] = f"results/{config['stage']}/{config['architecture']}_{config['dataset']}_exp{config['model_outs'][id]}.txt"
-
-    plot_metric_compare(m_path, config, loss_dict)
+    try:
+        os.makedirs(os.path.join(m_path, "compare", config['stage']), exist_ok=True)
+    except IOError as e:
+        traceback.print_exception(*sys.exc_info())
+    finally:
+        if "number_seeds" not in config or config["number_seeds"] is None or config["number_seeds"] == 0:
+            if "train" in config['stage']:
+                plot_loss_compare_graph(m_path, config, loss_dict)
+            elif "test" in config['stage']:
+                plot_metric_compare_bar(m_path, config, loss_dict)
+        elif config["number_seeds"] > 1:
+            if "train" in config['stage']:
+                plot_bar_across_seeds(m_path, config, loss_dict)
+            elif "test" in config['stage']:
+                plot_graph_across_seeds(m_path, config, loss_dict)
+        else:
+            raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
+            
     return
