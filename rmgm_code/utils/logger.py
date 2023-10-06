@@ -11,23 +11,23 @@ from matplotlib.ticker import StrMethodFormatter
 
 
 def save_epoch_results(m_path, config, device, runtime, loss_dict=None):
-    print(f'Runtime: {runtime} sec')
+    print(f'- Runtime: {runtime} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write(f'- Runtime: {runtime} sec\n')
     
     if loss_dict is not None:
         with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
             for key, value in loss_dict.items():
-                print(f'{key}: {value}')
+                print(f'- {key}: {value}')
                 file.write(f'- {key}: {value}\n')
                 #wandb.log({key: value})
 
-    print('Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
-    print('Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
+    print('- Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
+    print('- Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
     if device.type == 'cuda':
-        print("Torch CUDA memory allocated: %f GB"%(torch.cuda.memory_allocated(torch.cuda.current_device())/1024/1024/1024))
-        print("Torch CUDA memory reserved: %f GB"%(torch.cuda.memory_reserved(torch.cuda.current_device())/1024/1024/1024))
-        print("Torch CUDA max memory reserved: %f GB"%(torch.cuda.max_memory_reserved(torch.cuda.current_device())/1024/1024/1024))
+        print("- Torch CUDA memory allocated: %f GB"%(torch.cuda.memory_allocated(torch.cuda.current_device())/1024/1024/1024))
+        print("- Torch CUDA memory reserved: %f GB"%(torch.cuda.memory_reserved(torch.cuda.current_device())/1024/1024/1024))
+        print("- Torch CUDA max memory reserved: %f GB"%(torch.cuda.max_memory_reserved(torch.cuda.current_device())/1024/1024/1024))
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
         file.write('- Current RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
         file.write('- Peak RAM usage: %f GB\n'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
@@ -114,7 +114,7 @@ def plot_loss_compare_graph(m_path, config, loss_dict):
 
 def plot_metric_compare_bar(m_path, config, loss_dict):
     if config["param_comp"] is not None:
-        param_values = []
+        tmp_param_values = []
 
     for model_results in config['model_outs']:
         if "number_seeds" in config and config["number_seeds"] > 1:
@@ -140,8 +140,14 @@ def plot_metric_compare_bar(m_path, config, loss_dict):
                             tmp_loss.append(np.double(line.removeprefix(f'- {loss_key}: ')))
             
             loss_dict[loss_key].append([np.mean(tmp_loss), np.std(tmp_loss)])
-
-    X_axis = np.arange(len(config['model_outs']))
+    
+    if config["param_comp"] is not None:
+        param_values = []
+        [param_values.append(x) for x in tmp_param_values if x not in param_values]
+        X_axis = np.arange(len(param_values))
+    else:
+        X_axis = np.arange(len(config['model_outs']))
+    
     for loss_key in loss_dict.keys():
         loss_means, loss_stds = zip(*loss_dict[loss_key])
         out_path = out_path = f"{config['architecture']}_{config['dataset']}_metrics.txt"

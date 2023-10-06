@@ -47,7 +47,7 @@ from datasets.pendulum.pendulum_dataset import PendulumDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd', None]
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]
@@ -470,6 +470,7 @@ def setup_device(m_path, config):
                 device_file.write('0')
         
         device_id = device_counter % torch.cuda.device_count()
+        device_id = 1
         device = f"cuda:{device_id}"
         device_lock.release()
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
@@ -665,10 +666,10 @@ def setup_experiment(m_path, config, device, train=True):
     else:
         optimizer = None
 
-    for ckey, cval in config.items():
-        if cval is not None:
-            print(f'{ckey}: {cval}')
-            with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'a') as file:
+    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'w') as file:
+        for ckey, cval in config.items():
+            if cval is not None:
+                print(f'{ckey}: {cval}')
                 file.write(f'{ckey}: {cval}\n')
 
     return dataset, model, optimizer

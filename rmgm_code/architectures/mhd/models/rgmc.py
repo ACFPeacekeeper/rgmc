@@ -20,20 +20,6 @@ class RGMC(LightningModule):
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
-        if self.exclude_modality == 'image':
-            self.modalities = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif self.exclude_modality == 'trajectory':
-            self.modalities = ["image"]
-            self.processors = {'image': self.image_processor}
-        else:
-            self.modalities = ["image", "trajectory"]
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor,
-            }
-
         self.encoder = None
         self.o3n = None
 
@@ -234,14 +220,14 @@ class MhdRGMC(RGMC):
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-        if exclude_modality == 'image':
-            self.o3n_mods = ["trajectory"]
+        if self.exclude_modality == 'image':
+            self.modalities = ["trajectory"]
             self.processors = {'trajectory': self.trajectory_processor}
-        elif exclude_modality == 'trajectory':
-            self.o3n_mods = ["image"]
+        elif self.exclude_modality == 'trajectory':
+            self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
         else:
-            self.o3n_mods = ["trajectory", "image", "joint"]
+            self.modalities = ["image", "trajectory"]
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
@@ -250,7 +236,7 @@ class MhdRGMC(RGMC):
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=common_dim, latent_dimension=latent_dimension)
-        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.o3n_mods, device=device)
+        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.modalities, device=device)
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)

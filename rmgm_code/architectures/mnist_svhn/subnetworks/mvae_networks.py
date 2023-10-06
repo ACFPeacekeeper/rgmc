@@ -4,26 +4,22 @@ class MNISTEncoder(nn.Module):
     def __init__(self, latent_dimension):
         super(MNISTEncoder, self).__init__()
         self.feature_extractor = nn.Sequential(
-            #nn.Conv2d(1, 64, 4, 2, 1),
-            nn.Linear(28 * 28, 512),
+            nn.Conv2d(1, 64, 4, 2, 1),
             nn.SiLU(),
-            #nn.Conv2d(64, 128, 4, 2, 1),
-            nn.Linear(512, 256),
+            nn.Conv2d(64, 128, 4, 2, 1),
             nn.SiLU(),
         )
 
-        self.fc_mean = nn.Linear(256, latent_dimension)
-        self.fc_logvar = nn.Linear(256, latent_dimension)
+        self.fc_mean = nn.Linear(128 * 7 * 7, latent_dimension)
+        self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        # 128 * 7 * 7
-        self.fc_mean = nn.Linear(256, latent_dim)
-        self.fc_logvar = nn.Linear(256, latent_dim)
+        self.fc_mean = nn.Linear(128 * 7 * 7, latent_dim)
+        self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dim)
 
     def forward(self, x):
-        x = x.view(x.size(0), *x.size()[1:])
         h = self.feature_extractor(x)
-        #h = h.view(h.size(0), -1)
+        h = h.view(h.size(0), -1)
         return self.fc_mean(h), self.fc_logvar(h)
       
 
@@ -55,14 +51,12 @@ class SVHNEncoder(nn.Module):
 class MNISTDecoder(nn.Module):
     def __init__(self, latent_dimension):
         super(MNISTDecoder, self).__init__()
-        self.latent_fc = nn.Linear(latent_dimension, 256)
+        self.latent_fc = nn.Linear(latent_dimension, 128 * 7 * 7)
         self.feature_reconstructor = nn.Sequential(
             nn.SiLU(),
-            #nn.ConvTranspose2d(128, 64, 4, 2, 1),
-            nn.Linear(512, 256),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
             nn.SiLU(),
-            #nn.ConvTranspose2d(64, 1, 4, 2, 1),
-            nn.Linear(256, 28 * 28)
+            nn.ConvTranspose2d(64, 1, 4, 2, 1),
         )
 
     def set_latent_dim(self, latent_dim):
@@ -70,9 +64,8 @@ class MNISTDecoder(nn.Module):
 
     def forward(self, z):
         x_hat = self.latent_fc(z)
-        x_hat = self.feature_reconstructor(x_hat)
-        x_hat = x_hat.view(x_hat.size(0), 1, 28, 28)
-        return x_hat
+        x_hat = x_hat.view(x_hat.size(0), 128, 7, 7)
+        return self.feature_reconstructor(x_hat)
 
 
 class SVHNDecoder(nn.Module):
