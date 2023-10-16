@@ -56,8 +56,9 @@ class MSCommonDecoder(nn.Module):
     
 
 class MSMNISTProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MSMNISTProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1),
@@ -78,8 +79,9 @@ class MSMNISTProcessor(nn.Module):
 
 
 class MSMNISTDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MSMNISTDecoder, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7)
         self.mnist_reconstructor = nn.Sequential(
@@ -100,8 +102,9 @@ class MSMNISTDecoder(nn.Module):
 
 
 class MSSVHNProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MSSVHNProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.svhn_features = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
@@ -123,8 +126,9 @@ class MSSVHNProcessor(nn.Module):
         return self.projector(h)
 
 class MSSVHNDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MSSVHNDecoder, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 32 * 32 * 2)
         self.svhn_reconstructor = nn.Sequential(
@@ -165,10 +169,11 @@ class MSLabelDecoder(nn.Module):
 
 
 class MSJointProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, mnist_dim, svhn_dim):
         super(MSJointProcessor, self).__init__()
+        self.svhn_dim = svhn_dim
+        self.mnist_dim = mnist_dim
         self.common_dim = common_dim
-
         self.mnist_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1),
             Swish(),
@@ -206,8 +211,10 @@ class MSJointProcessor(nn.Module):
 
 
 class MSJointDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, mnist_dim, svhn_dim):
         super(MSJointDecoder, self).__init__()
+        self.svhn_dim = svhn_dim
+        self.mnist_dim = mnist_dim
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 32 * 32 * 2)
         self.mnist_reconstructor = nn.Sequential(

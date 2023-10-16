@@ -81,6 +81,7 @@ class MhdMVAE(nn.Module):
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():
             x_hat[key] = self.decoders[key](z)
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     

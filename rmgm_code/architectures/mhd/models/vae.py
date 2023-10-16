@@ -59,6 +59,7 @@ class MhdVAE(nn.Module):
             x_hat[key] = tmp[:, self.modality_dims[id]:self.modality_dims[id]+self.modality_dims[id+1]]
             if key == 'image':
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     

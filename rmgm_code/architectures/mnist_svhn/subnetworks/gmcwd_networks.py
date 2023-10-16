@@ -61,11 +61,7 @@ class MSMNISTProcessor(nn.Module):
         self.dim = dim
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 32, 4, 2, 1),
-            Swish(),
-            nn.Conv2d(32, 64, 4, 2, 1),
-            Swish(),
-            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.Conv2d(1, 128, 4, 2, 1),
             Swish(),
         )
         self.projector = nn.Linear(self.dim, common_dim)
@@ -122,11 +118,7 @@ class MSJointProcessor(nn.Module):
         self.mnist_dim = mnist_dim
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 32, 4, 2, 1),
-            Swish(),
-            nn.Conv2d(32, 64, 4, 2, 1),
-            Swish(),
-            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.Conv2d(1, 128, 4, 2, 1),
             Swish(),
         )
 
@@ -168,11 +160,7 @@ class MSJointDecoder(nn.Module):
         self.projector = nn.Linear(common_dim, self.mnist_dim + self.svhn_dim)
         self.mnist_reconstructor = nn.Sequential(
            Swish(),
-           nn.ConvTranspose2d(128, 64, 4, 2, 1, output_padding=1),
-           Swish(),
-           nn.ConvTranspose2d(64, 32, 4, 2, 1), 
-           Swish(),
-           nn.ConvTranspose2d(32, 1, 4, 2, 1)
+           nn.ConvTranspose2d(128, 1, 4, 2, 1),
         )
 
         self.svhn_reconstructor = nn.Sequential(
@@ -193,7 +181,7 @@ class MSJointDecoder(nn.Module):
 
         # MNIST recon
         mnist_hat = x_hat[:, :self.mnist_dim]
-        mnist_hat = mnist_hat.view(mnist_hat.size(0), 128, 3, 3)
+        mnist_hat = mnist_hat.view(mnist_hat.size(0), 128, 14, 14)
         mnist_hat = self.mnist_reconstructor(mnist_hat)
 
         # SVHN recon

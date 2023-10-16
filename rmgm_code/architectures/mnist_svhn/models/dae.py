@@ -55,6 +55,7 @@ class MSDAE(nn.Module):
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
             elif key == 'svhn':
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 3, 32, 32))
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     

@@ -17,19 +17,15 @@ class GMCWD(LightningModule):
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
-        self.image_reconstructor = None
-        self.trajectory_reconstructor = None
         self.joint_reconstructor = None
         if self.exclude_modality == 'image':
             self.num_modalities = 1
             self.modalities = ["trajectory"]
             self.processors = {'trajectory': self.trajectory_processor}
-            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
         elif self.exclude_modality == 'trajectory':
             self.num_modalities = 1
             self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
-            self.reconstructors = {'image': self.image_reconstructor}
         else: 
             self.num_modalities = 2
             self.modalities = ["image", "trajectory"]
@@ -38,12 +34,7 @@ class GMCWD(LightningModule):
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor,
             }
-            self.reconstructors = {
-                'image': self.image_reconstructor,
-                'trajectory': self.trajectory_reconstructor,
-                'joint': self.joint_reconstructor,
-            }
-
+        
         self.encoder = None
         self.decoder = None
 
@@ -53,12 +44,10 @@ class GMCWD(LightningModule):
             self.num_modalities = 1
             self.modalities = ["trajectory"]
             self.processors = {'trajectory': self.trajectory_processor}
-            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
         elif self.exclude_modality == 'trajectory':
             self.num_modalities = 1
             self.modalities = ["image"]
             self.processors = {'image': self.image_processor}
-            self.reconstructors = {'image': self.image_reconstructor}
         else: 
             self.num_modalities = 2
             self.modalities = ["image", "trajectory"]
@@ -66,11 +55,6 @@ class GMCWD(LightningModule):
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor,
-            }
-            self.reconstructors = {
-                'image': self.image_reconstructor,
-                'trajectory': self.trajectory_reconstructor,
-                'joint': self.joint_reconstructor,
             }
 
     def add_noise(self, x):
@@ -98,18 +82,10 @@ class GMCWD(LightningModule):
             return latent
 
     def decode(self, z):
-        if self.exclude_modality == 'none' or self.exclude_modality is None:
-            if isinstance(z, list):
-                return self.reconstructors['joint'](self.decoder(z[-1]))
-            else:
-                return self.reconstructors['joint'](self.decoder(z))
-
-        reconstructions = dict.fromkeys(z.keys())
-        for key, mod_id in enumerate(reconstructions.keys()):
-            if key != self.exclude_modality:
-                reconstructions[key] = self.reconstructors[key](self.decoder(z[mod_id]))
-
-        return reconstructions
+        if isinstance(z, list):
+            return self.joint_reconstructor(self.decoder(z[-1]))
+        else:
+            return self.joint_reconstructor(self.decoder(z))
 
     def forward(self, x, sample=False):
         if sample is False and self.noise_factor != 0:
@@ -214,10 +190,11 @@ class GMCWD(LightningModule):
         recon_losses = dict.fromkeys(x.keys())
 
         for key in recon_losses.keys():
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
             cost = mse_loss(x[key], x_hat[key])
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
-        loss = sum(recon_losses.values()) / len(recon_losses)
+        loss = sum(recon_losses.values())
 
         return loss, {'image_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']}
 
@@ -256,30 +233,23 @@ class GMCWD(LightningModule):
 class MhdGMCWD(GMCWD):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         super(MhdGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
+        self.traj_dim = 1
+        self.image_dim = 1
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-        self.image_reconstructor = MHDImageDecoder(common_dim=self.common_dim)
-        self.trajectory_reconstructor = MHDTrajectoryDecoder(common_dim=self.common_dim)
         self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim)
         if exclude_modality == 'image':
             self.processors = {'trajectory': self.trajectory_processor}
-            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
         elif exclude_modality == 'trajectory':
             self.processors = {'image': self.image_processor}
-            self.reconstructors = {'image': self.image_reconstructor}
         else:
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
                 'joint': self.joint_processor,
             }
-            self.reconstructors = {
-                'image': self.image_reconstructor,
-                'trajectory': self.trajectory_reconstructor,
-                'joint': self.joint_reconstructor,
-            }
-
+            
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
         self.decoder = MHDCommonDecoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
@@ -290,13 +260,12 @@ class MhdGMCWD(GMCWD):
         self.latent_dimension = latent_dim
 
     def set_common_dim(self, common_dim):
+        self.common_dim = common_dim
         self.encoder.set_common_dim(common_dim)
         self.decoder.set_common_dim(common_dim)
+        self.joint_processor.set_common_dim(common_dim)
         for proc in self.processors.values():
             proc.set_common_dim(common_dim)
-        for recon in self.reconstructors.values():
-            recon.set_common_dim(common_dim)
-        self.common_dim = common_dim
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality

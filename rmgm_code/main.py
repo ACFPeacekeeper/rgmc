@@ -193,14 +193,20 @@ def inference(config, device):
     for idx, (batch_feats, batch_labels) in enumerate(tqdm(dataloader, total=len(dataloader))):
         if config['checkpoint'] != 0 and counter % config['checkpoint'] == 0: 
             x_hat, _ = model(batch_feats)
+            label = int(batch_labels[0])
             for modality in batch_feats.keys():
-                if modality == 'image':
-                    plt.imsave(os.path.join("checkpoints", "image", config['model_out'] + f'_{idx}_{batch_labels}orig.png'), torch.reshape(batch_feats['image'], (28,28)).detach().clone().cpu())
-                    plt.imsave(os.path.join("checkpoints", "image", config['model_out'] + f'_{idx}_{batch_labels}recon.png'), torch.reshape(x_hat['image'], (28,28)).detach().clone().cpu())
+                if modality == 'image' or modality == 'mnist':
+                    plt.imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_orig.png'), torch.squeeze(batch_feats[modality]).detach().clone().cpu())
+                    plt.imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_recon.png'), torch.squeeze(x_hat[modality]).detach().clone().cpu())
                 elif modality == 'trajectory':
-                    save_trajectory(config['model_out'] + f'_{idx}_{batch_labels}orig.png', batch_feats['trajectory'])
-                    save_trajectory(config['model_out'] + f'_{idx}_{batch_labels}recon.png', x_hat['trajectory'])
-        
+                    save_trajectory(os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_orig.png'), batch_feats['trajectory'])
+                    save_trajectory(os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_recon.png'), x_hat['trajectory'])
+                elif modality == 'svhn':
+                    batch_feats['svhn'] = torch.squeeze(batch_feats['svhn']).permute(1, 2, 0).detach().clone().cpu().numpy()
+                    x_hat['svhn'] = torch.squeeze(x_hat['svhn']).permute(1, 2, 0).detach().clone().cpu().numpy()
+                    plt.imsave(os.path.join("checkpoints", "svhn", config['model_out'] + f'_{idx}_{label}_orig.png'), batch_feats['svhn'])
+                    plt.imsave(os.path.join("checkpoints", "svhn", config['model_out'] + f'_{idx}_{label}_recon.png'), x_hat['svhn'])
+
         counter += 1
 
     inference_stop = time.time()

@@ -56,8 +56,9 @@ class MHDCommonDecoder(nn.Module):
     
 
 class MHDImageProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MHDImageProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.image_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1, bias=False),
@@ -78,8 +79,9 @@ class MHDImageProcessor(nn.Module):
 
 
 class MHDImageDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MHDImageDecoder, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7)
         self.image_reconstructor = nn.Sequential(
@@ -127,8 +129,9 @@ class MHDSoundProcessor(nn.Module):
 
 
 class MHDTrajectoryProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MHDTrajectoryProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.trajectory_features = nn.Sequential(
             nn.Linear(200, 512),
@@ -148,8 +151,9 @@ class MHDTrajectoryProcessor(nn.Module):
     
 
 class MHDTrajectoryDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MHDTrajectoryDecoder, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 512)
         self.trajectory_reconstructor = nn.Sequential(
@@ -188,8 +192,10 @@ class MHDLabelDecoder(nn.Module):
 
 
 class MHDJointProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, image_dim, traj_dim):
         super(MHDJointProcessor, self).__init__()
+        self.traj_dim = traj_dim
+        self.image_dim = image_dim
         self.common_dim = common_dim
         self.img_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1, bias=False),
@@ -224,8 +230,10 @@ class MHDJointProcessor(nn.Module):
 
 
 class MHDJointDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, image_dim, traj_dim):
         super(MHDJointDecoder, self).__init__()
+        self.traj_dim = traj_dim
+        self.image_dim = image_dim
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 512)
         self.image_reconstructor = nn.Sequential(

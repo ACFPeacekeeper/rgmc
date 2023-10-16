@@ -1,5 +1,3 @@
-import random
-
 from pytorch_lightning import LightningModule
 from ..subnetworks.dgmc_networks import *
 from collections import Counter
@@ -218,10 +216,11 @@ class DGMC(LightningModule):
         recon_losses = dict.fromkeys(x.keys())
 
         for key in recon_losses.keys():
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
             cost = mse_loss(x[key], x_hat[key])
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
-        loss = sum(recon_losses.values()) / len(recon_losses)
+        loss = sum(recon_losses.values())
 
         return loss, {'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']}
 
@@ -261,6 +260,8 @@ class DGMC(LightningModule):
 class MSDGMC(DGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         super(MSDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
+        self.svhn_dim = 64 * 8 * 8
+        self.mnist_dim = 128 * 7 * 7
         self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim)
         self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim)
         self.joint_processor = MSJointProcessor(common_dim=self.common_dim)

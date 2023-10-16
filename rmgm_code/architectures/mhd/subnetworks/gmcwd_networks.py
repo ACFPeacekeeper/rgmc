@@ -56,8 +56,9 @@ class MHDCommonDecoder(nn.Module):
     
 
 class MHDImageProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MHDImageProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.image_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1, bias=False),
@@ -75,28 +76,6 @@ class MHDImageProcessor(nn.Module):
         h = self.image_features(x)
         h = h.view(h.size(0), -1)
         return self.projector(h)
-
-
-class MHDImageDecoder(nn.Module):
-    def __init__(self, common_dim):
-        super(MHDImageDecoder, self).__init__()
-        self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, 128 * 7 * 7)
-        self.image_reconstructor = nn.Sequential(
-            Swish(),
-            nn.ConvTranspose2d(128, 64, 4, 2, 1),
-            Swish(),
-            nn.ConvTranspose2d(64, 1, 4, 2, 1)
-        )
-
-    def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, 128 * 7 * 7)
-        self.common_dim = common_dim
-
-    def forward(self, z):
-        x_hat = self.projector(z)
-        x_hat = x_hat.view(x_hat.size(0), 128, 7, 7)
-        return self.image_reconstructor(x_hat)
 
 
 class MHDSoundProcessor(nn.Module):
@@ -123,8 +102,9 @@ class MHDSoundProcessor(nn.Module):
 
 
 class MHDTrajectoryProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MHDTrajectoryProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.trajectory_features = nn.Sequential(
             nn.Linear(200, 512),
@@ -143,27 +123,6 @@ class MHDTrajectoryProcessor(nn.Module):
         return self.projector(h)
     
 
-class MHDTrajectoryDecoder(nn.Module):
-    def __init__(self, common_dim):
-        super(MHDTrajectoryDecoder, self).__init__()
-        self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, 512)
-        self.trajectory_reconstructor = nn.Sequential(
-            Swish(),
-            nn.Linear(512, 512),
-            Swish(),
-            nn.Linear(512, 200)
-        )
-
-    def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, 512)
-        self.common_dim = common_dim
-
-    def forward(self, h):
-        x_hat = self.projector(h)
-        return self.trajectory_reconstructor(x_hat)        
-
-
 class MHDLabelProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDLabelProcessor, self).__init__()
@@ -174,20 +133,12 @@ class MHDLabelProcessor(nn.Module):
         return self.projector(x)
 
 
-class MHDLabelDecoder(nn.Module):
-    def __init__(self, common_dim):
-        self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, 10)
-
-    def forward(self, h):
-        return self.projector(h)
-
-
 class MHDJointProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, image_dim, traj_dim):
         super(MHDJointProcessor, self).__init__()
+        self.traj_dim = traj_dim
+        self.image_dim = image_dim
         self.common_dim = common_dim
-
         self.img_features = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             Swish(),
@@ -222,8 +173,10 @@ class MHDJointProcessor(nn.Module):
 
 
 class MHDJointDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, image_dim, traj_dim):
         super(MHDJointDecoder, self).__init__()
+        self.traj_dim = traj_dim
+        self.image_dim = image_dim
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 512)
         self.image_reconstructor = nn.Sequential(

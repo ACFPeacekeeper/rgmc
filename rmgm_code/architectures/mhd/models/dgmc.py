@@ -216,10 +216,11 @@ class DGMC(LightningModule):
         recon_losses = dict.fromkeys(x.keys())
 
         for key in recon_losses.keys():
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
             cost = mse_loss(x[key], x_hat[key])
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
-        loss = sum(recon_losses.values()) / len(recon_losses)
+        loss = sum(recon_losses.values())
 
         return loss, {'image_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']}
 
@@ -258,6 +259,8 @@ class DGMC(LightningModule):
 class MhdDGMC(DGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         super(MhdDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
+        self.traj_dim = 1
+        self.image_dim = 1
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
