@@ -1,5 +1,3 @@
-import random
-
 from pytorch_lightning import LightningModule
 from ..subnetworks.gmcwd_networks import *
 from collections import Counter
@@ -19,19 +17,15 @@ class GMCWD(LightningModule):
         self.mnist_processor = None
         self.svhn_processor = None
         self.joint_processor = None
-        self.mnist_reconstructor = None
-        self.svhn_reconstructor = None
         self.joint_reconstructor = None
         if self.exclude_modality == 'mnist':
             self.num_modalities = 1
             self.modalities = ["svhn"]
             self.processors = {'svhn': self.svhn_processor}
-            self.reconstructors = {'svhn': self.svhn_reconstructor}
         elif self.exclude_modality == 'svhn':
             self.num_modalities = 1
             self.modalities = ["mnist"]
             self.processors = {'mnist': self.mnist_processor}
-            self.reconstructors = {'mnist': self.mnist_reconstructor}
         else: 
             self.num_modalities = 2
             self.modalities = ["mnist", "svhn"]
@@ -39,11 +33,6 @@ class GMCWD(LightningModule):
                 'mnist': self.mnist_processor,
                 'svhn': self.svhn_processor,
                 'joint': self.joint_processor,
-            }
-            self.reconstructors = {
-                'mnist': self.mnist_reconstructor,
-                'svhn': self.svhn_reconstructor,
-                'joint': self.joint_reconstructor,
             }
 
         self.encoder = None
@@ -55,12 +44,10 @@ class GMCWD(LightningModule):
             self.num_modalities = 1
             self.modalities = ["svhn"]
             self.processors = {'svhn': self.svhn_processor}
-            self.reconstructors = {'svhn': self.svhn_reconstructor}
         elif self.exclude_modality == 'svhn':
             self.num_modalities = 1
             self.modalities = ["mnist"]
             self.processors = {'mnist': self.mnist_processor}
-            self.reconstructors = {'mnist': self.mnist_reconstructor}
         else: 
             self.num_modalities = 2
             self.modalities = ["mnist", "svhn"]
@@ -68,11 +55,6 @@ class GMCWD(LightningModule):
                 'mnist': self.mnist_processor,
                 'svhn': self.svhn_processor,
                 'joint': self.joint_processor,
-            }
-            self.reconstructors = {
-                'mnist': self.mnist_reconstructor,
-                'svhn': self.svhn_reconstructor,
-                'joint': self.joint_reconstructor,
             }
 
     def add_noise(self, x):
@@ -100,18 +82,10 @@ class GMCWD(LightningModule):
             return latent
         
     def decode(self, z):
-        if self.exclude_modality == 'none' or self.exclude_modality is None:
-            if isinstance(z, list):
-                return self.reconstructors['joint'](self.decoder(z[-1]))
-            else:
-                return self.reconstructors['joint'](self.decoder(z))
-
-        reconstructions = dict.fromkeys(z.keys())
-        for key, mod_id in enumerate(reconstructions.keys()):
-            if key != self.exclude_modality:
-                reconstructions[key] = self.reconstructors[key](self.decoder(z[mod_id]))
-
-        return reconstructions
+        if isinstance(z, list):
+            return self.joint_reconstructor(self.decoder(z[-1]))
+        else:
+            return self.joint_reconstructor(self.decoder(z))
 
     def forward(self, x, sample=False):
         if sample is False and self.noise_factor != 0:
@@ -219,7 +193,7 @@ class GMCWD(LightningModule):
             cost = mse_loss(x[key], x_hat[key])
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
-        loss = sum(recon_losses.values()) / len(recon_losses)
+        loss = sum(recon_losses.values())
 
         return loss, {'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']}
 
@@ -258,28 +232,21 @@ class GMCWD(LightningModule):
 class MSGMCWD(GMCWD):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         super(MSGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
-        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim)
-        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim)
-        self.joint_processor = MSJointProcessor(common_dim=self.common_dim)
-        self.mnist_reconstructor = MSMNISTDecoder(common_dim=self.common_dim)
-        self.svhn_reconstructor = MSSVHNDecoder(common_dim=self.common_dim)
-        self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim)
+        self.svhn_dim = 32 * 32 *2
+        self.mnist_dim = 128 * 3 * 3
+        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=self.mnist_dim)
+        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=self.svhn_dim)
+        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=self.mnist_dim, svhn_dim=self.svhn_dim)
+        self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim, mnist_dim=self.mnist_dim, svhn_dim=self.svhn_dim)
         if exclude_modality == 'mnist':
             self.processors = {'svhn': self.svhn_processor}
-            self.reconstructors = {'svhn': self.svhn_reconstructor}
         elif exclude_modality == 'svhn':
             self.processors = {'mnist': self.mnist_processor}
-            self.reconstructors = {'mnist': self.mnist_reconstructor}
         else:
             self.processors = {
                 'mnist': self.mnist_processor,
                 'svhn': self.svhn_processor,
                 'joint': self.joint_processor,
-            }
-            self.reconstructors = {
-                'mnist': self.mnist_reconstructor,
-                'svhn': self.svhn_reconstructor,
-                'joint': self.joint_reconstructor,
             }
 
         self.loss_type = loss_type
@@ -292,13 +259,12 @@ class MSGMCWD(GMCWD):
         self.latent_dimension = latent_dim
 
     def set_common_dim(self, common_dim):
+        self.common_dim = common_dim
         self.encoder.set_common_dim(common_dim)
         self.decoder.set_common_dim(common_dim)
+        self.joint_processor.set_common_dim(common_dim)
         for proc in self.processors.values():
             proc.set_common_dim(common_dim)
-        for recon in self.reconstructors.values():
-            recon.set_common_dim(common_dim)
-        self.common_dim = common_dim
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality

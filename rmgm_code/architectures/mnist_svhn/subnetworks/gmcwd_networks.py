@@ -56,19 +56,22 @@ class MSCommonDecoder(nn.Module):
     
 
 class MSMNISTProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MSMNISTProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.Conv2d(1, 32, 4, 2, 1),
+            Swish(),
+            nn.Conv2d(32, 64, 4, 2, 1),
             Swish(),
             nn.Conv2d(64, 128, 4, 2, 1),
             Swish(),
         )
-        self.projector = nn.Linear(128 * 7 * 7, common_dim)
+        self.projector = nn.Linear(self.dim, common_dim)
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(128 * 7 * 7,  common_dim)
+        self.projector = nn.Linear(self.dim,  common_dim)
         self.common_dim = common_dim
 
     def forward(self, x):
@@ -77,31 +80,10 @@ class MSMNISTProcessor(nn.Module):
         return self.projector(h)
 
 
-class MSMNISTDecoder(nn.Module):
-    def __init__(self, common_dim):
-        super(MSMNISTDecoder, self).__init__()
-        self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, 128 * 7 * 7)
-        self.mnist_reconstructor = nn.Sequential(
-            Swish(),
-            nn.ConvTranspose2d(128, 64, 4, 2, 1),
-            Swish(),
-            nn.ConvTranspose2d(64, 1, 4, 2, 1)
-        )
-
-    def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, 128 * 7 * 7)
-        self.common_dim = common_dim
-
-    def forward(self, z):
-        x_hat = self.projector(z)
-        x_hat = x_hat.view(x_hat.size(0), 128, 7, 7)
-        return self.mnist_reconstructor(x_hat)
-
-
 class MSSVHNProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, dim):
         super(MSSVHNProcessor, self).__init__()
+        self.dim = dim
         self.common_dim = common_dim
         self.svhn_features = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
@@ -111,37 +93,16 @@ class MSSVHNProcessor(nn.Module):
             nn.Conv2d(32 * 2, 32 * 4, 4, 2, 1),
             Swish(),
         )
-        self.projector = nn.Linear(32 * 32 * 2, common_dim)
+        self.projector = nn.Linear(self.dim, common_dim)
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(32 * 32 * 2, common_dim)
+        self.projector = nn.Linear(self.dim, common_dim)
         self.common_dim = common_dim
 
     def forward(self, x):
         h = self.svhn_features(x)
         h = h.view(h.size(0), -1)
-        return self.projector(h)
-
-class MSSVHNDecoder(nn.Module):
-    def __init__(self, common_dim):
-        super(MSSVHNDecoder, self).__init__()
-        self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, 32 * 32 * 2)
-        self.svhn_reconstructor = nn.Sequential(
-            nn.ConvTranspose2d(32 * 4, 32 * 2, 4, 2, 1),
-            Swish(),
-            nn.ConvTranspose2d(32 * 2, 32, 4, 2, 1),
-            Swish(),
-            nn.ConvTranspose2d(32, 3, 4, 2, 1),
-        )
-
-    def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, 32 * 32 * 2)
-        self.common_dim = common_dim
-
-    def forward(self, h):
-        x_hat = self.projector(h)
-        return self.svhn_reconstructor(x_hat)        
+        return self.projector(h)     
 
 
 class MSLabelProcessor(nn.Module):
@@ -154,23 +115,16 @@ class MSLabelProcessor(nn.Module):
         return self.projector(x)
 
 
-class MSLabelDecoder(nn.Module):
-    def __init__(self, common_dim):
-        super(MSLabelDecoder, self).__init__()
-        self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, 10)
-
-    def forward(self, h):
-        return self.projector(h)
-
-
 class MSJointProcessor(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, mnist_dim, svhn_dim):
         super(MSJointProcessor, self).__init__()
+        self.svhn_dim = svhn_dim
+        self.mnist_dim = mnist_dim
         self.common_dim = common_dim
-
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.Conv2d(1, 32, 4, 2, 1),
+            Swish(),
+            nn.Conv2d(32, 64, 4, 2, 1),
             Swish(),
             nn.Conv2d(64, 128, 4, 2, 1),
             Swish(),
@@ -185,10 +139,10 @@ class MSJointProcessor(nn.Module):
             Swish(),
         )
 
-        self.projector = nn.Linear(128 * 7 * 7 + 32 * 32 * 2, common_dim)
+        self.projector = nn.Linear(self.svhn_dim + self.mnist_dim, common_dim)
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(128 * 7 * 7 + 32 * 32 * 2, common_dim)
+        self.projector = nn.Linear(self.svhn_dim + self.mnist_dim, common_dim)
         self.common_dim = common_dim
 
     def forward(self, x):
@@ -206,18 +160,23 @@ class MSJointProcessor(nn.Module):
 
 
 class MSJointDecoder(nn.Module):
-    def __init__(self, common_dim):
+    def __init__(self, common_dim, mnist_dim, svhn_dim):
         super(MSJointDecoder, self).__init__()
+        self.svhn_dim = svhn_dim
+        self.mnist_dim = mnist_dim
         self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 32 * 32 * 2)
+        self.projector = nn.Linear(common_dim, self.mnist_dim + self.svhn_dim)
         self.mnist_reconstructor = nn.Sequential(
            Swish(),
-           nn.ConvTranspose2d(128, 64, 4, 2, 1),
+           nn.ConvTranspose2d(128, 64, 4, 2, 1, output_padding=1),
            Swish(),
-           nn.ConvTranspose2d(64, 1, 4, 2, 1), 
+           nn.ConvTranspose2d(64, 32, 4, 2, 1), 
+           Swish(),
+           nn.ConvTranspose2d(32, 1, 4, 2, 1)
         )
 
         self.svhn_reconstructor = nn.Sequential(
+            Swish(),
             nn.ConvTranspose2d(32 * 4, 32 * 2, 4, 2, 1),
             Swish(),
             nn.ConvTranspose2d(32 * 2, 32, 4, 2, 1),
@@ -226,19 +185,19 @@ class MSJointDecoder(nn.Module):
         )
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 32 * 32 * 2)
+        self.projector = nn.Linear(common_dim, self.mnist_dim + self.svhn_dim)
         self.common_dim = common_dim
 
     def forward(self, z):
         x_hat = self.projector(z)
 
         # MNIST recon
-        mnist_hat = x_hat[:, :128 * 7 * 7]
-        mnist_hat = mnist_hat.view(mnist_hat.size(0), 128, 7, 7)
+        mnist_hat = x_hat[:, :self.mnist_dim]
+        mnist_hat = mnist_hat.view(mnist_hat.size(0), 128, 3, 3)
         mnist_hat = self.mnist_reconstructor(mnist_hat)
 
         # SVHN recon
-        svhn_hat = x_hat[:, 128 * 7 * 7:128 * 7 * 7 + 32 * 32 * 2]
+        svhn_hat = x_hat[:, self.mnist_dim:self.mnist_dim + self.svhn_dim]
         svhn_hat = svhn_hat.view(svhn_hat.size(0), 128, 4, 4)
         svhn_hat = self.svhn_reconstructor(svhn_hat)
 
