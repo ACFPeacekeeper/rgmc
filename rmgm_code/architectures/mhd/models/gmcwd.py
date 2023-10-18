@@ -81,11 +81,17 @@ class GMCWD(LightningModule):
                 latent = latent_representations[0]
             return latent
 
-    def decode(self, z):
+    def decode(self, x, z):
         if isinstance(z, list):
-            return self.joint_reconstructor(self.decoder(z[-1]))
+            tmp_rec = self.joint_reconstructor(self.decoder(z[-1]))
         else:
-            return self.joint_reconstructor(self.decoder(z))
+            tmp_rec = self.joint_reconstructor(self.decoder(z))
+        
+        reconstructions = dict.fromkeys(tmp_rec.keys())
+        for key in reconstructions.keys():
+            reconstructions[key] = torch.clamp(tmp_rec[key], torch.min(x[key]), torch.max(x[key]))
+        
+        return reconstructions
 
     def forward(self, x, sample=False):
         if sample is False and self.noise_factor != 0:
@@ -184,13 +190,12 @@ class GMCWD(LightningModule):
         return loss, tqdm_dict
 
     def recon_loss(self, x, z):
-        x_hat = self.decode(z)
+        x_hat = self.decode(x, z)
 
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses = dict.fromkeys(x.keys())
 
         for key in recon_losses.keys():
-            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
             cost = mse_loss(x[key], x_hat[key])
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
@@ -233,12 +238,13 @@ class GMCWD(LightningModule):
 class MhdGMCWD(GMCWD):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         super(MhdGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
-        self.traj_dim = 1
-        self.image_dim = 1
-        self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-        self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-        self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-        self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim)
+        self.traj_dim = 512
+        self.image_dims = [128, 7, 7]
+        image_dim = reduce(lambda x, y: x * y, self.image_dims)
+        self.image_processor = MHDImageProcessor(common_dim=self.common_dim, dim=image_dim)
+        self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim, dim=self.traj_dim)
+        self.joint_processor = MHDJointProcessor(common_dim=self.common_dim, image_dim=image_dim, traj_dim=self.traj_dim)
+        self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim, image_dims=self.image_dims, traj_dim=self.traj_dim)
         if exclude_modality == 'image':
             self.processors = {'trajectory': self.trajectory_processor}
         elif exclude_modality == 'trajectory':

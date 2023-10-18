@@ -10,14 +10,14 @@ class PendulumCommonEncoder(nn.Module):
         # Variables
         self.common_dim = common_dim
         self.latent_dim = latent_dim
-        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), Swish(), nn.Linear(128, latent_dim),)
+        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), nn.GELU(), nn.Linear(128, latent_dim),)
     
     def set_latent_dim(self, latent_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(self.common_dim, 128), Swish(), nn.Linear(128, latent_dim),)
+        self.feature_extractor = nn.Sequential(nn.Linear(self.common_dim, 128), nn.GELU(), nn.Linear(128, latent_dim),)
         self.latent_dim = latent_dim
 
     def set_common_dim(self, common_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), Swish(), nn.Linear(128, self.latent_dim),)
+        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), nn.GELU(), nn.Linear(128, self.latent_dim),)
         self.common_dim = common_dim
 
     def forward(self, x):
@@ -29,10 +29,10 @@ class PendulumImageProcessor(nn.Module):
         super(PendulumImageProcessor, self).__init__()
         self.common_dim = common_dim
         self.image_features = nn.Sequential(
-            nn.Conv2d(2, 32, 4, 2, 1, bias=False),
-            Swish(),
-            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
-            Swish(),
+            nn.Conv2d(2, 32, 4, 2, 1),
+            nn.GELU(),
+            nn.Conv2d(32, 64, 4, 2, 1),
+            nn.GELU(),
         )
         self.projector = nn.Linear(14400, common_dim)
 
@@ -59,9 +59,9 @@ class PendulumSoundProcessor(nn.Module):
 
         self.snd_features = nn.Sequential(
             nn.Linear(self.unrolled_sound_input, 50),
-            Swish(),
+            nn.GELU(),
             nn.Linear(50, 50),
-            Swish(),
+            nn.GELU(),
         )
         self.projector = nn.Linear(50, common_dim)
 
@@ -89,17 +89,17 @@ class PendulumJointProcessor(nn.Module):
         )
 
         self.img_features = nn.Sequential(
-            nn.Conv2d(2, 32, 4, 2, 1, bias=False),
-            Swish(),
-            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
-            Swish(),
+            nn.Conv2d(2, 32, 4, 2, 1),
+            nn.GELU(),
+            nn.Conv2d(32, 64, 4, 2, 1),
+            nn.GELU(),
         )
 
         self.snd_features = nn.Sequential(
             nn.Linear(self.unrolled_sound_input, 50),
-            Swish(),
+            nn.GELU(),
             nn.Linear(50, 50),
-            Swish(),
+            nn.GELU(),
         )
         self.projector = nn.Linear(14400 + 50, common_dim)
 
@@ -116,15 +116,3 @@ class PendulumJointProcessor(nn.Module):
         x_snd = x_snd.view(-1, self.unrolled_sound_input)
         x_snd = self.snd_features(x_snd)
         return self.projector(torch.cat((x_img, x_snd), dim=-1))
-
-"""
-
-
-Extra components
-
-
-"""
-
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(x)

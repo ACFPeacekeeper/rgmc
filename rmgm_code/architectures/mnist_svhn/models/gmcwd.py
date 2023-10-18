@@ -81,11 +81,17 @@ class GMCWD(LightningModule):
                 latent = latent_representations[0]
             return latent
         
-    def decode(self, z):
+    def decode(self, x, z):
         if isinstance(z, list):
-            return self.joint_reconstructor(self.decoder(z[-1]))
+            tmp_rec = self.joint_reconstructor(self.decoder(z[-1]))
         else:
-            return self.joint_reconstructor(self.decoder(z))
+            tmp_rec = self.joint_reconstructor(self.decoder(z))
+        
+        reconstructions = dict.fromkeys(tmp_rec.keys())
+        for key in reconstructions.keys():
+            reconstructions[key] = torch.clamp(tmp_rec[key], torch.min(x[key]), torch.max(x[key]))
+        
+        return reconstructions
 
     def forward(self, x, sample=False):
         if sample is False and self.noise_factor != 0:
@@ -184,13 +190,12 @@ class GMCWD(LightningModule):
         return loss, tqdm_dict
 
     def recon_loss(self, x, z):
-        x_hat = self.decode(z)
+        x_hat = self.decode(x, z)
 
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses = dict.fromkeys(x.keys())
 
         for key in recon_losses.keys():
-            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
             cost = mse_loss(x[key], x_hat[key])
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
@@ -233,12 +238,14 @@ class GMCWD(LightningModule):
 class MSGMCWD(GMCWD):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         super(MSGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
-        self.svhn_dim = 32 * 32 * 2
-        self.mnist_dim = 128 * 14 * 14
-        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=self.mnist_dim)
-        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=self.svhn_dim)
-        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=self.mnist_dim, svhn_dim=self.svhn_dim)
-        self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim, mnist_dim=self.mnist_dim, svhn_dim=self.svhn_dim)
+        self.svhn_dims = [128, 8, 8]
+        self.mnist_dims = [128, 7, 7]
+        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
+        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
+        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
+        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
+        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dims=self.mnist_dims, svhn_dims=self.svhn_dims)
+        self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim, mnist_dims=self.mnist_dims, svhn_dims=self.svhn_dims)
         if exclude_modality == 'mnist':
             self.processors = {'svhn': self.svhn_processor}
         elif exclude_modality == 'svhn':

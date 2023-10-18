@@ -6,9 +6,9 @@ class ImageEncoder(nn.Module):
         super(ImageEncoder, self).__init__()
         self.image_features = nn.Sequential(
             nn.Conv2d(2, 32, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Conv2d(32, 64, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
         )
 
         self.fc_mean = nn.Linear(14400, latent_dimension)
@@ -29,9 +29,9 @@ class ImageDecoder(nn.Module):
         super(ImageDecoder, self).__init__()
         self.latent_fc = nn.Linear(latent_dimension, 14400)
         self.feature_reconstructor = nn.Sequential(
-            nn.SiLU(),
+            nn.GELU(),
             nn.ConvTranspose2d(64, 32, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.ConvTranspose2d(32, 2, 4, 2, 1),
         )
 
@@ -56,9 +56,9 @@ class SoundEncoder(nn.Module):
 
         self.snd_features = nn.Sequential(
             nn.Linear(self.unrolled_sound_input, 50),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(50, 50),
-            nn.SiLU(),
+            nn.GELU(),
         )
         self.projector = nn.Linear(50, latent_dim)
 
@@ -82,9 +82,9 @@ class SoundDecoder(nn.Module):
         )
         self.latent_fc = nn.Linear(latent_dimension, 50)
         self.feature_reconstructor = nn.Sequential(
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(50, 50),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(50, self.unrolled_sound_input)
         )
 

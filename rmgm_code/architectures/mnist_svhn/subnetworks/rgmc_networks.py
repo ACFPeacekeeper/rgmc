@@ -11,9 +11,9 @@ class MSCommonEncoder(nn.Module):
         self.latent_dimension = latent_dimension
         self.common_fc = nn.Linear(common_dim, 512)
         self.feature_extractor = nn.Sequential(
-            Swish(),
+            nn.GELU(),
             nn.Linear(512, 512),
-            Swish(),
+            nn.GELU(),
         )
         self.latent_fc = nn.Linear(512, latent_dimension)
 
@@ -35,10 +35,10 @@ class MSMNISTProcessor(nn.Module):
         super(MSMNISTProcessor, self).__init__()
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
-            Swish(),
-            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
-            Swish(),
+            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.GELU(),
+            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.GELU(),
         )
         self.projector = nn.Linear(128 * 7 * 7, common_dim)
 
@@ -58,11 +58,11 @@ class MSSVHNProcessor(nn.Module):
         self.common_dim = common_dim
         self.svhn_features = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Conv2d(32, 32 * 2, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Conv2d(32 * 2, 32 * 4, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
         )
         self.projector = nn.Linear(32 * 32 * 2, common_dim)
 
@@ -93,19 +93,19 @@ class MSJointProcessor(nn.Module):
         self.common_dim = common_dim
 
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
-            Swish(),
-            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
-            Swish(),
+            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.GELU(),
+            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.GELU(),
         )
 
         self.svhn_features = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Conv2d(32, 32 * 2, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Conv2d(32 * 2, 32 * 4, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
         )
 
         self.projector = nn.Linear(128 * 7 * 7 + 32 * 32 * 2, common_dim)
@@ -126,17 +126,3 @@ class MSJointProcessor(nn.Module):
         h_svhn = h_svhn.view(h_svhn.size(0), -1)
 
         return self.projector(torch.cat((h_mnist, h_svhn), dim=-1))
-
-
-
-"""
-
-
-Extra components
-
-
-"""
-
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(x)

@@ -10,14 +10,14 @@ class PendulumCommonEncoder(nn.Module):
         # Variables
         self.common_dim = common_dim
         self.latent_dim = latent_dim
-        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), Swish(), nn.Linear(128, latent_dim),)
+        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), nn.GELU(), nn.Linear(128, latent_dim),)
     
     def set_latent_dim(self, latent_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(self.common_dim, 128), Swish(), nn.Linear(128, latent_dim),)
+        self.feature_extractor = nn.Sequential(nn.Linear(self.common_dim, 128), nn.GELU(), nn.Linear(128, latent_dim),)
         self.latent_dim = latent_dim
 
     def set_common_dim(self, common_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), Swish(), nn.Linear(128, self.latent_dim),)
+        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), nn.GELU(), nn.Linear(128, self.latent_dim),)
         self.common_dim = common_dim
 
     def forward(self, x):
@@ -31,9 +31,9 @@ class MHDCommonDecoder(nn.Module):
         self.latent_dimension = latent_dimension
         self.latent_fc = nn.Linear(latent_dimension, 512)
         self.feature_reconstructor = nn.Sequential(
-            Swish(),
+            nn.GELU(),
             nn.Linear(512, 512),
-            Swish(),
+            nn.GELU(),
         )
         self.common_fc = nn.Linear(512, common_dim)
 
@@ -55,10 +55,10 @@ class PendulumImageProcessor(nn.Module):
         super(PendulumImageProcessor, self).__init__()
         self.common_dim = common_dim
         self.image_features = nn.Sequential(
-            nn.Conv2d(2, 32, 4, 2, 1, bias=False),
-            Swish(),
-            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
-            Swish(),
+            nn.Conv2d(2, 32, 4, 2, 1),
+            nn.GELU(),
+            nn.Conv2d(32, 64, 4, 2, 1),
+            nn.GELU(),
         )
         self.projector = nn.Linear(14400, common_dim)
 
@@ -78,9 +78,9 @@ class MHDImageDecoder(nn.Module):
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7)
         self.image_reconstructor = nn.Sequential(
-            Swish(),
+            nn.GELU(),
             nn.ConvTranspose2d(128, 64, 4, 2, 1),
-            Swish(),
+            nn.GELU(),
             nn.ConvTranspose2d(64, 1, 4, 2, 1)
         )
 
@@ -107,9 +107,9 @@ class PendulumSoundProcessor(nn.Module):
 
         self.snd_features = nn.Sequential(
             nn.Linear(self.unrolled_sound_input, 50),
-            Swish(),
+            nn.GELU(),
             nn.Linear(50, 50),
-            Swish(),
+            nn.GELU(),
         )
         self.projector = nn.Linear(50, common_dim)
 
@@ -129,9 +129,9 @@ class MHDTrajectoryDecoder(nn.Module):
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 512)
         self.trajectory_reconstructor = nn.Sequential(
-            Swish(),
+            nn.GELU(),
             nn.Linear(512, 512),
-            Swish(),
+            nn.GELU(),
             nn.Linear(512, 200)
         )
 
@@ -158,17 +158,17 @@ class PendulumJointProcessor(nn.Module):
         )
 
         self.img_features = nn.Sequential(
-            nn.Conv2d(2, 32, 4, 2, 1, bias=False),
-            Swish(),
-            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
-            Swish(),
+            nn.Conv2d(2, 32, 4, 2, 1),
+            nn.GELU(),
+            nn.Conv2d(32, 64, 4, 2, 1),
+            nn.GELU(),
         )
 
         self.snd_features = nn.Sequential(
             nn.Linear(self.unrolled_sound_input, 50),
-            Swish(),
+            nn.GELU(),
             nn.Linear(50, 50),
-            Swish(),
+            nn.GELU(),
         )
         self.projector = nn.Linear(14400 + 50, common_dim)
 
@@ -194,16 +194,16 @@ class MHDJointDecoder(nn.Module):
         self.common_dim = common_dim
         self.projector = nn.Linear(common_dim, 128 * 7 * 7 + 512)
         self.image_reconstructor = nn.Sequential(
-           Swish(),
+           nn.GELU(),
            nn.ConvTranspose2d(128, 64, 4, 2, 1),
-           Swish(),
+           nn.GELU(),
            nn.ConvTranspose2d(64, 1, 4, 2, 1), 
         )
 
         self.trajectory_reconstructor = nn.Sequential(
-            Swish(),
+            nn.GELU(),
             nn.Linear(512, 512),
-            Swish(),
+            nn.GELU(),
             nn.Linear(512, 200)
         )
 
@@ -224,15 +224,3 @@ class MHDJointDecoder(nn.Module):
         traj_hat = self.trajectory_reconstructor(traj_hat)
 
         return {"image": img_hat, "trajectory": traj_hat}
-
-"""
-
-
-Extra components
-
-
-"""
-
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(x)

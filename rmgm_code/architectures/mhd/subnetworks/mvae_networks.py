@@ -6,9 +6,9 @@ class ImageEncoder(nn.Module):
         super(ImageEncoder, self).__init__()
         self.feature_extractor = nn.Sequential(
             nn.Conv2d(1, 64, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Conv2d(64, 128, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
         )
 
         self.fc_mean = nn.Linear(128 * 7 * 7, latent_dimension)
@@ -29,9 +29,9 @@ class ImageDecoder(nn.Module):
         super(ImageDecoder, self).__init__()
         self.latent_fc = nn.Linear(latent_dimension, 128 * 7 * 7)
         self.feature_reconstructor = nn.Sequential(
-            nn.SiLU(),
+            nn.GELU(),
             nn.ConvTranspose2d(128, 64, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.ConvTranspose2d(64, 1, 4, 2, 1),
         )
 
@@ -49,9 +49,9 @@ class TrajectoryEncoder(nn.Module):
         super(TrajectoryEncoder, self).__init__()
         self.feature_extractor = nn.Sequential(
             nn.Linear(200, 512),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(512, 256),
-            nn.SiLU(),
+            nn.GELU(),
         )
 
         self.fc_mean = nn.Linear(256, latent_dimension)
@@ -74,9 +74,9 @@ class TrajectoryDecoder(nn.Module):
         super(TrajectoryDecoder, self).__init__()
         self.latent_fc = nn.Linear(latent_dimension, 256)
         self.feature_reconstructor = nn.Sequential(
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(256, 512),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(512, 200)
         )
 

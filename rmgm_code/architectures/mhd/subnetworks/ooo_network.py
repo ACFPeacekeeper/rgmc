@@ -10,9 +10,9 @@ class OddOneOutNetwork(nn.Module):
         self.device = device
         self.embedder = nn.Sequential(
             nn.Conv1d(num_modalities, 64, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
             nn.Conv1d(64, 128, 4, 2, 1),
-            nn.SiLU(),
+            nn.GELU(),
         )
         self.clf_fc = nn.Linear(2048, num_modalities + 1)
         self.classificator = nn.Softmax(dim=-1)

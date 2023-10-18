@@ -84,7 +84,7 @@ class DGMC(LightningModule):
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             encoding = self.forward(x, sample)
-            recons = self.decode(encoding)
+            recons = self.decode(x, encoding)
             return self.encoder(self.processors['joint'](recons))
         else:
             latent_representations = []
@@ -99,17 +99,22 @@ class DGMC(LightningModule):
                 latent = latent_representations[0]
             return latent
 
-    def decode(self, z):
+    def decode(self, x, z):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             if isinstance(z, list):
-                return self.reconstructors['joint'](self.decoder(z[-1]))
+                tmp_rec = self.reconstructors['joint'](self.decoder(z[-1]))
             else:
-                return self.reconstructors['joint'](self.decoder(z))
+                tmp_rec = self.reconstructors['joint'](self.decoder(z))
 
-        reconstructions = dict.fromkeys(z.keys())
-        for key, mod_id in enumerate(reconstructions.keys()):
-            if key != self.exclude_modality:
-                reconstructions[key] = self.reconstructors[key](self.decoder(z[mod_id]))
+            reconstructions = dict.fromkeys(tmp_rec.keys())
+            for key in reconstructions.keys():
+                reconstructions[key] = torch.clamp(tmp_rec[key], torch.min(x[key]), torch.max(x[key]))
+        else:
+            reconstructions = dict.fromkeys(z.keys())
+            for key, mod_id in enumerate(reconstructions.keys()):
+                if key != self.exclude_modality:
+                    reconstructions[key] = self.reconstructors[key](self.decoder(z[mod_id]))
+                    reconstructions[key] = torch.clamp(reconstructions[key], torch.min(x[key]), torch.max(x[key]))
 
         return reconstructions
 
@@ -210,13 +215,12 @@ class DGMC(LightningModule):
         return loss, tqdm_dict
 
     def recon_loss(self, x, z):
-        x_hat = self.decode(z)
+        x_hat = self.decode(x, z)
 
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses = dict.fromkeys(x.keys())
 
         for key in recon_losses.keys():
-            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
             cost = mse_loss(x[key], x_hat[key])
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
@@ -260,14 +264,16 @@ class DGMC(LightningModule):
 class MSDGMC(DGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
         super(MSDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
-        self.svhn_dim = 64 * 8 * 8
-        self.mnist_dim = 128 * 7 * 7
-        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim)
-        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim)
-        self.joint_processor = MSJointProcessor(common_dim=self.common_dim)
-        self.mnist_reconstructor = MSMNISTDecoder(common_dim=self.common_dim)
-        self.svhn_reconstructor = MSSVHNDecoder(common_dim=self.common_dim)
-        self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim)
+        self.svhn_dims = [128, 8, 8]
+        self.mnist_dims = [128, 7, 7]
+        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
+        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
+        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
+        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
+        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dims=self.mnist_dims, svhn_dims=self.svhn_dims)
+        self.mnist_reconstructor = MSMNISTDecoder(common_dim=self.common_dim, dims=self.mnist_dims)
+        self.svhn_reconstructor = MSSVHNDecoder(common_dim=self.common_dim, dim=svhn_dim)
+        self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim, mnist_dims=self.mnist_dims, svhn_dims=self.svhn_dims)
         if exclude_modality == 'mnist':
             self.processors = {'svhn': self.svhn_processor}
             self.reconstructors = {'svhn': self.svhn_reconstructor}

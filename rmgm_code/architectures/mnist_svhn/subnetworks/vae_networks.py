@@ -6,9 +6,9 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.fc = nn.Linear(first_layer_dim, 512)
         self.feature_extractor = nn.Sequential(
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(512, 256),
-            nn.SiLU(),
+            nn.GELU(),
         )
 
         self.fc_mean = nn.Linear(256, latent_dimension)
@@ -35,9 +35,9 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.latent_fc = nn.Linear(latent_dimension, 256)
         self.feature_reconstructor = nn.Sequential(
-            nn.SiLU(),
+            nn.GELU(),
             nn.Linear(256, 512),
-            nn.SiLU(),
+            nn.GELU(),
         )
         self.fc = nn.Linear(512, last_layer_dim)
 
