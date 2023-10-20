@@ -481,7 +481,6 @@ def setup_device(m_path, config):
                 device_file.write('0')
         
         device_id = device_counter % torch.cuda.device_count()
-        device_id = 1
         device = f"cuda:{device_id}"
         device_lock.release()
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
