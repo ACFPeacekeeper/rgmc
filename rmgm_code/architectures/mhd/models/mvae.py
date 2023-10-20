@@ -23,24 +23,12 @@ class MhdMVAE(nn.Module):
         self.image_decoder = None
         self.trajectory_encoder = None
         self.trajectory_decoder = None
-
-        if self.exclude_modality == 'image':
-            self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
-            self.encoders = {'trajectory': self.trajectory_encoder}
-            self.decoders = {'trajectory': self.trajectory_decoder}
-        elif self.exclude_modality == 'trajectory':
-            self.image_encoder = ImageEncoder(latent_dimension)
-            self.image_decoder = ImageDecoder(latent_dimension)
-            self.encoders = {'image': self.image_encoder}
-            self.decoders = {'image': self.image_decoder}
-        else:
-            self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
-            self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
-            self.image_encoder = ImageEncoder(latent_dimension)
-            self.image_decoder = ImageDecoder(latent_dimension)
-            self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
-            self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
+        self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
+        self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
+        self.image_encoder = ImageEncoder(latent_dimension)
+        self.image_decoder = ImageDecoder(latent_dimension)
+        self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
+        self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
 
     def set_latent_dim(self, latent_dim):
         for enc_key, dec_key in zip(self.encoders.keys(), self.decoders.keys()):

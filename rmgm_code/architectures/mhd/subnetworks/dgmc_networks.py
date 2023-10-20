@@ -104,33 +104,6 @@ class MHDImageDecoder(nn.Module):
         return self.image_reconstructor(x_hat)
 
 
-class MHDSoundProcessor(nn.Module):
-    def __init__(self, common_dim):
-        super(MHDSoundProcessor, self).__init__()
-        self.common_dim = common_dim
-        self.sound_features = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=128, kernel_size=(1, 128), stride=(1, 1), padding=0),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=(4, 1), stride=(2, 1), padding=(1, 0)),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(4, 1), stride=(2, 1), padding=(1, 0)),
-            nn.BatchNorm2d(256),
-            nn.ReLU()
-        )
-        self.projector = nn.Linear(2048, common_dim)
-        
-    def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(2048,  common_dim)
-        self.common_dim = common_dim
-
-    def forward(self, x):
-        h = self.sound_features(x)
-        h = h.view(h.size(0), -1)
-        return self.projector(h)
-
-
 class MHDTrajectoryProcessor(nn.Module):
     def __init__(self, common_dim, dim):
         super(MHDTrajectoryProcessor, self).__init__()

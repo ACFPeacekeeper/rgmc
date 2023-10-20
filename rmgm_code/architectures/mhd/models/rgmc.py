@@ -20,11 +20,29 @@ class RGMC(LightningModule):
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
+        if self.exclude_modality == 'image':
+            self.num_modalities = 1
+            self.modalities = ["trajectory"]
+        elif self.exclude_modality == 'trajectory':
+            self.num_modalities = 1
+            self.modalities = ["image"]
+        else:
+            self.num_modalities = 2
+            self.modalities = ["trajectory", "image"]
         self.encoder = None
         self.o3n = None
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
+        if self.exclude_modality == 'mnist':
+            self.num_modalities = 1
+            self.modalities = ["svhn"]
+        elif self.exclude_modality == 'svhn':
+            self.num_modalities = 1
+            self.modalities = ["mnist"]
+        else:
+            self.num_modalities = 2
+            self.modalities = ["mnist", "svhn"]
 
     def add_perturbation(self, x):
         # Last id corresponds to targetting none of the modalities

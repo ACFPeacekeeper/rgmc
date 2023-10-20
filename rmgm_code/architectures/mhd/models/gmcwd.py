@@ -18,44 +18,16 @@ class GMCWD(LightningModule):
         self.trajectory_processor = None
         self.joint_processor = None
         self.joint_reconstructor = None
-        if self.exclude_modality == 'image':
-            self.num_modalities = 1
-            self.modalities = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif self.exclude_modality == 'trajectory':
-            self.num_modalities = 1
-            self.modalities = ["image"]
-            self.processors = {'image': self.image_processor}
-        else: 
-            self.num_modalities = 2
-            self.modalities = ["image", "trajectory"]
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor,
-            }
-        
+        self.processors = {
+            'image': self.image_processor,
+            'trajectory': self.trajectory_processor,
+            'joint': self.joint_processor,
+        }
         self.encoder = None
         self.decoder = None
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        if self.exclude_modality == 'image':
-            self.num_modalities = 1
-            self.modalities = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif self.exclude_modality == 'trajectory':
-            self.num_modalities = 1
-            self.modalities = ["image"]
-            self.processors = {'image': self.image_processor}
-        else: 
-            self.num_modalities = 2
-            self.modalities = ["image", "trajectory"]
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor,
-            }
 
     def add_noise(self, x):
         for key, modality in x.items():

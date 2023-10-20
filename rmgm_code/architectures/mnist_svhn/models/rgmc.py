@@ -23,20 +23,18 @@ class RGMC(LightningModule):
         if self.exclude_modality == 'mnist':
             self.num_modalities = 1
             self.modalities = ["svhn"]
-            self.processors = {'svhn': self.svhn_processor}
         elif self.exclude_modality == 'svhn':
             self.num_modalities = 1
             self.modalities = ["mnist"]
-            self.processors = {'mnist': self.mnist_processor}
         else:
             self.num_modalities = 2
-            self.modalities = ["mnist", "svhn"]
-            self.processors = {
-                'mnist': self.mnist_processor,
-                'svhn': self.svhn_processor,
-                'joint': self.joint_processor,
-            }
-
+            self.modalities = ["svhn", "mnist"]
+        
+        self.processors = {
+            'mnist': self.mnist_processor,
+            'svhn': self.svhn_processor,
+            'joint': self.joint_processor,
+        }
         self.encoder = None
         self.o3n = None
 
@@ -45,19 +43,12 @@ class RGMC(LightningModule):
         if self.exclude_modality == 'mnist':
             self.num_modalities = 1
             self.modalities = ["svhn"]
-            self.processors = {'svhn': self.svhn_processor}
         elif self.exclude_modality == 'svhn':
             self.num_modalities = 1
             self.modalities = ["mnist"]
-            self.processors = {'mnist': self.mnist_processor}
         else:
             self.num_modalities = 2
             self.modalities = ["mnist", "svhn"]
-            self.processors = {
-                'mnist': self.mnist_processor,
-                'svhn': self.svhn_processor,
-                'joint': self.joint_processor,
-            }
 
     def add_perturbation(self, x):
         # Last id corresponds to targetting none of the modalities

@@ -1,32 +1,39 @@
 import torch
 
 from collections import Counter
-from ..subnetworks.dae_networks import *
+from torch.autograd import Variable
+from ..subnetworks.mdae_networks import *
 
 
-class MhdDAE(nn.Module):
+class MhdMDAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.5):
-        super(MhdDAE, self).__init__()
+        super(MhdMDAE, self).__init__()
         self.name = name
-        self.layer_dim = 28 * 28 + 200
-        self.modality_dims = [0, 28 * 28, 200]
-        self.exclude_modality = exclude_modality
-
-        self.exclude_modality
-        self.encoder = Encoder(latent_dimension, self.layer_dim)
-        self.decoder = Decoder(latent_dimension, self.layer_dim)
-        self.latent_dimension = latent_dimension
         self.device = device
-        self.scales = scales
         self.noise_factor = noise_factor
+        self.scales = scales
+        self.exclude_modality = exclude_modality
+        self.latent_dimension = latent_dimension
+
+        self.image_encoder = None
+        self.image_decoder = None
+        self.trajectory_encoder = None
+        self.trajectory_decoder = None
+        self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
+        self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
+        self.image_encoder = ImageEncoder(latent_dimension)
+        self.image_decoder = ImageDecoder(latent_dimension)
+        self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
+        self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
+
+    def set_latent_dim(self, latent_dim):
+        for enc_key, dec_key in zip(self.encoders.keys(), self.decoders.keys()):
+            self.encoders[enc_key].set_latent_dim(latent_dim)
+            self.decoders[dec_key].set_latent_dim(latent_dim)
+        self.latent_dimension = latent_dim
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-
-    def set_latent_dim(self, latent_dim):
-        self.encoder.set_latent_dim(latent_dim)
-        self.decoder.set_latent_dim(latent_dim)
-        self.latent_dimension = latent_dim
 
     def add_noise(self, x):
         x_noisy = dict.fromkeys(x.keys())
@@ -38,37 +45,29 @@ class MhdDAE(nn.Module):
         if sample is False and self.noise_factor != 0:
             x = self.add_noise(x)
 
-        data_list = list(x.values())
-        if len(data_list[0].size()) > 2:
-            data = torch.flatten(data_list[0], start_dim=1)
-        else:
-            data = data_list[0]
+        latent_reps = []
+        for key in x.keys():
+            if key == self.exclude_modality:
+                continue
+            latent_reps.append(self.encoders(x[key]))
 
-        for id in range(1, len(data_list)):
-            if len(data_list[id].size()) > 2:
-                data_list[id] = torch.flatten(data_list[id], start_dim=1)
-            data = torch.concat((data, data_list[id]), dim=-1)
-
-        z = self.encoder(data)
-        tmp = self.decoder(z)
+        z = torch.stack(latent_reps, dim=0).sum(dim=0)
 
         x_hat = dict.fromkeys(x.keys())
-        for id, key in enumerate(x_hat.keys()):
-            x_hat[key] = tmp[:, self.modality_dims[id]:self.modality_dims[id]+self.modality_dims[id+1]]
-            if key == 'image':
-                x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
+        for key in x_hat.keys():
+            x_hat[key] = self.decoders[key](z)
             x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
-        recon_losses =  dict.fromkeys(x.keys())
+        recon_losses = dict.fromkeys(x.keys())
 
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
             recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
-            
+
         recon_loss = 0
         for value in recon_losses.values():
             recon_loss += value
@@ -78,10 +77,10 @@ class MhdDAE(nn.Module):
 
     def training_step(self, x, labels):
         x_hat, _ = self.forward(x, sample=False)
-        recon_loss, loss_dict = self.loss(x, x_hat)
-        return recon_loss, loss_dict
+        elbo, loss_dict = self.loss(x, x_hat)
+        return elbo, loss_dict
     
     def validation_step(self, x, labels):
         x_hat, _ = self.forward(x, sample=True)
-        recon_loss, loss_dict = self.loss(x, x_hat)
-        return recon_loss, loss_dict
+        elbo, loss_dict = self.loss(x, x_hat)
+        return elbo, loss_dict

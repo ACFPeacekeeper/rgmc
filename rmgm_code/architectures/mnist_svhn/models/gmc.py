@@ -1,9 +1,9 @@
 from pytorch_lightning import LightningModule
 from ..subnetworks.gmc_networks import *
 from collections import Counter
+from functools import reduce
 
 
-# Code adapted from https://github.com/miguelsvasco/gmc
 class GMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
         super(GMC, self).__init__()
@@ -32,22 +32,6 @@ class GMC(LightningModule):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        if self.exclude_modality == 'mnist':
-            self.num_modalities = 1
-            self.modalities = ["svhn"]
-            self.processors = {'svhn': self.svhn_processor}
-        elif self.exclude_modality == 'svhn':
-            self.num_modalities = 1
-            self.modalities = ["mnist"]
-            self.processors = {'mnist': self.mnist_processor}
-        else:
-            self.num_modalities = 2
-            self.modalities = ["mnist", "svhn"]
-            self.processors = {
-                'mnist': self.mnist_processor,
-                'svhn': self.svhn_processor,
-                'joint': self.joint_processor,
-            }
 
     def encode(self, x, sample=False):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
@@ -187,13 +171,14 @@ class GMC(LightningModule):
 
 class MSGMC(GMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, loss_type="infonce"):
-        self.common_dim = common_dim
-
-        super(MSGMC, self).__init__(name, self.common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
-
-        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim)
-        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim)
-        self.joint_processor = MSJointProcessor(common_dim=self.common_dim)
+        super(MSGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
+        self.svhn_dims = [128, 8, 8]
+        self.mnist_dims = [128, 7, 7]
+        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
+        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
+        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
+        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
+        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=mnist_dim, svhn_dim=svhn_dim)
 
         if exclude_modality == 'mnist':
             self.processors = {'svhn': self.svhn_processor}

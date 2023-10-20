@@ -23,55 +23,29 @@ class DGMC(LightningModule):
         if self.exclude_modality == 'mnist':
             self.num_modalities = 1
             self.modalities = ["svhn"]
-            self.processors = {'svhn': self.svhn_processor}
-            self.reconstructors = {'svhn': self.svhn_reconstructor}
         elif self.exclude_modality == 'svhn':
             self.num_modalities = 1
             self.modalities = ["mnist"]
-            self.processors = {'mnist': self.mnist_processor}
-            self.reconstructors = {'mnist': self.mnist_reconstructor}
         else: 
             self.num_modalities = 2
             self.modalities = ["mnist", "svhn"]
-            self.processors = {
-                'mnist': self.mnist_processor,
-                'svhn': self.svhn_processor,
-                'joint': self.joint_processor,
-            }
-            self.reconstructors = {
-                'mnist': self.mnist_reconstructor,
-                'svhn': self.svhn_reconstructor,
-                'joint': self.joint_reconstructor,
-            }
+
+        self.processors = {
+            'mnist': self.mnist_processor,
+            'svhn': self.svhn_processor,
+            'joint': self.joint_processor,
+        }
+        self.reconstructors = {
+            'mnist': self.mnist_reconstructor,
+            'svhn': self.svhn_reconstructor,
+            'joint': self.joint_reconstructor,
+        }
 
         self.encoder = None
         self.decoder = None
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        if self.exclude_modality == 'mnist':
-            self.num_modalities = 1
-            self.modalities = ["svhn"]
-            self.processors = {'svhn': self.svhn_processor}
-            self.reconstructors = {'svhn': self.svhn_reconstructor}
-        elif self.exclude_modality == 'svhn':
-            self.num_modalities = 1
-            self.modalities = ["mnist"]
-            self.processors = {'mnist': self.mnist_processor}
-            self.reconstructors = {'mnist': self.mnist_reconstructor}
-        else: 
-            self.num_modalities = 2
-            self.modalities = ["mnist", "svhn"]
-            self.processors = {
-                'mnist': self.mnist_processor,
-                'svhn': self.svhn_processor,
-                'joint': self.joint_processor,
-            }
-            self.reconstructors = {
-                'mnist': self.mnist_reconstructor,
-                'svhn': self.svhn_reconstructor,
-                'joint': self.joint_reconstructor,
-            }
 
     def add_noise(self, x):
         for key, modality in x.items():
@@ -270,7 +244,7 @@ class MSDGMC(DGMC):
         mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
         self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
         self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
-        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dims=self.mnist_dims, svhn_dims=self.svhn_dims)
+        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=mnist_dim, svhn_dim=svhn_dim)
         self.mnist_reconstructor = MSMNISTDecoder(common_dim=self.common_dim, dims=self.mnist_dims)
         self.svhn_reconstructor = MSSVHNDecoder(common_dim=self.common_dim, dim=svhn_dim)
         self.joint_reconstructor = MSJointDecoder(common_dim=self.common_dim, mnist_dims=self.mnist_dims, svhn_dims=self.svhn_dims)

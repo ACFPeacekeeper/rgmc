@@ -17,31 +17,15 @@ class GMC(LightningModule):
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
-        if self.exclude_modality == 'image':
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif self.exclude_modality == 'trajectory':
-            self.processors = {'image': self.image_processor}
-        else:
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor,
-            }
-
+        self.processors = {
+            'image': self.image_processor,
+            'trajectory': self.trajectory_processor,
+            'joint': self.joint_processor,
+        }
         self.encoder = None
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        if self.exclude_modality == 'image':
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif self.exclude_modality == 'trajectory':
-            self.processors = {'image': self.image_processor}
-        else:
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor,
-            }
 
     def encode(self, x, sample=False):
         # If we have complete observations

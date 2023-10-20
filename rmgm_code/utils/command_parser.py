@@ -6,6 +6,7 @@ import torch
 import wandb
 import select
 import shutil
+import random
 #import termios
 import argparse
 import threading
@@ -13,6 +14,7 @@ import itertools
 import traceback
 import subprocess
 
+import numpy as np
 import torch.optim as optim
 
 from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, plot_graph_across_models
@@ -21,6 +23,7 @@ from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mhd.models.vae import MhdVAE
 from architectures.mhd.models.dae import MhdDAE
 from architectures.mhd.models.mvae import MhdMVAE
+from architectures.mhd.models.mdae import MhdMDAE
 from architectures.mhd.models.gmc import MhdGMC
 from architectures.mhd.models.dgmc import MhdDGMC
 from architectures.mhd.models.rgmc import MhdRGMC
@@ -29,6 +32,7 @@ from architectures.mnist_svhn.downstream.classifier import MSClassifier
 from architectures.mnist_svhn.models.vae import MSVAE
 from architectures.mnist_svhn.models.dae import MSDAE
 from architectures.mnist_svhn.models.mvae import MSMVAE
+from architectures.mnist_svhn.models.mdae import MSMDAE
 from architectures.mnist_svhn.models.gmc import MSGMC
 from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
@@ -189,8 +193,6 @@ def process_arguments(m_path):
                     shutil.rmtree(os.path.join(m_path, "configs", dir), ignore_errors=True)
         sys.exit(0)
 
-    torch.manual_seed(args['seed'])
-
     if args['command'] == 'config':
         if "config_permute" in args and args['config_permute'] is not None:
             conf_path = open(os.path.join(m_path, args['config_permute']))
@@ -241,6 +243,18 @@ def setup_env(m_path, config):
 
     if ("path_classifier" not in config or config["path_classifier"] is None) and config["stage"] == "test_classifier":
         config["path_classifier"] = os.path.join("saved_models", "clf_" + os.path.basename(config["path_model"]))
+
+    if "seed" not in config or config['seed'] is None:
+        config["seed"] = SEED
+
+    seed = config['seed']
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
 
     config = config_validation(m_path, config)
 
@@ -314,9 +328,6 @@ def config_validation(m_path, config):
     except IOError as e:
         traceback.print_exception(*sys.exc_info())
     finally:
-        if "seed" not in config or config['seed'] is None:
-            config["seed"] = SEED
-
         if "exclude_modality" not in config:
             config["exclude_modality"] = None
 
@@ -535,6 +546,9 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'mvae':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MhdMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        elif config['architecture'] == 'mdae':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
+            model = MhdMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'gmc':
             model = MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
@@ -556,6 +570,9 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'mvae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MSMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        elif config['architecture'] == 'mdae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
+            model = MSMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'gmc':
             model = MSGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':

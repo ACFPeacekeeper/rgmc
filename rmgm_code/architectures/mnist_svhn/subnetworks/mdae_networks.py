@@ -9,18 +9,15 @@ class MNISTEncoder(nn.Module):
             nn.Conv2d(64, 128, 4, 2, 1),
             nn.GELU(),
         )
-
-        self.fc_mean = nn.Linear(128 * 7 * 7, latent_dimension)
-        self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dimension)
+        self.latent_fc = nn.Linear(128 * 7 * 7, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        self.fc_mean = nn.Linear(128 * 7 * 7, latent_dim)
-        self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dim)
+        self.latent_fc = nn.Linear(128 * 7 * 7, latent_dim)
 
     def forward(self, x):
         h = self.feature_extractor(x)
         h = h.view(h.size(0), -1)
-        return self.fc_mean(h), self.fc_logvar(h)
+        return self.latent_fc(h)
       
 
 class SVHNEncoder(nn.Module):
@@ -35,17 +32,15 @@ class SVHNEncoder(nn.Module):
             nn.GELU(),
         )
 
-        self.fc_mean = nn.Linear(32 * 32 * 2, latent_dimension)
-        self.fc_logvar = nn.Linear(32 * 32 * 2, latent_dimension)
+        self.latent_fc = nn.Linear(32 * 32 * 2, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        self.fc_mean = nn.Linear(32 * 32 * 2, latent_dim)
-        self.fc_logvar = nn.Linear(32 * 32 * 2, latent_dim)
+        self.latent_fc = nn.Linear(32 * 32 * 2, latent_dim)
 
     def forward(self, x):
         h = self.feature_extractor(x)
         h = h.view(h.size(0), -1)
-        return self.fc_mean(h), self.fc_logvar(h)
+        return self.latent_fc(h)
 
 
 class MNISTDecoder(nn.Module):
