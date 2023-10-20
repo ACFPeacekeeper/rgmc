@@ -12,8 +12,6 @@ class MSCommonEncoder(nn.Module):
         self.common_dim = common_dim
         self.latent_dim = latent_dimension
         self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), nn.GELU(), nn.Linear(128, latent_dimension),)
-        torch.nn.init.xavier_uniform_(self.feature_extractor[0].weight)
-        torch.nn.init.xavier_uniform_(self.feature_extractor[2].weight)
 
     def set_latent_dim(self, latent_dim):
         self.feature_extractor = nn.Sequential(nn.Linear(self.common_dim, 128), nn.GELU(), nn.Linear(128, latent_dim),)
@@ -33,8 +31,6 @@ class MSCommonDecoder(nn.Module):
         self.common_dim = common_dim
         self.latent_dim = latent_dimension
         self.feature_reconstructor = nn.Sequential(nn.Linear(latent_dimension, 128), nn.GELU(), nn.Linear(128, common_dim),)
-        torch.nn.init.xavier_uniform_(self.feature_reconstructor[0].weight)
-        torch.nn.init.xavier_uniform_(self.feature_reconstructor[2].weight)
 
     def set_latent_dim(self, latent_dim):
         self.feature_extractor = nn.Sequential(nn.Linear(latent_dim, 128), nn.GELU(), nn.Linear(128, self.common_dim),)
@@ -60,9 +56,6 @@ class MSMNISTProcessor(nn.Module):
             nn.GELU(),
         )
         self.projector = nn.Linear(self.dim, common_dim)
-        torch.nn.init.xavier_uniform_(self.mnist_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.mnist_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(self.dim,  common_dim)
@@ -86,9 +79,6 @@ class MSMNISTDecoder(nn.Module):
             nn.GELU(),
             nn.ConvTranspose2d(64, 1, 4, 2, 1, bias=False)
         )
-        torch.nn.init.xavier_uniform_(self.mnist_reconstructor[1].weight)
-        torch.nn.init.xavier_uniform_(self.mnist_reconstructor[3].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.dims))
@@ -112,9 +102,6 @@ class MSSVHNProcessor(nn.Module):
             nn.GELU(),
         )
         self.projector = nn.Linear(self.dim, common_dim)
-        torch.nn.init.xavier_uniform_(self.svhn_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(self.dim, common_dim)
@@ -137,9 +124,6 @@ class MSSVHNDecoder(nn.Module):
             nn.GELU(),
             nn.ConvTranspose2d(filter_base * 2, 3, 4, 2, 1, bias=False),
         )
-        torch.nn.init.xavier_uniform_(self.svhn_reconstructor[1].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_reconstructor[3].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(common_dim, self.dim)
@@ -170,11 +154,6 @@ class MSJointProcessor(nn.Module):
             nn.GELU(),
         )
         self.projector = nn.Linear(self.mnist_dim + self.svhn_dim, common_dim)
-        torch.nn.init.xavier_uniform_(self.mnist_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.mnist_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(self.mnist_dim + self.svhn_dim, common_dim)
@@ -214,11 +193,6 @@ class MSJointDecoder(nn.Module):
             nn.GELU(),
             nn.ConvTranspose2d(filter_base * 2, 3, 4, 2, 1, bias=False),
         )
-        torch.nn.init.xavier_uniform_(self.mnist_reconstructor[1].weight)
-        torch.nn.init.xavier_uniform_(self.mnist_reconstructor[3].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_reconstructor[1].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_reconstructor[3].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.svhn_dims) + reduce(lambda x, y: x * y, self.mnist_dims))

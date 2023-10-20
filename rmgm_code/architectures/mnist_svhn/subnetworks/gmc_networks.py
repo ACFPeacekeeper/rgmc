@@ -16,9 +16,6 @@ class MSCommonEncoder(nn.Module):
             nn.GELU(),
         )
         self.latent_fc = nn.Linear(512, latent_dimension)
-        torch.nn.init.xavier_uniform_(self.common_fc.weight)
-        torch.nn.init.xavier_uniform_(self.feature_extractor[1].weight)
-        torch.nn.init.xavier_uniform_(self.latent_fc.weight)
 
     def set_latent_dim(self, latent_dim):
         self.latent_fc = nn.Linear(512, latent_dim)
@@ -39,15 +36,12 @@ class MSMNISTProcessor(nn.Module):
         self.dim = dim
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, filter_base * 2, 4, 2, 1),
+            nn.Conv2d(1, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
         self.projector = nn.Linear(self.dim, common_dim)
-        torch.nn.init.xavier_uniform_(self.mnist_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.mnist_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(self.dim,  common_dim)
@@ -65,17 +59,14 @@ class MSSVHNProcessor(nn.Module):
         self.dim = dim
         self.common_dim = common_dim
         self.svhn_features = nn.Sequential(
-            nn.Conv2d(3, filter_base, 4, 2, 1),
+            nn.Conv2d(3, filter_base, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(filter_base, filter_base * 2, 4, 2, 1),
+            nn.Conv2d(filter_base, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
         self.projector = nn.Linear(self.dim, common_dim)
-        torch.nn.init.xavier_uniform_(self.svhn_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(self.dim, common_dim)
@@ -94,27 +85,21 @@ class MSJointProcessor(nn.Module):
         self.mnist_dim = mnist_dim
         self.common_dim = common_dim
         self.mnist_features = nn.Sequential(
-            nn.Conv2d(1, filter_base * 2, 4, 2, 1),
+            nn.Conv2d(1, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
 
         self.svhn_features = nn.Sequential(
             nn.Conv2d(3, filter_base, 4, 2, 1),
             nn.GELU(),
-            nn.Conv2d(filter_base, filter_base * 2, 4, 2, 1),
+            nn.Conv2d(filter_base, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
         self.projector = nn.Linear(self.mnist_dim + self.svhn_dim, common_dim)
-        torch.nn.init.xavier_uniform_(self.mnist_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.mnist_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_features[0].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_features[2].weight)
-        torch.nn.init.xavier_uniform_(self.svhn_features[4].weight)
-        torch.nn.init.xavier_uniform_(self.projector.weight)
 
     def set_common_dim(self, common_dim):
         self.projector = nn.Linear(self.mnist_dim + self.svhn_dim, common_dim)

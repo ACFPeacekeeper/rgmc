@@ -51,7 +51,7 @@ from datasets.pendulum.pendulum_dataset import PendulumDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'mdae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]

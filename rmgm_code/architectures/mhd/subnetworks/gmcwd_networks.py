@@ -64,9 +64,9 @@ class MHDImageProcessor(nn.Module):
         self.dim = dim
         self.common_dim = common_dim
         self.image_features = nn.Sequential(
-            nn.Conv2d(1, filter_base * 2, 4, 2, 1),
+            nn.Conv2d(1, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
         self.projector = nn.Linear(128 * 7 * 7, common_dim)
@@ -120,9 +120,9 @@ class MHDJointProcessor(nn.Module):
         self.image_dim = image_dim
         self.common_dim = common_dim
         self.img_features = nn.Sequential(
-            nn.Conv2d(1, filter_base * 2, 4, 2, 1),
+            nn.Conv2d(1, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
 
@@ -161,9 +161,9 @@ class MHDJointDecoder(nn.Module):
         self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.image_dims) + 512)
         self.image_reconstructor = nn.Sequential(
            nn.GELU(),
-           nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1),
+           nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
            nn.GELU(),
-           nn.ConvTranspose2d(filter_base * 2, 1, 4, 2, 1), 
+           nn.ConvTranspose2d(filter_base * 2, 1, 4, 2, 1, bias=False), 
         )
 
         self.trajectory_reconstructor = nn.Sequential(

@@ -35,9 +35,9 @@ class MHDImageProcessor(nn.Module):
         super(MHDImageProcessor, self).__init__()
         self.common_dim = common_dim
         self.image_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.GELU(),
         )
         self.projector = nn.Linear(128 * 7 * 7, common_dim)
@@ -48,29 +48,6 @@ class MHDImageProcessor(nn.Module):
 
     def forward(self, x):
         h = self.image_features(x)
-        h = h.view(h.size(0), -1)
-        return self.projector(h)
-
-
-class MHDSoundProcessor(nn.Module):
-    def __init__(self, common_dim):
-        super(MHDSoundProcessor, self).__init__()
-        self.common_dim = common_dim
-        self.sound_features = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=128, kernel_size=(1, 128), stride=(1, 1), padding=0),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=(4, 1), stride=(2, 1), padding=(1, 0)),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(4, 1), stride=(2, 1), padding=(1, 0)),
-            nn.BatchNorm2d(256),
-            nn.ReLU()
-        )
-        self.projector = nn.Linear(2048, common_dim)
-
-    def forward(self, x):
-        h = self.sound_features(x)
         h = h.view(h.size(0), -1)
         return self.projector(h)
 
@@ -96,25 +73,14 @@ class MHDTrajectoryProcessor(nn.Module):
         return self.projector(h)
 
 
-class MHDLabelProcessor(nn.Module):
-    def __init__(self, common_dim):
-        super(MHDLabelProcessor, self).__init__()
-        self.common_dim = common_dim
-        self.projector = nn.Linear(10, common_dim)
-
-    def forward(self, x):
-        return self.projector(x)
-
-
-
 class MHDJointProcessor(nn.Module):
     def __init__(self, common_dim):
         super(MHDJointProcessor, self).__init__()
         self.common_dim = common_dim
         self.img_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.GELU(),
         )
 

@@ -49,7 +49,7 @@ class MhdMDAE(nn.Module):
         for key in x.keys():
             if key == self.exclude_modality:
                 continue
-            latent_reps.append(self.encoders(x[key]))
+            latent_reps.append(self.encoders[key](x[key]))
 
         z = torch.stack(latent_reps, dim=0).sum(dim=0)
 
