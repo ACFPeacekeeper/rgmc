@@ -175,8 +175,7 @@ class GMCWD(LightningModule):
     def recon_loss(self, x, z):
         x_hat = self.decode(x, z)
 
-        #mse_loss = nn.MSELoss(reduction="none").to(self.device)
-        mse_loss = nn.L1Loss(reduction="none").to(self.device)
+        mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses = dict.fromkeys(x.keys())
 
         for key in recon_losses.keys():
