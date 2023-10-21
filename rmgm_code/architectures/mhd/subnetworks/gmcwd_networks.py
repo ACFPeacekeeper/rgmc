@@ -101,16 +101,6 @@ class MHDTrajectoryProcessor(nn.Module):
     def forward(self, x):
         h = self.trajectory_features(x)
         return self.projector(h)
-    
-
-class MHDLabelProcessor(nn.Module):
-    def __init__(self, common_dim):
-        super(MHDLabelProcessor, self).__init__()
-        self.common_dim = common_dim
-        self.projector = nn.Linear(10, common_dim)
-
-    def forward(self, x):
-        return self.projector(x)
 
 
 class MHDJointProcessor(nn.Module):
@@ -132,7 +122,6 @@ class MHDJointProcessor(nn.Module):
             nn.Linear(512, self.traj_dim),
             nn.GELU(),
         )
-
         self.projector = nn.Linear(self.image_dim + self.traj_dim, common_dim)
 
     def set_common_dim(self, common_dim):
