@@ -192,7 +192,7 @@ def inference(config, device):
     counter = 0
     for idx, (batch_feats, batch_labels) in enumerate(tqdm(dataloader, total=len(dataloader))):
         if config['checkpoint'] != 0 and counter % config['checkpoint'] == 0: 
-            x_hat, _ = model(batch_feats)
+            _, x_hat = model.inference(batch_feats, batch_labels)
             label = int(batch_labels[0])
             for modality in batch_feats.keys():
                 if modality == 'image' or modality == 'mnist':

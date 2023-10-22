@@ -1,7 +1,7 @@
 import torch
 
+from torch.nn import ReLU
 from collections import Counter
-from torch.autograd import Variable
 from ..subnetworks.mdae_networks import *
 
 
@@ -14,7 +14,7 @@ class MhdMDAE(nn.Module):
         self.scales = scales
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-
+        self.inf_activation = ReLU()
         self.image_encoder = None
         self.image_decoder = None
         self.trajectory_encoder = None
@@ -56,7 +56,6 @@ class MhdMDAE(nn.Module):
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():
             x_hat[key] = self.decoders[key](z)
-            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     
@@ -84,3 +83,10 @@ class MhdMDAE(nn.Module):
         x_hat, _ = self.forward(x, sample=True)
         elbo, loss_dict = self.loss(x, x_hat)
         return elbo, loss_dict
+    
+    def inference(self, x, labels):
+        x_hat, z = self.forward(x, sample=True)
+        for key in x_hat.keys():
+            x_hat[key] = self.inf_activation(x_hat)
+        
+        return z, x_hat

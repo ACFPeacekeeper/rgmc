@@ -1,5 +1,6 @@
 import torch
 
+from torch.nn import ReLU
 from collections import Counter
 from ..subnetworks.vae_networks import *
 
@@ -14,7 +15,7 @@ class MSVAE(nn.Module):
         self.latent_dimension = latent_dimension
         self.encoder = Encoder(self.latent_dimension, self.layer_dim)
         self.decoder = Decoder(self.latent_dimension, self.layer_dim)
-        
+        self.inf_activation = ReLU()
         self.device = device
         self.scales = scales
         self.mean = mean
@@ -59,7 +60,6 @@ class MSVAE(nn.Module):
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
             elif key == 'svhn':
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 3, 32, 32))
-            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     
@@ -87,3 +87,10 @@ class MSVAE(nn.Module):
         x_hat, _ = self.forward(x, sample=True)
         elbo, loss_dict = self.loss(x, x_hat)
         return elbo, loss_dict
+    
+    def inference(self, x, labels):
+        x_hat, z = self.forward(x, sample=True)
+        for key in x_hat.keys():
+            x_hat[key] = self.inf_activation(x_hat)
+        
+        return z, x_hat

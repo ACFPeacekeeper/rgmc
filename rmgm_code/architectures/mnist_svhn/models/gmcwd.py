@@ -1,6 +1,7 @@
 from pytorch_lightning import LightningModule
 from ..subnetworks.gmcwd_networks import *
 from collections import Counter
+from torch.nn import ReLU
 
 
 class GMCWD(LightningModule):
@@ -13,7 +14,7 @@ class GMCWD(LightningModule):
         self.exclude_modality = exclude_modality
         self.scales = scales
         self.noise_factor = noise_factor
-
+        self.inf_activation = ReLU()
         self.mnist_processor = None
         self.svhn_processor = None
         self.joint_processor = None
@@ -64,16 +65,12 @@ class GMCWD(LightningModule):
                 latent = latent_representations[0]
             return latent
         
-    def decode(self, x, z):
+    def decode(self, z):
         if isinstance(z, list):
-            tmp_rec = self.joint_reconstructor(self.decoder(z[-1]))
+            reconstructions = self.joint_reconstructor(self.decoder(z[-1]))
         else:
-            tmp_rec = self.joint_reconstructor(self.decoder(z))
-        
-        reconstructions = dict.fromkeys(tmp_rec.keys())
-        for key in reconstructions.keys():
-            reconstructions[key] = torch.clamp(tmp_rec[key], torch.min(x[key]), torch.max(x[key]))
-        
+            reconstructions = self.joint_reconstructor(self.decoder(z))
+
         return reconstructions
 
     def forward(self, x, sample=False):
@@ -172,9 +169,7 @@ class GMCWD(LightningModule):
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
 
-    def recon_loss(self, x, z):
-        x_hat = self.decode(x, z)
-
+    def recon_loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses = dict.fromkeys(x.keys())
 
@@ -198,7 +193,8 @@ class GMCWD(LightningModule):
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         
-        recon_loss, recon_dict = self.recon_loss(data, batch_representations)
+        x_hat = self.decode(batch_representations)
+        recon_loss, recon_dict = self.recon_loss(data, x_hat)
         total_loss = recon_loss + loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
@@ -207,15 +203,25 @@ class GMCWD(LightningModule):
 
         # Forward pass through the encoders
         batch_representations = self.forward(data, sample=True)
+        
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
         
-        recon_loss, recon_dict = self.recon_loss(data, batch_representations)
+        x_hat = self.decode(batch_representations)
+        recon_loss, recon_dict = self.recon_loss(data, x_hat)
         total_loss = recon_loss + loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
+    
+    def inference(self, data, labels):
+        z = self.encode(data, sample=True)
+        x_hat = self.decode(z)
+        for key in x_hat.keys():
+            x_hat[key] = self.inf_activation(x_hat)
+        
+        return z, x_hat
 
 
 class MSGMCWD(GMCWD):

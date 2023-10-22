@@ -1,5 +1,6 @@
 import torch
 
+from torch.nn import ReLU
 from collections import Counter
 from ..subnetworks.dae_networks import *
 
@@ -11,7 +12,7 @@ class MhdDAE(nn.Module):
         self.layer_dim = 28 * 28 + 200
         self.modality_dims = [0, 28 * 28, 200]
         self.exclude_modality = exclude_modality
-
+        self.inf_activation = ReLU()
         self.exclude_modality
         self.encoder = Encoder(latent_dimension, self.layer_dim)
         self.decoder = Decoder(latent_dimension, self.layer_dim)
@@ -57,7 +58,6 @@ class MhdDAE(nn.Module):
             x_hat[key] = tmp[:, self.modality_dims[id]:self.modality_dims[id]+self.modality_dims[id+1]]
             if key == 'image':
                 x_hat[key] = torch.reshape(x_hat[key], (x_hat[key].size(dim=0), 1, 28, 28))
-            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     
@@ -85,3 +85,10 @@ class MhdDAE(nn.Module):
         x_hat, _ = self.forward(x, sample=True)
         recon_loss, loss_dict = self.loss(x, x_hat)
         return recon_loss, loss_dict
+    
+    def inference(self, x, labels):
+        x_hat, z = self.forward(x, sample=True)
+        for key in x_hat.keys():
+            x_hat[key] = self.inf_activation(x_hat)
+        
+        return z, x_hat

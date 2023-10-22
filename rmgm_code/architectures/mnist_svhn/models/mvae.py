@@ -1,5 +1,6 @@
 import torch
 
+from torch.nn import ReLU
 from collections import Counter
 from torch.autograd import Variable
 from ..subnetworks.mvae_networks import *
@@ -19,7 +20,7 @@ class MSMVAE(nn.Module):
         self.kld = 0.
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.poe_eps = poe_eps
-
+        self.inf_activation = ReLU()
         self.mnist_encoder = None
         self.mnist_decoder = None
         self.svhn_encoder = None
@@ -70,7 +71,6 @@ class MSMVAE(nn.Module):
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():
             x_hat[key] = self.decoders[key](z)
-            x_hat[key] = torch.clamp(x_hat[key], torch.min(x[key]), torch.max(x[key]))
 
         return x_hat, z
     
@@ -97,6 +97,13 @@ class MSMVAE(nn.Module):
         x_hat, _ = self.forward(x, sample=True)
         elbo, loss_dict = self.loss(x, x_hat)
         return elbo, loss_dict
+    
+    def inference(self, x, labels):
+        x_hat, z = self.forward(x, sample=True)
+        for key in x_hat.keys():
+            x_hat[key] = self.inf_activation(x_hat)
+        
+        return z, x_hat
             
 
 class PoE(nn.Module): 
