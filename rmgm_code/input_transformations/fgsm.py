@@ -6,8 +6,8 @@ from input_transformations.adversarial_attack import AdversarialAttack
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/fgsm.py
 class FGSM(AdversarialAttack):
-    def __init__(self, name, model, device, target_modality, eps=8/255, targeted=False):
-        super().__init__("FGSM", name, model, device, target_modality, targeted)
+    def __init__(self, model, device, target_modality, eps=8/255, targeted=False, attack_mode="default"):
+        super().__init__("FGSM", model, device, target_modality, targeted, attack_mode)
         self.eps = eps
 
 

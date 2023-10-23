@@ -277,8 +277,6 @@ def base_validation(function):
     def wrapper(m_path, config):
         if "stage" not in config or config["stage"] not in STAGES:
             raise argparse.ArgumentError("Argument error: must specify a valid pipeline stage.")
-        if "architecture" not in config or config["architecture"] not in ARCHITECTURES:
-            raise argparse.ArgumentError("Argument error: must specify an architecture for the experiments.")
         if "dataset" not in config or config["dataset"] not in DATASETS:
             raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
         return function(m_path, config)
@@ -286,17 +284,16 @@ def base_validation(function):
 
 @base_validation
 def config_validation(m_path, config):
+    if "architecture" not in config or config["architecture"] not in ARCHITECTURES:
+            raise argparse.ArgumentError("Argument error: must define a valid architecture.")
     if "batch_size" not in config or config["batch_size"] is None:
             config['batch_size'] = BATCH_SIZE_DEFAULT
-    elif config['batch_size'] < 1:
+    if config['batch_size'] < 1:
         raise argparse.ArgumentError("Argument error: batch_size value must be a positive and non-zero integer.")
     if "latent_dimension" not in config or config['latent_dimension'] is None:
         config['latent_dimension'] = LATENT_DIM_DEFAULT
-    elif config['latent_dimension'] < 1:
+    if config['latent_dimension'] < 1:
         raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
-    
-    if config['architecture'] is None:
-        raise argparse.ArgumentError("Argument error: must define a valid architecture.")
     if "exclude_modality" in config and config["exclude_modality"] not in MODALITIES[config['dataset']]:
         raise argparse.ArgumentError("Argument error: must define a valid modality to exclude.")
     if "adversarial_attack" in config and config['adversarial_attack'] is not None:

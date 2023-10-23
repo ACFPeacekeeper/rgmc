@@ -172,7 +172,7 @@ class GMC(LightningModule):
 class MSGMC(GMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, loss_type="infonce"):
         super(MSGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
-        self.svhn_dims = [128, 8, 8]
+        self.svhn_dims = [128, 4, 4]
         self.mnist_dims = [128, 7, 7]
         svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
         mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
