@@ -49,7 +49,7 @@ class MSClassifier(nn.Module):
         return loss, loss_dict
     
     def training_step(self, x, labels):
-        classification, _ = self.forward(x, sample=False)
+        classification, _ = self.forward(x, sample=True)
         loss, loss_dict = self.loss(classification, labels)
         return loss, loss_dict
     

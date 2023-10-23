@@ -58,15 +58,21 @@ class DGMC(LightningModule):
             x = self.add_noise(x)
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            encoding = self.forward(x, sample)
-            recons = self.decode(x, encoding)
+            encoding = self.encoder(self.processors['joint'](x))
+            recons = self.decode(encoding)
             return self.encoder(self.processors['joint'](recons))
         else:
-            latent_representations = []
+            encodings = {}
             for key in x.keys():
                 if key != self.exclude_modality:
-                    latent_representations.append(self.encoder(self.processors[key](x[key])))
+                    encodings[key] = self.encoder(self.processors[key](x[key]))
 
+            recons = self.decode(encodings)
+            latent_representations = []
+            for key in encoding.keys():
+                if key != self.exclude_modality:
+                    latent_representations.append(self.encoder(self.processors[key](x[key])))
+                    
             # Take the average of the latent representations
             if len(latent_representations) > 1:
                 latent = torch.stack(latent_representations, dim=0).mean(0)

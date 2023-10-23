@@ -24,6 +24,7 @@ from architectures.mhd.models.vae import MhdVAE
 from architectures.mhd.models.dae import MhdDAE
 from architectures.mhd.models.mvae import MhdMVAE
 from architectures.mhd.models.mdae import MhdMDAE
+from architectures.mhd.models.mmdae import MhdMMDAE
 from architectures.mhd.models.gmc import MhdGMC
 from architectures.mhd.models.dgmc import MhdDGMC
 from architectures.mhd.models.rgmc import MhdRGMC
@@ -33,6 +34,7 @@ from architectures.mnist_svhn.models.vae import MSVAE
 from architectures.mnist_svhn.models.dae import MSDAE
 from architectures.mnist_svhn.models.mvae import MSMVAE
 from architectures.mnist_svhn.models.mdae import MSMDAE
+from architectures.mnist_svhn.models.mmdae import MSMMDAE
 from architectures.mnist_svhn.models.gmc import MSGMC
 from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
@@ -51,7 +53,7 @@ from datasets.pendulum.pendulum_dataset import PendulumDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'mdae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'mdae', 'mmdae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]
@@ -110,12 +112,13 @@ def process_arguments(m_path):
     upload_parser.add_argument('--checkpoints')
 
     clear_parser = subparsers.add_parser("clear")
-    clear_parser.add_argument('--clear_results', '--clear_res', action="store_false", help="Flag to delete results directory.")
-    clear_parser.add_argument('--clear_checkpoints', '--clear_check', action="store_false", help="Flag to delete checkpoints directory.")
-    clear_parser.add_argument('--clear_saved_models', '--clear_models', '--clear_saved', action="store_false", help="Flag to delete saved_models directory.")
-    clear_parser.add_argument('--clear_wandb', '--clear_w&b', action="store_false", help="Flag to delete wandb directory.")
-    clear_parser.add_argument('--clear_configs', '--clear_runs', action="store_false", help="Flag to delete configs directory.")
-    clear_parser.add_argument('--clear_idx', action='store_false', help="Flag to delete previous experiments idx file.")
+    clear_parser.add_argument('--clear_results', '--clear_res', action="store_true", help="Flag to delete results directory.")
+    clear_parser.add_argument('--clear_checkpoints', '--clear_check', action="store_true", help="Flag to delete checkpoints directory.")
+    clear_parser.add_argument('--clear_compare', '--clear_comp', action="store_true", help="Flag to delete compare directory.")
+    clear_parser.add_argument('--clear_saved_models', '--clear_models', '--clear_saved', action="store_true", help="Flag to delete saved_models directory.")
+    clear_parser.add_argument('--clear_wandb', '--clear_wb', action="store_true", help="Flag to delete wandb directory.")
+    clear_parser.add_argument('--clear_configs', '--clear_runs', action="store_true", help="Flag to delete configs directory.")
+    clear_parser.add_argument('--clear_idx', action='store_true', help="Flag to delete previous experiments idx file.")
 
     configs_parser = subparsers.add_parser("config")
     configs_parser.add_argument('--load_config', '--load_json', type=str, help='File path where the experiment(s) configurations are to loaded from.')
@@ -176,6 +179,8 @@ def process_arguments(m_path):
             shutil.rmtree(os.path.join(m_path, "results"), ignore_errors=True)
         if args['clear_checkpoints']:
             shutil.rmtree(os.path.join(m_path, "checkpoints"), ignore_errors=True)
+        if args['clear_compare']:
+            shutil.rmtree(os.path.join(m_path, "compare"), ignore_errors=True)
         if args['clear_saved_models']:
             shutil.rmtree(os.path.join(m_path, "saved_models"), ignore_errors=True)
         if args['clear_wandb']:
@@ -481,6 +486,7 @@ def setup_device(m_path, config):
                 device_file.write('0')
         
         device_id = device_counter % torch.cuda.device_count()
+        device_id = 1
         device = f"cuda:{device_id}"
         device_lock.release()
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
@@ -548,6 +554,9 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'mdae':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
             model = MhdMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'mmdae':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
+            model = MhdMMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'gmc':
             model = MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
@@ -572,6 +581,9 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'mdae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
             model = MSMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'mdae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
+            model = MSMMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'gmc':
             model = MSGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
