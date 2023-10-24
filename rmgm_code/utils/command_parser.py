@@ -483,7 +483,7 @@ def setup_device(m_path, config):
                 device_file.write('0')
         
         device_id = device_counter % torch.cuda.device_count()
-        device_id = 1
+        device_id = 0
         device = f"cuda:{device_id}"
         device_lock.release()
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
@@ -578,7 +578,7 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'mdae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
             model = MSMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
-        elif config['architecture'] == 'mdae':
+        elif config['architecture'] == 'mmdae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
             model = MSMMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'gmc':

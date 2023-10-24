@@ -9,10 +9,8 @@ class Encoder(nn.Module):
             nn.GELU(),
             nn.Linear(256, 512),
             nn.GELU(),
-            nn.Linear(512, 512),
-            nn.GELU(),
             nn.Linear(512, 256),
-            nn.GELU()
+            nn.GELU(),
         )
         self.latent_fc = nn.Linear(256, latent_dimension)
 
@@ -34,8 +32,6 @@ class Decoder(nn.Module):
         self.feature_reconstructor = nn.Sequential(
             nn.GELU(),
             nn.Linear(256, 512),
-            nn.GELU(),
-            nn.Linear(512, 512),
             nn.GELU(),
             nn.Linear(512, 256),
             nn.GELU()

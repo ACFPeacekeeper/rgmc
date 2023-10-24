@@ -20,11 +20,11 @@ class MSCommonEncoder(nn.Module):
         self.latent_fc = nn.Linear(512, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(self.common_dim, 128), nn.GELU(), nn.Linear(128, latent_dim),)
+        self.latent_fc = nn.Linear(512, latent_dim)
         self.latent_dim = latent_dim
 
     def set_common_dim(self, common_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(common_dim, 128), nn.GELU(), nn.Linear(128, self.latent_dim),)
+        self.common_fc = nn.Linear(common_dim, 512)
         self.common_dim = common_dim
 
     def forward(self, x):
@@ -46,11 +46,11 @@ class MSCommonDecoder(nn.Module):
         self.common_fc = nn.Linear(512, common_dim)
 
     def set_latent_dim(self, latent_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(latent_dim, 128), nn.GELU(), nn.Linear(128, self.common_dim),)
+        self.latent_fc = nn.Linear(512, latent_dim)
         self.latent_dim = latent_dim
 
     def set_common_dim(self, common_dim):
-        self.feature_extractor = nn.Sequential(nn.Linear(self.latent_dim, 128), nn.GELU(), nn.Linear(128, common_dim),)
+        self.common_fc = nn.Linear(512, common_dim)
         self.common_dim = common_dim
 
     def forward(self, z):
