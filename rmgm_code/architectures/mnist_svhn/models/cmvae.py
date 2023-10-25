@@ -2,31 +2,33 @@ import torch
 
 from torch.nn import ReLU
 from collections import Counter
-from ..subnetworks.mdae_networks import *
+from ..subnetworks.cmvae_networks import *
 
 
-class MhdMMDAE(nn.Module):
-    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.5):
-        super(MhdMMDAE, self).__init__()
+class MSCMVAE(nn.Module):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
+        super(MSCMVAE, self).__init__()
+        self.kld = 0.
+        self.std = std
+        self.mean = mean
         self.name = name
         self.device = device
-        self.noise_factor = noise_factor
         self.scales = scales
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
         self.inf_activation = ReLU()
-        self.image_encoder = None
-        self.image_decoder = None
-        self.trajectory_encoder = None
-        self.trajectory_decoder = None
-        self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
-        self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
-        self.image_encoder = ImageEncoder(latent_dimension)
-        self.image_decoder = ImageDecoder(latent_dimension)
-        self.encoders = {'image': self.image_encoder, 'trajectory': self.trajectory_encoder}
-        self.decoders = {'image': self.image_decoder, 'trajectory': self.trajectory_decoder}
+        self.mnist_encoder = MNISTEncoder(latent_dimension)
+        self.mnist_decoder = MNISTDecoder(latent_dimension)
+        self.svhn_encoder = SVHNEncoder(latent_dimension)
+        self.svhn_decoder = SVHNDecoder(latent_dimension)
+        self.common_encoder = CommonEncoder(latent_dimension)
+        self.common_decoder = CommonDecoder(latent_dimension)
+        self.encoders = {'mnist': self.mnist_encoder, 'svhn': self.svhn_encoder}
+        self.decoders = {'mnist': self.mnist_decoder, 'svhn': self.svhn_decoder}
 
     def set_latent_dim(self, latent_dim):
+        self.common_encoder.set_latent_dim(latent_dim)
+        self.common_decoder.set_latent_dim(latent_dim)
         for enc_key, dec_key in zip(self.encoders.keys(), self.decoders.keys()):
             self.encoders[enc_key].set_latent_dim(latent_dim)
             self.decoders[dec_key].set_latent_dim(latent_dim)
@@ -35,28 +37,32 @@ class MhdMMDAE(nn.Module):
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
-    def add_noise(self, x):
-        x_noisy = dict.fromkeys(x.keys())
-        for key, modality in x.items():
-            x_noisy[key] = torch.clamp(torch.add(modality, torch.mul(torch.randn_like(modality), self.noise_factor)), torch.min(modality), torch.max(modality))
-        return x_noisy
+    def reparameterization(self, mean, std):
+        dist = torch.distributions.Normal(self.mean, self.std)
+        eps = dist.sample(std.shape).to(self.device)
+        z = torch.add(mean, torch.mul(std, eps))
+        return z
 
     def forward(self, x, sample=False):
-        if sample is False and self.noise_factor != 0:
-            x = self.add_noise(x)
-
+        batch_size = list(x.values())[0].size(dim=0)
         latent_reps = []
         for key in x.keys():
             if key == self.exclude_modality:
                 continue
             latent_reps.append(self.encoders[key](x[key]))
 
-        num_mods = len(latent_reps)
-        z = torch.stack(latent_reps, dim=0).sum(dim=0) / num_mods
-
+        mean, logvar = self.common_encoder(torch.stack(latent_reps, dim=0).sum(dim=0))
+        std = torch.exp(torch.mul(logvar, 0.5))
+        if sample is False and not isinstance(self.scales['kld_beta'], type(None)):
+            z = self.reparameterization(mean, std)
+            self.kld = - self.scales['kld_beta'] * torch.mean(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dimension / batch_size)
+        else:
+            z = mean
+        
+        tmp = self.common_decoder(z)
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():
-            x_hat[key] = self.decoders[key](z)
+            x_hat[key] = self.decoders[key](tmp)
 
         return x_hat, z
     
@@ -72,7 +78,7 @@ class MhdMMDAE(nn.Module):
         for value in recon_losses.values():
             recon_loss += value
 
-        loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
+        loss_dict = Counter({'total_loss': recon_loss, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
         return recon_loss, loss_dict
 
     def training_step(self, x, labels):

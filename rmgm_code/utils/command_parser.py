@@ -23,8 +23,9 @@ from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mhd.models.vae import MhdVAE
 from architectures.mhd.models.dae import MhdDAE
 from architectures.mhd.models.mvae import MhdMVAE
+from architectures.mhd.models.cmvae import MhdCMVAE
 from architectures.mhd.models.mdae import MhdMDAE
-from architectures.mhd.models.mmdae import MhdMMDAE
+from architectures.mhd.models.cmdae import MhdCMDAE
 from architectures.mhd.models.gmc import MhdGMC
 from architectures.mhd.models.dgmc import MhdDGMC
 from architectures.mhd.models.rgmc import MhdRGMC
@@ -33,8 +34,9 @@ from architectures.mnist_svhn.downstream.classifier import MSClassifier
 from architectures.mnist_svhn.models.vae import MSVAE
 from architectures.mnist_svhn.models.dae import MSDAE
 from architectures.mnist_svhn.models.mvae import MSMVAE
+from architectures.mnist_svhn.models.cmvae import MSCMVAE
 from architectures.mnist_svhn.models.mdae import MSMDAE
-from architectures.mnist_svhn.models.mmdae import MSMMDAE
+from architectures.mnist_svhn.models.cmdae import MSCMDAE
 from architectures.mnist_svhn.models.gmc import MSGMC
 from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
@@ -53,7 +55,7 @@ from datasets.pendulum.pendulum_dataset import PendulumDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'mdae', 'mmdae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]
@@ -112,13 +114,13 @@ def process_arguments(m_path):
     upload_parser.add_argument('--checkpoints')
 
     clear_parser = subparsers.add_parser("clear")
-    clear_parser.add_argument('--clear_results', '--clear_res', action="store_true", help="Flag to delete results directory.")
-    clear_parser.add_argument('--clear_checkpoints', '--clear_check', action="store_true", help="Flag to delete checkpoints directory.")
-    clear_parser.add_argument('--clear_compare', '--clear_comp', action="store_true", help="Flag to delete compare directory.")
-    clear_parser.add_argument('--clear_saved_models', '--clear_models', '--clear_saved', action="store_true", help="Flag to delete saved_models directory.")
-    clear_parser.add_argument('--clear_wandb', '--clear_wb', action="store_true", help="Flag to delete wandb directory.")
-    clear_parser.add_argument('--clear_configs', '--clear_runs', action="store_true", help="Flag to delete configs directory.")
-    clear_parser.add_argument('--clear_idx', action='store_true', help="Flag to delete previous experiments idx file.")
+    clear_parser.add_argument('--clear_results', '--clear_res', action="store_false", help="Flag to delete results directory.")
+    clear_parser.add_argument('--clear_checkpoints', '--clear_check', action="store_false", help="Flag to delete checkpoints directory.")
+    clear_parser.add_argument('--clear_compare', '--clear_comp', action="store_false", help="Flag to delete compare directory.")
+    clear_parser.add_argument('--clear_saved_models', '--clear_models', '--clear_saved', action="store_false", help="Flag to delete saved_models directory.")
+    clear_parser.add_argument('--clear_configs', '--clear_runs', action="store_false", help="Flag to delete configs directory.")
+    clear_parser.add_argument('--clear_wandb', '--clear_wb', action="store_false", help="Flag to delete wandb directory.")
+    clear_parser.add_argument('--clear_idx', action="store_false", help="Flag to delete previous experiments idx file.")
 
     configs_parser = subparsers.add_parser("config")
     configs_parser.add_argument('--load_config', '--load_json', type=str, help='File path where the experiment(s) configurations are to loaded from.')
@@ -483,7 +485,7 @@ def setup_device(m_path, config):
                 device_file.write('0')
         
         device_id = device_counter % torch.cuda.device_count()
-        device_id = 0
+        #device_id = 1
         device = f"cuda:{device_id}"
         device_lock.release()
         config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
@@ -548,12 +550,15 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'mvae':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MhdMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        elif config['architecture'] == 'cmvae':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MhdCMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
         elif config['architecture'] == 'mdae':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
             model = MhdMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
-        elif config['architecture'] == 'mmdae':
+        elif config['architecture'] == 'cmdae':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
-            model = MhdMMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+            model = MhdCMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'gmc':
             model = MhdGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
@@ -575,12 +580,15 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'mvae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MSMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
+        elif config['architecture'] == 'cmvae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MSCMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
         elif config['architecture'] == 'mdae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
             model = MSMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
-        elif config['architecture'] == 'mmdae':
+        elif config['architecture'] == 'cmdae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
-            model = MSMMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
+            model = MSCMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'gmc':
             model = MSGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
         elif config['architecture'] == 'dgmc':
@@ -658,8 +666,8 @@ def setup_experiment(m_path, config, device, train=True):
         else:
             dataset.dataset = attack(dataset.dataset)
 
-    if "notes" not in config:
-        if 2 > 3:
+    if False:
+        if "notes" not in config:
             print('Enter experiment notes:')
             notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
             if (notes):
@@ -668,9 +676,7 @@ def setup_experiment(m_path, config, device, train=True):
                 notes = ""
             #termios.tcflush(sys.stdin, termios.TCIOFLUSH)
         else:
-            notes = None
-    else:
-        notes = config["notes"]
+            notes = config["notes"]
 
     if train:
         if config['optimizer'] is not None:
@@ -679,15 +685,16 @@ def setup_experiment(m_path, config, device, train=True):
             elif config['optimizer'] == 'sgd':
                 optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
 
-        wandb.init(project="rmgm", 
-               name=config['model_out'],
-               config={key: value for key, value in config.items() if value is not None}, 
-               notes=notes,
-               allow_val_change=True,
-               #magic=True,
-               mode="offline",
-               tags=[config['architecture'], config['dataset'], config['stage']])
-        wandb.watch(model)
+        if False:
+            wandb.init(project="rmgm", 
+                name=config['model_out'],
+                config={key: value for key, value in config.items() if value is not None}, 
+                notes=notes,
+                allow_val_change=True,
+                #magic=True,
+                mode="offline",
+                tags=[config['architecture'], config['dataset'], config['stage']])
+            wandb.watch(model)
     else:
         optimizer = None
 

@@ -58,7 +58,7 @@ def run_train_epoch(epoch, config, device, model, train_set, train_losses, check
         if config['optimizer'] is not None:
             optimizer.step()
 
-        wandb.log({**batch_loss_dict})
+        #wandb.log({**batch_loss_dict})
 
     for key, value in loss_dict.items():
         loss_dict[key] = value / train_bnumber
@@ -132,7 +132,7 @@ def train_model(config, device):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
-    wandb.finish()
+    #wandb.finish()
     return model
 
 def train_downstream_classifier(config, device):
@@ -163,7 +163,7 @@ def train_downstream_classifier(config, device):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
     
-    wandb.finish()
+    #wandb.finish()
     return model
 
 def test_model(config, device):
@@ -250,7 +250,7 @@ def run_experiment(**kwargs):
         elif config['stage'] == 'inference':
             inference(config, device)
     except:
-        wandb.finish(exit_code=1)
+        #wandb.finish(exit_code=1)
         traceback.print_exception(*sys.exc_info())
 
 def main():
