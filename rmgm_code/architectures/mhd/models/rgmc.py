@@ -1,10 +1,10 @@
 import random
 
-from ..subnetworks.ooo_network import OddOneOutNetwork
-from pytorch_lightning import LightningModule
-from ..subnetworks.rgmc_networks import *
+from torch.nn import ReLU
 from collections import Counter
-
+from ..subnetworks.rgmc_networks import *
+from pytorch_lightning import LightningModule
+from ..subnetworks.ooo_network import OddOneOutNetwork
 
 class RGMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):
@@ -16,10 +16,15 @@ class RGMC(LightningModule):
         self.noise_factor = noise_factor
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-
+        self.joint_reconstructor = None
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
+        self.processors = {
+            'image': self.image_processor,
+            'trajectory': self.trajectory_processor,
+            'joint': self.joint_processor,
+        }
         if self.exclude_modality == 'image':
             self.num_modalities = 1
             self.modalities = ["trajectory"]
@@ -28,55 +33,62 @@ class RGMC(LightningModule):
             self.modalities = ["image"]
         else:
             self.num_modalities = 2
-            self.modalities = ["trajectory", "image"]
+            self.modalities = ["image", "trajectory"]
         self.encoder = None
+        self.decoder = None
         self.o3n = None
+        self.perturbation = None
+        self.inf_activation = ReLU()
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        if self.exclude_modality == 'mnist':
+        if self.exclude_modality == '"image"':
             self.num_modalities = 1
-            self.modalities = ["svhn"]
-        elif self.exclude_modality == 'svhn':
+            self.modalities = ["trajectory"]
+        elif self.exclude_modality == 'trajectory':
             self.num_modalities = 1
-            self.modalities = ["mnist"]
+            self.modalities = ["image"]
         else:
             self.num_modalities = 2
-            self.modalities = ["mnist", "svhn"]
+            self.modalities = ["image", "trajectory"]
 
     def add_perturbation(self, x):
         # Last id corresponds to targetting none of the modalities
         target_id = random.randint(0, self.num_modalities)
-        for id, key in enumerate(x.keys()):
-            if id == target_id:
-                x[key] = torch.clamp(torch.add(x[key], torch.mul(torch.randn_like(x[key]), self.noise_factor)), torch.min(x[key]), torch.max(x[key]))
-            else:
-                x[key] = x[key]
+        if target_id < 2:
+            target_modality = self.modalities[target_id]
+            self.attack._set_target_modality(target_modality)
+            x = self.attack(x)
         return x
 
-    def encode(self, x, sample=False): 
+    def encode(self, x, sample=False):
+        if sample is False and self.noise_factor != 0:
+            x = self.add_perturbation(x)
+
         latent_representations = []
         for key in x.keys():
             if key != self.exclude_modality:
                 latent_representations.append(self.encoder(self.processors[key](x[key])))
 
         mod_weights = self.o3n(latent_representations)
-        joint_weights = mod_weights[:, -1]
 
         for id, latent_repr in enumerate(latent_representations):
             latent_representations[id] = torch.mul(latent_repr, mod_weights[:, id])
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            latent_representations.append(torch.mul(self.encoder(self.processors['joint'](x)), joint_weights))
+            latent_representations.append(torch.mul(self.encoder(self.processors['joint'](x)), mod_weights[:, -1]))
 
         # Take the average of the latent representations
         if len(latent_representations) > 1:
-            latent = torch.stack(latent_representations, dim=0).mean(0)
+            latent = torch.stack(latent_representations, dim=0).mean(dim=0)
         else:
             latent = latent_representations[0]
         return latent
 
-    def forward(self, x):
+    def forward(self, x, sample=False):
+        if sample is False and self.noise_factor != 0:
+            x = self.add_perturbation(x)
+
         # Forward pass through the modality specific encoders
         batch_representations = []
         for key in x.keys():
@@ -180,7 +192,6 @@ class RGMC(LightningModule):
 
         # Forward pass through the encoders
         batch_representations = self.forward(data)
-
         # Forward pass through odd-one-out network
         clean_mod_weights = self.o3n(batch_representations[:-1])
         perturbed_batch = self.add_perturbation(data)
@@ -205,8 +216,7 @@ class RGMC(LightningModule):
 
         # Forward pass through the encoders
         batch_representations = self.forward(data, sample=True)
-
-        # Forward pass through odd-one-out network
+         # Forward pass through odd-one-out network
         clean_mod_weights = self.o3n(batch_representations[:-1])
         perturbed_batch = self.add_perturbation(data)
         perturbed_reps = self.forward(perturbed_batch)
@@ -223,38 +233,50 @@ class RGMC(LightningModule):
             loss, tqdm_dict = self.infonce(perturbed_reps, batch_size)
         
         total_loss = loss + o3n_loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
+        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_loss})
 
+    def inference(self, data, labels):
+        z = self.encode(data, sample=True)
+        x_hat = self.decode(z)
+        for key in x_hat.keys():
+            x_hat[key] = self.inf_activation(x_hat)
+        
+        return z, x_hat
 
 
 class MhdRGMC(RGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, scales, noise_factor, device, loss_type="infonce"):
-        if exclude_modality != None:
+        super(MhdRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
+        self.traj_dim = 512
+        self.image_dims = [128, 7, 7]
+        image_dim = reduce(lambda x, y: x * y, self.image_dims)
+        self.image_processor = MHDImageProcessor(common_dim=self.common_dim, dim=image_dim)
+        self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim, dim=self.traj_dim)
+        self.joint_processor = MHDJointProcessor(common_dim=self.common_dim, image_dim=image_dim, traj_dim=self.traj_dim)
+        #self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim, image_dims=self.image_dims, traj_dim=self.traj_dim)
+        if self.exclude_modality == 'image':
             self.num_modalities = 1
+            self.modalities = ["trajectory"]
+        elif self.exclude_modality == 'trajectory':
+            self.num_modalities = 1
+            self.modalities = ["image"]
         else:
             self.num_modalities = 2
-
-        super(MhdRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
-        self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
-        self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
-        self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
-        if self.exclude_modality == 'image':
-            self.modalities = ["trajectory"]
-            self.processors = {'trajectory': self.trajectory_processor}
-        elif self.exclude_modality == 'trajectory':
-            self.modalities = ["image"]
-            self.processors = {'image': self.image_processor}
-        else:
             self.modalities = ["image", "trajectory"]
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor,
-            }
 
+        self.processors = {
+            'image': self.image_processor,
+            'trajectory': self.trajectory_processor,
+            'joint': self.joint_processor,
+        }
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=common_dim, latent_dimension=latent_dimension)
+        #self.decoder = MHDCommonDecoder(common_dim=common_dim, latent_dimension=latent_dimension)
         self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.modalities, device=device)
+        self.perturbation = None
+
+    def set_perturbation(self, perturbation):
+        self.perturbation = perturbation
 
     def set_latent_dim(self, latent_dim):
         self.encoder.set_latent_dim(latent_dim)

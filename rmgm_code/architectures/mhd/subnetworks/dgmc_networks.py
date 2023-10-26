@@ -69,10 +69,10 @@ class MHDImageProcessor(nn.Module):
             nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
-        self.projector = nn.Linear(128 * 7 * 7, common_dim)
+        self.projector = nn.Linear(self.dim, common_dim)
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(128 * 7 * 7,  common_dim)
+        self.projector = nn.Linear(self.dim,  common_dim)
         self.common_dim = common_dim
 
     def forward(self, x):

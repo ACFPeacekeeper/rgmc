@@ -29,6 +29,4 @@ class OddOneOutNetwork(nn.Module):
         h = self.embedder(representations)
         h = self.clf_fc(h.view(h.size(0), -1))
         classes = self.classificator(h)
-        results = torch.cat((classes[:, 1].view(classes.size(0), 1), classes[:, 0].view(classes.size(0), 1)), dim=-1)
-        results = torch.cat((results, classes[:, -1].view(classes.size(0), 1)), dim=-1)
-        return results
+        return classes

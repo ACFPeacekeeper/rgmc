@@ -38,3 +38,6 @@ class AdversarialAttack(object):
                 target_labels = self._target_map_function(inputs, labels)
         
         return target_labels
+    
+    def _set_target_modality(self, target_modality):
+        self.target_modality = target_modality

@@ -51,7 +51,7 @@ class MhdMDAE(nn.Module):
                 continue
             latent_reps.append(self.encoders[key](x[key]))
 
-        z = torch.stack(latent_reps, dim=0).sum(dim=0)
+        z = torch.stack(latent_reps, dim=0).sum(dim=0) / len(latent_reps)
 
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():

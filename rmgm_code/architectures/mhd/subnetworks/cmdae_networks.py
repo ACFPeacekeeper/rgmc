@@ -5,16 +5,14 @@ class CommonEncoder(nn.Module):
     def __init__(self, latent_dimension):
         super(CommonEncoder, self).__init__()
         self.latent_dimension = latent_dimension
-        self.fc_mean = nn.Linear(latent_dimension, latent_dimension)
-        self.fc_logvar = nn.Linear(latent_dimension, latent_dimension)
+        self.latent_fc = nn.Linear(latent_dimension, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        self.fc_mean = nn.Linear(latent_dim, latent_dim)
-        self.fc_logvar = nn.Linear(latent_dim, latent_dim)
+        self.latent_fc = nn.Linear(latent_dim, latent_dim)
         self.latent_dimension = latent_dim
 
     def forward(self, x):
-        return self.fc_mean(x), self.fc_logvar(x)
+        return self.latent_fc(x)
     
 class CommonDecoder(nn.Module):
     def __init__(self, latent_dimension):

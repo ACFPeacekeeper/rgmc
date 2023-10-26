@@ -40,8 +40,6 @@ class FGSM(AdversarialAttack):
         x_adv = torch.clamp(x[self.target_modality] + self.eps * grad.sign(), torch.min(x[self.target_modality]), torch.max(x[self.target_modality]))
         
         x[self.target_modality] = x_adv.clone().detach().to(self.device)
-        #for key in x.keys():
-            #x[key] = torch.squeeze(x[key], dim=0)
 
         return x
     
