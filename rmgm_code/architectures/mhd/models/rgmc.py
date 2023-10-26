@@ -57,8 +57,8 @@ class RGMC(LightningModule):
         target_id = random.randint(0, self.num_modalities)
         if target_id < 2:
             target_modality = self.modalities[target_id]
-            self.attack._set_target_modality(target_modality)
-            x = self.attack(x)
+            self.perturbation._set_target_modality(target_modality)
+            x = self.perturbation(x)
         return x
 
     def encode(self, x, sample=False):
@@ -233,7 +233,7 @@ class RGMC(LightningModule):
             loss, tqdm_dict = self.infonce(perturbed_reps, batch_size)
         
         total_loss = loss + o3n_loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_loss})
+        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
 
     def inference(self, data, labels):
         z = self.encode(data, sample=True)

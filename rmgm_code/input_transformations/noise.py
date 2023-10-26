@@ -11,6 +11,8 @@ class Noise(object):
     def __call__(self, x, y):
         raise NotImplementedError
 
-
     def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+    
+    def _set_target_modality(self, target_modality):
+        self.target_modality = target_modality

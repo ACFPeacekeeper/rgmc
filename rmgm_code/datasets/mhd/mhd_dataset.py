@@ -32,5 +32,4 @@ class MhdDataset(MultimodalDataset):
             self.dataset = {'image': data[1].to(self.device), 'trajectory': data[2].to(self.device)}
 
         self.labels = data[0].to(self.device)
-
         return

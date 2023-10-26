@@ -249,6 +249,9 @@ def setup_experiment(m_path, config, device, train=True):
         else:
             dataset.dataset = attack(dataset.dataset)
 
+        if config['architecture'] == 'rgmc':
+            model.set_perturbation(attack)
+
     if False:
         if "notes" not in config:
             print('Enter experiment notes:')
