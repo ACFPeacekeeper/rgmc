@@ -198,12 +198,11 @@ def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
         plt.close()
     return
 
-def plot_bar_across_models(m_path, config, out_path):
-    ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd']
+def plot_bar_across_models(m_path, config, out_path, architectures):
     loss_means = []
     loss_stds = []
-    X_axis = np.arange(len(ARCHITECTURES))
-    for architecture in ARCHITECTURES:
+    X_axis = np.arange(len(architectures))
+    for architecture in architectures:
         path = os.path.join(m_path, "compare", config['stage'], f"{architecture}_{out_path}metrics.txt")
         with open(path, 'r') as res_file:
             file_lines = res_file.readlines()
@@ -220,7 +219,7 @@ def plot_bar_across_models(m_path, config, out_path):
     fig, ax = plt.subplots()
     fig.figsize=(20, 10)
     ax.set_xticks(X_axis)
-    ax.set_xticklabels(ARCHITECTURES)
+    ax.set_xticklabels(architectures)
     ax.set_title(f"Accuracy in the {config['dataset']} dataset")
     ax.yaxis.grid(True)
     metric_bar = ax.bar(X_axis, loss_means, yerr=loss_stds, width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)

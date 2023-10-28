@@ -522,7 +522,7 @@ def metrics_analysis(m_path, config):
         last_id = int(config['model_outs'][-1]) + int(config['number_seeds'])
         out_path = f"{config['dataset']}_{config['model_outs'][0]}_{last_id}_"
         if config['compare_models']:
-            plot_bar_across_models(m_path, config, out_path)
+            plot_bar_across_models(m_path, config, out_path, ARCHITECTURES)
         else:
             out_path = f"{config['architecture']}_{out_path}"
             save_config(os.path.join(m_path, "compare", config['stage'], out_path + 'metrics.txt'), config)
