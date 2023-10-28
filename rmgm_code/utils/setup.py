@@ -20,7 +20,6 @@ from architectures.mhd.models.gmc import MhdGMC
 from architectures.mhd.models.dgmc import MhdDGMC
 from architectures.mhd.models.rgmc import MhdRGMC
 from architectures.mhd.models.gmcwd import MhdGMCWD
-from architectures.mhd.models.rgmcwd import MhdRGMCWD
 from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mnist_svhn.models.vae import MSVAE
 from architectures.mnist_svhn.models.dae import MSDAE
@@ -194,9 +193,6 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'gmcwd':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
-        elif config['architecture'] == 'rgmcwd':
-            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature'], 'o3n_loss_scale': config['o3n_loss_scale']}
-            model = MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['adv_std'], device=device)
     elif config['dataset'] == 'mnist_svhn':
         if config['architecture'] == 'vae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
@@ -210,7 +206,7 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'cmvae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MSCMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
-        elif config['architecture'] == 'cmvae':
+        elif config['architecture'] == 'cmdvae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MSCMDVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'mdae':
