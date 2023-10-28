@@ -13,6 +13,7 @@ class OddOneOutNetwork(nn.Module):
             nn.GELU(),
             nn.Conv1d(64, 128, 4, 2, 1),
             nn.GELU(),
+            nn.Dropout(),
         )
         self.clf_fc = nn.Linear(2048, num_modalities + 1)
         self.classificator = nn.Softmax(dim=-1)
@@ -20,7 +21,8 @@ class OddOneOutNetwork(nn.Module):
     def set_latent_dim(self, latent_dim):
         self.latent_dimension = latent_dim
 
-    def forward(self, mod_representations, batch_size):
+    def forward(self, mod_representations):
+        batch_size = mod_representations[0].size()[0]
         representations = mod_representations[0].view(batch_size, 1, self.latent_dimension)
         for mod_rep in mod_representations[1:]:
             mod_rep = mod_rep.view(batch_size, 1, self.latent_dimension)
