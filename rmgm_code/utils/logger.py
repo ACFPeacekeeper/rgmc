@@ -130,9 +130,9 @@ def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
 
         for id, seed_res in enumerate(seed_results):
             if "classifier" in config['stage']:
-                seed_results[id] = f"results/{config['stage']}/clf_{config['architecture']}_{config['dataset']}_exp{seed_res}.txt"
+                seed_results[id] = os.path.join(m_path, "results", config['stage'], f"clf_{config['architecture']}_{config['dataset']}_exp{seed_res}.txt")
             else:
-                seed_results[id] = f"results/{config['stage']}/{config['architecture']}_{config['dataset']}_exp{seed_res}.txt"
+                seed_results[id] = os.path.join(m_path, "results", config['stage'], f"{config['architecture']}_{config['dataset']}_exp{seed_res}.txt")
 
         for loss_key in loss_dict.keys():
             tmp_loss = []
@@ -141,7 +141,7 @@ def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
                 with open(path, 'r') as res_file:
                     for line in res_file:
                         if config["param_comp"] is not None and config['param_comp'] in line:
-                            param_values.append(np.double(line.removeprefix(f"{config['param_comp']}: ")))
+                            tmp_param_values.append(np.double(line.removeprefix(f"{config['param_comp']}: ")))
                         if loss_key in line:
                             tmp_loss.append(np.double(line.removeprefix(f'- {loss_key}: ')))
             
@@ -151,6 +151,9 @@ def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
         param_values = []
         [param_values.append(x) for x in tmp_param_values if x not in param_values]
         X_axis = np.arange(len(param_values))
+        with open(os.path.join(m_path, "compare", config['stage'], out_path + 'metrics.txt'), 'a') as res_file:
+            print(f'{config["param_comp"]} values: {param_values}')
+            res_file.write(f'{config["param_comp"]} values: {param_values}\n')
     else:
         X_axis = np.arange(len(config['model_outs']))
 
@@ -173,18 +176,18 @@ def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
         ax.set_xticks(X_axis)
         if config["param_comp"] is not None:
             ax.set_xticklabels(param_values)
-            title = f"{loss_key} for different {config['param_comp']} values"
+            title = f"{loss_key} for diff. {config['param_comp']} values"
             if "parent_param" in config and config['parent_param'] is not None:
-                title = title + f" for {config['parent_param']} hyperparameter"
+                title = title + f" for {config['parent_param']}"
             if "target_modality" in config and config['target_modality'] is not None:
-                title = title + f"targeting the {config['target_modality']} modality"
+                title = title + f" on the {config['target_modality']} mod."
         else:
             ax.set_xticklabels([config['architecture']])
             title = f"{loss_key} values"
             if "parent_param" in config and config['parent_param'] is not None:
-                title = title + f" for {config['parent_param']} hyperparameter"
+                title = title + f" for {config['parent_param']}"
                 if "target_modality" in config and config['target_modality'] is not None:
-                    title = title + f"targeting the {config['target_modality']} modality"
+                    title = title + f" on the {config['target_modality']} mod."
 
         img_out_path = out_path + f"{loss_key}"
         ax.set_title(title)

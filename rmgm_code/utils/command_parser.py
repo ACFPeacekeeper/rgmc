@@ -44,7 +44,7 @@ MODEL_TRAIN_NOISE_FACTOR_DEFAULT = 1.0
 MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
 NOISE_STD_DEFAULT = 1.0
-ADV_EPSILON_DEFAULT = 8 / 255
+ADV_EPSILON_DEFAULT = 0.1
 ADV_ALPHA_DEFAULT = 2 / 255
 ADV_STEPS_DEFAULT = 10
 RECON_SCALE_DEFAULTS = {
@@ -119,6 +119,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('--momentum', type=float, default=MOMENTUM_DEFAULT, help='Momentum for the SGD optimizer.')
     exp_parser.add_argument('--noise_std', type=float, default=NOISE_STD_DEFAULT, help='Standard deviation for noise distribution.')
     exp_parser.add_argument('--adv_epsilon', type=float, default=ADV_EPSILON_DEFAULT, help='Epsilon value for adversarial example generation.')
+    exp_parser.add_argument('--black_box', action="store_true", help='Defines in adversarial attack is performed in a black-box setting.')
     exp_parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
     
     args = vars(parser.parse_args())
@@ -222,19 +223,19 @@ def config_validation(m_path, config):
         raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
     
     if config['stage'] == 'test_classifier':
-        if "path_classifier" in config:
+        if "path_classifier" in config and config['path_classifier'] is not None:
             path = os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + ".json")
             clf_config = json.load(open(path))
         else:
             clf_config = None
 
-        if "path_model" in config:
+        if "path_model" in config and config['path_model'] is not None:
             path = os.path.join(m_path, "configs", "train_model", config['path_model'] + ".json")
             model_config = json.load(open(path))
         else:
             model_config = None
     elif config['stage'] == 'train_classifier' or config['stage'] == 'test_model':
-        if "path_model" in config:
+        if "path_model" in config and config['path_model'] is not None:
             path = os.path.join(m_path, "configs", "train_model", config['path_model'] + ".json")
             model_config = json.load(open(path))
         else:

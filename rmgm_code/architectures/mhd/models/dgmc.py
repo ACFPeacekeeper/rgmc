@@ -72,10 +72,12 @@ class DGMC(LightningModule):
         
     def decode(self, z):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            if isinstance(z, list):
+            if isinstance(z, dict):
+                reconstructions = self.reconstructors['joint'](self.decoder(z['joint']))
+            elif isinstance(z, list):
                 reconstructions = self.reconstructors['joint'](self.decoder(z[-1]))
             else:
-                reconstructions = self.reconstructors['joint'](self.decoder(z['joint']))
+                reconstructions = self.reconstructors['joint'](self.decoder(z))
 
         else:
             reconstructions = dict.fromkeys(z.keys())
@@ -246,23 +248,16 @@ class MhdDGMC(DGMC):
         self.image_reconstructor = MHDImageDecoder(common_dim=self.common_dim, dims=self.image_dims)
         self.trajectory_reconstructor = MHDTrajectoryDecoder(common_dim=self.common_dim, dim=self.traj_dim)
         self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim, image_dims=self.image_dims, traj_dim=self.traj_dim)
-        if exclude_modality == 'image':
-            self.processors = {'trajectory': self.trajectory_processor}
-            self.reconstructors = {'trajectory': self.trajectory_reconstructor}
-        elif exclude_modality == 'trajectory':
-            self.processors = {'image': self.image_processor}
-            self.reconstructors = {'image': self.image_reconstructor}
-        else:
-            self.processors = {
-                'image': self.image_processor,
-                'trajectory': self.trajectory_processor,
-                'joint': self.joint_processor,
-            }
-            self.reconstructors = {
-                'image': self.image_reconstructor,
-                'trajectory': self.trajectory_reconstructor,
-                'joint': self.joint_reconstructor,
-            }
+        self.processors = {
+            'image': self.image_processor,
+            'trajectory': self.trajectory_processor,
+            'joint': self.joint_processor,
+        }
+        self.reconstructors = {
+            'image': self.image_reconstructor,
+            'trajectory': self.trajectory_reconstructor,
+            'joint': self.joint_reconstructor,
+        }
 
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)

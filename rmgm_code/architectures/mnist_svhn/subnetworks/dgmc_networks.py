@@ -129,11 +129,11 @@ class MSSVHNProcessor(nn.Module):
         return self.projector(h)
 
 class MSSVHNDecoder(nn.Module):
-    def __init__(self, common_dim, dim):
+    def __init__(self, common_dim, dims):
         super(MSSVHNDecoder, self).__init__()
-        self.dim = dim
+        self.dims = dims
         self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, self.dim)
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.dims))
         self.svhn_reconstructor = nn.Sequential(
             nn.GELU(),
             nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
@@ -144,11 +144,12 @@ class MSSVHNDecoder(nn.Module):
         )
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, self.dim)
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.dims))
         self.common_dim = common_dim
 
     def forward(self, h):
         x_hat = self.projector(h)
+        x_hat = x_hat.view(x_hat.size(0), *self.dims)
         return self.svhn_reconstructor(x_hat)        
 
 

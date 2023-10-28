@@ -22,6 +22,9 @@ class MHDClassifier(nn.Module):
         self.latent_dimension = latent_dim
         self.model.set_latent_dim(latent_dim)
 
+    def set_perturbation(self, perturbation):
+        self.model.set_perturbation(perturbation)
+
     def forward(self, x, sample=True):
         if 'gmc' in self.model.name:
             z = self.model.encode(x, sample)

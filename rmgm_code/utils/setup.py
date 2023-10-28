@@ -116,10 +116,10 @@ def setup_env(m_path, config):
             clf_config = json.load(open(path))
             config['path_model'] = clf_config['path_model']
         else:
-            config["path_model"] = os.path.join("saved_models", config["architecture"] + "_" + config["dataset"] + f"_exp{exp_id}")
+            config["path_model"] = config["architecture"] + "_" + config["dataset"] + f"_exp{exp_id}"
 
     if ("path_classifier" not in config or config["path_classifier"] is None) and config["stage"] == "test_classifier":
-        config["path_classifier"] = os.path.join("saved_models", "clf_" + os.path.basename(config["path_model"]))
+        config["path_classifier"] = "clf_" + config["path_model"]
 
     config = config_validation(m_path, config)
 
@@ -278,7 +278,10 @@ def setup_experiment(m_path, config, device, train=True):
             model.to(device)
 
     if config['architecture'] == 'rgmc':
-        gmc_config = json.load(open(os.path.join(m_path, "configs", "train_model", config['model_out'][1:] + '.json')))
+        if config['stage'] == 'train_model':
+            gmc_config = json.load(open(os.path.join(m_path, "configs", "train_model", config['model_out'][1:] + '.json')))
+        else:
+            gmc_config = json.load(open(os.path.join(m_path, "configs", "train_model", config['model_out'][5:] + '.json')))
         if config['dataset'] == 'mhd':
             gmc_model = MhdGMC(gmc_config['architecture'], gmc_config['exclude_modality'], gmc_config['common_dimension'], gmc_config['latent_dimension'], gmc_config['infonce_temperature'])
         elif config['dataset'] == 'mnist_svhn':
@@ -289,7 +292,10 @@ def setup_experiment(m_path, config, device, train=True):
             param.requires_grad = False
 
         gmc_model.to(device)
-        clf_gmc_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", 'clf_' + config['model_out'][1:] + '.json')))
+        if config['stage'] == 'train_model':
+            clf_gmc_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", 'clf_' + config['model_out'][1:] + '.json')))
+        else:
+            clf_gmc_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", 'clf_' + config['model_out'][5:] + '.json')))
         clf_gmc_model = setup_classifier(latent_dim=gmc_config['latent_dimension'], model=gmc_model, exclude_mod=gmc_config['exclude_modality'])
         clf_gmc_model.load_state_dict(load(os.path.join(m_path, "saved_models", clf_gmc_config["model_out"] + ".pt")))
         clf_gmc_model.eval()
