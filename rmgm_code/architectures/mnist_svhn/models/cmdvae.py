@@ -2,33 +2,34 @@ import torch
 
 from torch.nn import ReLU
 from collections import Counter
-from ..subnetworks.cmdae_networks import *
+from ..subnetworks.cmdvae_networks import *
 
 
-class MSCMDAE(nn.Module):
-    def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.5):
-        super(MSCMDAE, self).__init__()
+class MSCMDVAE(nn.Module):
+    def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, noise_factor):
+        super(MSCMDVAE, self).__init__()
+        self.kld = 0.
+        self.std = std
+        self.mean = mean
         self.name = name
         self.device = device
-        self.noise_factor = noise_factor
         self.scales = scales
+        self.noise_factor = noise_factor
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
         self.inf_activation = ReLU()
-        self.mnist_encoder = None
-        self.mnist_decoder = None
-        self.svhn_encoder = None
-        self.svhn_decoder = None
-        self.svhn_encoder = SVHNEncoder(latent_dimension)
-        self.svhn_decoder = SVHNDecoder(latent_dimension)
         self.mnist_encoder = MNISTEncoder(latent_dimension)
         self.mnist_decoder = MNISTDecoder(latent_dimension)
+        self.svhn_encoder = SVHNEncoder(latent_dimension)
+        self.svhn_decoder = SVHNDecoder(latent_dimension)
         self.common_encoder = CommonEncoder(latent_dimension)
         self.common_decoder = CommonDecoder(latent_dimension)
         self.encoders = {'mnist': self.mnist_encoder, 'svhn': self.svhn_encoder}
         self.decoders = {'mnist': self.mnist_decoder, 'svhn': self.svhn_decoder}
 
     def set_latent_dim(self, latent_dim):
+        self.common_encoder.set_latent_dim(latent_dim)
+        self.common_decoder.set_latent_dim(latent_dim)
         for enc_key, dec_key in zip(self.encoders.keys(), self.decoders.keys()):
             self.encoders[enc_key].set_latent_dim(latent_dim)
             self.decoders[dec_key].set_latent_dim(latent_dim)
@@ -37,6 +38,12 @@ class MSCMDAE(nn.Module):
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
 
+    def reparameterization(self, mean, std):
+        dist = torch.distributions.Normal(self.mean, self.std)
+        eps = dist.sample(std.shape).to(self.device)
+        z = torch.add(mean, torch.mul(std, eps))
+        return z
+    
     def add_noise(self, x):
         x_noisy = dict.fromkeys(x.keys())
         for key, modality in x.items():
@@ -46,15 +53,22 @@ class MSCMDAE(nn.Module):
     def forward(self, x, sample=False):
         if sample is False and self.noise_factor != 0:
             x = self.add_noise(x)
-
+            
+        batch_size = list(x.values())[0].size(dim=0)
         latent_reps = []
         for key in x.keys():
             if key == self.exclude_modality:
                 continue
             latent_reps.append(self.encoders[key](x[key]))
 
-        z = self.common_encoder(torch.stack(latent_reps, dim=0).sum(dim=0))
-
+        mean, logvar = self.common_encoder(torch.stack(latent_reps, dim=0).sum(dim=0))
+        std = torch.exp(torch.mul(logvar, 0.5))
+        if sample is False and not isinstance(self.scales['kld_beta'], type(None)):
+            z = self.reparameterization(mean, std)
+            self.kld = - self.scales['kld_beta'] * torch.mean(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dimension / batch_size)
+        else:
+            z = mean
+        
         tmp = self.common_decoder(z)
         x_hat = dict.fromkeys(x.keys())
         for key in x_hat.keys():

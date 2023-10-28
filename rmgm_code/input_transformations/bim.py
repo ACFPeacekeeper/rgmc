@@ -4,7 +4,7 @@ from input_transformations.adversarial_attack import AdversarialAttack
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/bim.py
 class BIM(AdversarialAttack):
-    def __init__(self, model, device, target_modality, eps=8/255, alpha=2/255, steps=10, targeted=False, attack_mode="default"):
+    def __init__(self, model, device, target_modality, eps=0.1, alpha=2/255, steps=10, targeted=False, attack_mode="default"):
         super().__init__("BIM", model, device, target_modality, targeted, attack_mode)
         self.eps = eps
         self.alpha = alpha

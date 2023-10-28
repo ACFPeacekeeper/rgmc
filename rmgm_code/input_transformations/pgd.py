@@ -6,8 +6,8 @@ from input_transformations.adversarial_attack import AdversarialAttack
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/pgd.py
 class PGD(AdversarialAttack):
-    def __init__(self, name, model, device, target_modality, eps=8/255, alpha=2/255, steps=10, random_start=True, targeted=False):
-        super().__init__(name, model, device, target_modality, targeted)
+    def __init__(self, name, model, device, target_modality, eps=0.1, alpha=2/255, steps=10, random_start=True, targeted=False, attack_mode="default"):
+        super().__init__(name, model, device, target_modality, targeted, attack_mode)
         self.eps = eps
         self.steps = steps
         self.alpha = alpha

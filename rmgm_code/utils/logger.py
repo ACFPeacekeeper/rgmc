@@ -95,14 +95,14 @@ def plot_metrics_bar(m_path, config, losses):
     plt.close()
     return
 
-def save_trajectory(path, traj_feats):
+def save_trajectory(m_path, path, traj_feats):
     traj_arr = traj_feats.cpu().numpy()
     traj_arr = traj_arr.reshape((traj_arr.size))
     x_arr = traj_arr[0::2]
     y_arr = traj_arr[1::2]
     plt.figure(figsize=(20, 20))
     plt.plot(x_arr, y_arr)
-    plt.savefig(os.path.join("checkpoints", "trajectory", path))
+    plt.savefig(os.path.join(m_path, path))
     plt.close()     
     return
 

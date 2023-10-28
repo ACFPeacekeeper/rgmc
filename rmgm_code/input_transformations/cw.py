@@ -6,8 +6,8 @@ from input_transformations.adversarial_attack import AdversarialAttack
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/cw.py#L123
 class CW(AdversarialAttack):
-    def __init__(self, name, model, device, target_modality, c_val, kappa, learning_rate=0.001, steps=50, targeted=False):
-        super().__init__(name, model, device, target_modality, targeted)
+    def __init__(self, name, model, device, target_modality, c_val=0.1, kappa=10, learning_rate=0.001, steps=10, targeted=False, attack_mode="default"):
+        super().__init__(name, model, device, target_modality, targeted, attack_mode)
         self.c_val = c_val
         self.steps = steps
         self.kappa = kappa

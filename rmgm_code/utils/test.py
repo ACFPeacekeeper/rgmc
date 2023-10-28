@@ -20,7 +20,7 @@ def run_inference(m_path, config, device, model, dataset):
 
     dataloader = iter(DataLoader(dataset, batch_size=1))
     tracemalloc.start()
-    inference_start = time.time()
+    inference_start = time()
     counter = 0
     for idx, (batch_feats, batch_labels) in enumerate(tqdm(dataloader, total=len(dataloader))):
         if config['checkpoint'] != 0 and counter % config['checkpoint'] == 0: 
@@ -31,8 +31,8 @@ def run_inference(m_path, config, device, model, dataset):
                     imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_orig.png'), squeeze(batch_feats[modality]).detach().clone().cpu())
                     imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_recon.png'), squeeze(x_hat[modality]).detach().clone().cpu())
                 elif modality == 'trajectory':
-                    save_trajectory(os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_orig.png'), batch_feats['trajectory'])
-                    save_trajectory(os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_recon.png'), x_hat['trajectory'])
+                    save_trajectory(m_path, os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_orig.png'), batch_feats['trajectory'])
+                    save_trajectory(m_path, os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_recon.png'), x_hat['trajectory'])
                 elif modality == 'svhn':
                     batch_feats['svhn'] = squeeze(batch_feats['svhn']).permute(1, 2, 0).detach().clone().cpu().numpy()
                     x_hat['svhn'] = squeeze(x_hat['svhn']).permute(1, 2, 0).detach().clone().cpu().numpy()
@@ -41,7 +41,7 @@ def run_inference(m_path, config, device, model, dataset):
 
         counter += 1
 
-    inference_stop = time.time()
+    inference_stop = time()
     tracemalloc.stop()
     if device.type == 'cuda':
         cuda.empty_cache()

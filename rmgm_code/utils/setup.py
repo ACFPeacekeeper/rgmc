@@ -13,6 +13,7 @@ from architectures.mhd.models.vae import MhdVAE
 from architectures.mhd.models.dae import MhdDAE
 from architectures.mhd.models.mvae import MhdMVAE
 from architectures.mhd.models.cmvae import MhdCMVAE
+from architectures.mhd.models.cmdvae import MhdCMDVAE
 from architectures.mhd.models.mdae import MhdMDAE
 from architectures.mhd.models.cmdae import MhdCMDAE
 from architectures.mhd.models.gmc import MhdGMC
@@ -25,6 +26,7 @@ from architectures.mnist_svhn.models.vae import MSVAE
 from architectures.mnist_svhn.models.dae import MSDAE
 from architectures.mnist_svhn.models.mvae import MSMVAE
 from architectures.mnist_svhn.models.cmvae import MSCMVAE
+from architectures.mnist_svhn.models.cmdvae import MSCMDVAE
 from architectures.mnist_svhn.models.mdae import MSMDAE
 from architectures.mnist_svhn.models.cmdae import MSCMDAE
 from architectures.mnist_svhn.models.gmc import MSGMC
@@ -172,6 +174,9 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'cmvae':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MhdCMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
+        elif config['architecture'] == 'cmdvae':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MhdCMDVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'mdae':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale']}
             model = MhdMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
@@ -205,6 +210,9 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'cmvae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
             model = MSCMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
+        elif config['architecture'] == 'cmvae':
+            scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
+            model = MSCMDVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'mdae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale']}
             model = MSMDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
@@ -318,7 +326,7 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['adversarial_attack'] == 'pgd':
             attack = pgd.PGD(device=device, model=model, target_modality=target_modality, eps=config['adv_eps'], alpha=config['adv_alpha'], steps=config['adv_steps'])
         elif config['adversarial_attack'] == 'cw':
-            attack = cw.CW(device=device, model=model, target_modality=target_modality, c_val=config['adv_c'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
+            attack = cw.CW(device=device, model=model, target_modality=target_modality, c_val=config['adv_eps'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
 
         if "classifier" in config['stage'] or config['stage'] == 'train_supervised':
             dataset.dataset = attack(dataset.dataset, dataset.labels)
@@ -337,7 +345,7 @@ def setup_experiment(m_path, config, device, train=True):
         else:
             notes = config["notes"]
 
-    if train:
+    if train and config['stage'] != 'inference':
         if config['optimizer'] is not None:
             if config['optimizer'] == 'adam':
                 optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])

@@ -192,7 +192,7 @@ class DGMC(LightningModule):
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
         loss = sum(recon_losses.values())
-        return loss, {'image_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']}
+        return loss, {'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']}
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -231,7 +231,7 @@ class DGMC(LightningModule):
         z = self.encode(data, sample=True)
         x_hat = self.decode(z)
         for key in x_hat.keys():
-            x_hat[key] = self.inf_activation(x_hat)
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(data[key]), torch.max(data[key]))
         
         return z, x_hat
 

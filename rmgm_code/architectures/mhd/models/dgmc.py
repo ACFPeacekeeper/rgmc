@@ -231,7 +231,7 @@ class DGMC(LightningModule):
         z = self.encode(data, sample=True)
         x_hat = self.decode(z)
         for key in x_hat.keys():
-            x_hat[key] = self.inf_activation(x_hat)
+            x_hat[key] = torch.clamp(x_hat[key], torch.min(data[key]), torch.max(data[key]))
         
         return z, x_hat
 

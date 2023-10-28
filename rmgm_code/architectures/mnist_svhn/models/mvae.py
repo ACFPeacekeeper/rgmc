@@ -101,7 +101,7 @@ class MSMVAE(nn.Module):
     def inference(self, x, labels):
         x_hat, z = self.forward(x, sample=True)
         for key in x_hat.keys():
-            x_hat[key] = self.inf_activation(x_hat)
+            x_hat[key] = self.inf_activation(x_hat[key])
         
         return z, x_hat
             

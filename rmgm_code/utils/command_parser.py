@@ -14,7 +14,7 @@ from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_
 
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd', 'rgmc']
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'cmdvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd', 'rgmc']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]
@@ -47,6 +47,8 @@ NOISE_STD_DEFAULT = 1.0
 ADV_EPSILON_DEFAULT = 0.1
 ADV_ALPHA_DEFAULT = 2 / 255
 ADV_STEPS_DEFAULT = 10
+ADV_KAPPA_DEFAULT = 10
+ADV_LR_DEFAULT = 0.001
 RECON_SCALE_DEFAULTS = {
     'mhd': {'image': 0.5, 'trajectory': 0.5}, 
     'mnist_svhn': {'mnist': 0.5, 'svhn': 0.5}
@@ -410,15 +412,40 @@ def config_validation(m_path, config):
             if config["adversarial_attack"] == 'gaussian_noise':
                 if "noise_std" not in config or config["noise_std"] is None:
                     config["noise_std"] = NOISE_STD_DEFAULT
-            if config["adversarial_attack"] == 'fgsm' or config["adversarial_attack"] == 'pgd':
+                else:
+                    config['adv_epsilon'] = None
+                    config['adv_alpha'] = None
+                    config['adv_steps'] = None
+                    config['adv_kappa'] = None
+                    config['adv_lr'] = None
+            else:
+                config["noise_std"] = None
                 if 'adv_epsilon' not in config or config['adv_epsilon'] is None:
                     config['adv_epsilon'] = ADV_EPSILON_DEFAULT
                     
-                if config["adversarial_attack"] == 'pgd':
-                    if 'adv_alpha' not in config or config['adv_alpha'] is None:
-                        config['adv_alpha'] = ADV_ALPHA_DEFAULT
+                if config["adversarial_attack"] == 'pgd' or config["adversarial_attack"] == 'cw' or config["adversarial_attack"] == 'bim':
                     if 'adv_steps' not in config or config['adv_steps'] is None:
-                        config['adv_steps'] = ADV_STEPS_DEFAULT
+                            config['adv_steps'] = ADV_STEPS_DEFAULT
+                    
+                    if config['adversarial_attack'] == 'cw':
+                        if 'adv_kappa' not in config or config['adv_kappa'] is None:
+                            config['adv_kappa'] = ADV_KAPPA_DEFAULT
+                        if 'adv_lr' not in config or config['adv_lr'] is None:
+                            config['adv_lr'] = ADV_LR_DEFAULT
+                    else:
+                        config['adv_kappa'] = None
+                        config['adv_lr'] = None
+
+                    if config["adversarial_attack"] == 'pgd' or config["adversarial_attack"] == 'bim':
+                        if 'adv_alpha' not in config or config['adv_alpha'] is None:
+                            config['adv_alpha'] = ADV_ALPHA_DEFAULT
+                    else:
+                        config['adv_alpha'] = None
+                else:
+                    config['adv_alpha'] = None
+                    config['adv_steps'] = None
+                    config['adv_kappa'] = None
+                    config['adv_lr'] = None
 
         if "optimizer" not in config:
             config["optimizer"] = None
