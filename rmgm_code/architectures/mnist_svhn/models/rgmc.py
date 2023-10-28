@@ -61,7 +61,6 @@ class RGMC(LightningModule):
         return x, target_id
 
     def encode(self, x, sample=False): 
-        batch_size = list(x.values())[0].size(dim=0)
         if sample is False and self.noise_factor != 0:
             x = self.add_perturbation(x)
 
@@ -71,7 +70,7 @@ class RGMC(LightningModule):
                 latent_representations.append(self.encoder(self.processors[key](x[key])))
 
         if self.exclude_modality == 'none' or self.exclude_modality is None:
-            mod_weights = self.o3n(latent_representations, batch_size)
+            mod_weights = self.o3n(latent_representations)
             latent_representations.append(self.encoder(self.processors['joint'](x)))
             for id, rep in enumerate(latent_representations):
                 latent_representations[id] = torch.mul(rep, mod_weights[:, id])
@@ -204,7 +203,7 @@ class RGMC(LightningModule):
         batch_representations, target_id = self.forward(data, labels)
 
         # Forward pass through odd-one-out network
-        perturbed_mod_weights = self.o3n(batch_representations[:-1], batch_size)
+        perturbed_mod_weights = self.o3n(batch_representations[:-1])
         o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights, target_id, batch_size)
 
         for id, rep in enumerate(batch_representations):
@@ -271,7 +270,7 @@ class MSRGMC(RGMC):
         }
         self.loss_type = loss_type
         self.encoder = MSCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
-        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.o3n_mods, device=device)
+        self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.modalities, device=device)
         self.perturbation = None
 
     def set_perturbation(self, perturbation):

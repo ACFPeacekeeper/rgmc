@@ -25,7 +25,7 @@ class MSClassifier(nn.Module):
     def set_perturbation(self, perturbation):
         self.model.set_perturbation(perturbation)
 
-    def forward(self, x, sample=False):
+    def forward(self, x, sample=True):
         if 'gmc' in self.model.name:
             z = self.model.encode(x, sample)
         else:
