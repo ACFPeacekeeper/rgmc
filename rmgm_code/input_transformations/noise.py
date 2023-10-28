@@ -1,14 +1,13 @@
 class Noise(object):
-    def __init__(self, name, model, device, target_modality, mean=0., std=1.):
+    def __init__(self, name, device, target_modality, mean=0., std=1.):
         self.std = std
         self.mean = mean
         self.name = name
-        self.model = model
         self.device = device
         self.target_modality = target_modality
 
 
-    def __call__(self, x, y):
+    def __call__(self, x, y=None):
         raise NotImplementedError
 
     def __repr__(self):

@@ -232,27 +232,31 @@ class RGMC(LightningModule):
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
 
 
-
 class MSRGMC(RGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, scales, noise_factor, device, loss_type="infonce"):
         super(MSRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
-        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim)
-        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim)
-        self.joint_processor = MSJointProcessor(common_dim=self.common_dim)
+        self.svhn_dims = [128, 4, 4]
+        self.mnist_dims = [128, 7, 7]
+        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
+        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
+        self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
+        self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
+        self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=mnist_dim, svhn_dim=svhn_dim)
         if exclude_modality == 'mnist':
+            self.num_modalities = 1
             self.o3n_mods = ["svhn"]
-            self.processors = {'svhn': self.svhn_processor}
         elif exclude_modality == 'svhn':
+            self.num_modalities = 1
             self.o3n_mods = ["mnist"]
-            self.processors = {'mnist': self.mnist_processor}
         else:
-            self.o3n_mods = ["svhn", "mnist", "joint"]
-            self.processors = {
-                'mnist': self.mnist_processor,
-                'svhn': self.svhn_processor,
-                'joint': self.joint_processor,
-            }
+            self.num_modalities = 2
+            self.o3n_mods = ["mnist", "svhn", "joint"]
 
+        self.processors = {
+            'mnist': self.mnist_processor,
+            'svhn': self.svhn_processor,
+            'joint': self.joint_processor,
+        }
         self.loss_type = loss_type
         self.encoder = MSCommonEncoder(common_dim=self.common_dim, latent_dimension=latent_dimension)
         self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.o3n_mods, device=device)

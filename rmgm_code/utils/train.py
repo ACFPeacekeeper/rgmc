@@ -27,12 +27,12 @@ def nan_hook(self, input, output):
                 nan_mask = isnan(value)    
                 if nan_mask.any():
                     print("In", self.__class__.__name__)
-                    raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
+                    raise ValueError(f"Found NAN in output.")# {i}") at indices: "), nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
         else:
             nan_mask = isnan(out)
             if nan_mask.any():
                 print("In", self.__class__.__name__)
-                raise ValueError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
+                raise ValueError(f"Found NAN in output.")# {i} at indices: ), nan_mask.nonzero(), "where:", out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
 def run_train_epoch(m_path, epoch, config, device, model, train_set, train_losses, checkpoint_counter, optimizer=None):
     print(f'Epoch {epoch}')

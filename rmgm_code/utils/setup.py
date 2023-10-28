@@ -108,7 +108,7 @@ def setup_experiment(m_path, config, device, train=True):
         config['download'] = None
 
     if config['stage'] != "train_model" and config['stage'] != "train_supervised":
-        model_config = json.load(open(os.path.join(m_path, "configs", "train_model", os.path.basename(os.path.splitext(config['path_model'])[0]) + '.json')))
+        model_config = json.load(open(os.path.join(m_path, "configs", "train_model", config['path_model'] + '.json')))
         latent_dim = model_config["latent_dimension"]
         exclude_modality = model_config["exclude_modality"]
     else:
@@ -140,7 +140,7 @@ def setup_experiment(m_path, config, device, train=True):
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'rgmc':
-            scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
+            scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss_scale': config['o3n_loss_scale']}
             model = MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
         elif config['architecture'] == 'gmcwd':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
@@ -202,7 +202,7 @@ def setup_experiment(m_path, config, device, train=True):
         model = setup_classifier(latent_dim=config['latent_dimension'], model=model, exclude_mod=config['exclude_modality'])
     else:
         if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
-            model.load_state_dict(load(os.path.join(m_path, config["path_model"])))
+            model.load_state_dict(load(os.path.join(m_path, "saved_models", config["path_model"] + ".pt")))
             model.eval()
             for param in model.parameters():
                 param.requires_grad = False
@@ -213,7 +213,7 @@ def setup_experiment(m_path, config, device, train=True):
             if "path_classifier" in config and config["path_classifier"] is not None and config["stage"] == "test_classifier":
                 clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", os.path.basename(os.path.splitext(config['path_classifier'])[0]) + '.json')))
                 model = setup_classifier(latent_dim=clf_config['latent_dimension'], model=model, exclude_mod=clf_config['exclude_modality'])
-                model.load_state_dict(load(os.path.join(m_path, config["path_classifier"])))
+                model.load_state_dict(load(os.path.join(m_path, "saved_models", config["path_classifier"] + ".pt")))
                 model.eval()
                 for param in model.parameters():
                     param.requires_grad = False
@@ -234,7 +234,7 @@ def setup_experiment(m_path, config, device, train=True):
         target_modality = config['target_modality']
 
         if config['adversarial_attack'] == 'gaussian_noise':
-            attack = gaussian_noise.GaussianNoise(model=model, device=device, target_modality=target_modality, std=config['noise_std'])
+            attack = gaussian_noise.GaussianNoise(device=device, target_modality=target_modality, std=config['noise_std'])
         elif config['adversarial_attack'] == 'fgsm':
             attack = fgsm.FGSM(device=device, model=model, target_modality=target_modality, eps=config['adv_std'])
         elif config['adversarial_attack'] == 'bim':
@@ -249,8 +249,8 @@ def setup_experiment(m_path, config, device, train=True):
         else:
             dataset.dataset = attack(dataset.dataset)
 
-        if config['architecture'] == 'rgmc':
-            model.set_perturbation(attack)
+        #if config['architecture'] == 'rgmc':
+            #model.set_perturbation(attack)
 
     if False:
         if "notes" not in config:
@@ -283,13 +283,7 @@ def setup_experiment(m_path, config, device, train=True):
             wandb.watch(model)
     else:
         optimizer = None
-
-    with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), 'w') as file:
-        for ckey, cval in config.items():
-            if cval is not None:
-                print(f'{ckey}: {cval}')
-                file.write(f'{ckey}: {cval}\n')
-
+        
     return dataset, model, optimizer
 
 def setup_env(m_path, config):
@@ -318,7 +312,12 @@ def setup_env(m_path, config):
         config['model_out'] = model_out
 
     if ("path_model" not in config or config["path_model"] is None) and config["stage"] != "train_model":
-        config["path_model"] = os.path.join("saved_models", config["architecture"] + "_" + config["dataset"] + f"_exp{exp_id}.pt")
+        if "path_classifier" in config and config['path_classifier'] is not None:
+            path = os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + ".json")
+            clf_config = json.load(open(path))
+            config['path_model'] = clf_config['path_model']
+        else:
+            config["path_model"] = os.path.join("saved_models", config["architecture"] + "_" + config["dataset"] + f"_exp{exp_id}")
 
     if ("path_classifier" not in config or config["path_classifier"] is None) and config["stage"] == "test_classifier":
         config["path_classifier"] = os.path.join("saved_models", "clf_" + os.path.basename(config["path_model"]))

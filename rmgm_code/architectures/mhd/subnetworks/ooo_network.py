@@ -20,8 +20,7 @@ class OddOneOutNetwork(nn.Module):
     def set_latent_dim(self, latent_dim):
         self.latent_dimension = latent_dim
 
-    def forward(self, mod_representations):
-        batch_size = mod_representations[0].size()[0]
+    def forward(self, mod_representations, batch_size):
         representations = mod_representations[0].view(batch_size, 1, self.latent_dimension)
         for mod_rep in mod_representations[1:]:
             mod_rep = mod_rep.view(batch_size, 1, self.latent_dimension)

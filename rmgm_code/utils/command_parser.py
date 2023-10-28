@@ -10,7 +10,7 @@ import numpy as np
 from itertools import product
 from torch.backends import cudnn
 from torch import manual_seed, cuda
-from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, plot_graph_across_models
+from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, plot_graph_across_models, save_config
 
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
@@ -60,7 +60,7 @@ def process_arguments(m_path):
     comp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the comparison.')
     comp_parser.add_argument('-s', '--stage', type=str, default='train_model', choices=STAGES, help='Stage of the pipeline to be used in the comparison.')
     comp_parser.add_argument('--model_outs', '--mos', type=int, nargs='+')
-    comp_parser.add_argument('--compare_models', '--cm', type=bool)
+    comp_parser.add_argument('--compare_models', '--cm', action="store_true")
     comp_parser.add_argument('--param_comp', '--pc', type=str)
     comp_parser.add_argument('--parent_param', '--pp', type=str)
     comp_parser.add_argument('--number_seeds', '--ns', type=int)
@@ -215,8 +215,36 @@ def config_validation(m_path, config):
     if ("exclude_modality" in config and config['exclude_modality'] is not None) and config['target_modality'] is not None and config['exclude_modality'] == config['target_modality']:
         raise argparse.ArgumentError("Argument error: target modality cannot be the same as excluded modality.")
     
+    if config['stage'] == 'test_classifier':
+        if "path_classifier" in config:
+            path = os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + ".json")
+            clf_config = json.load(open(path))
+        else:
+            clf_config = None
+
+        if "path_model" in config:
+            path = os.path.join(m_path, "configs", "train_model", config['path_model'] + ".json")
+            model_config = json.load(open(path))
+        else:
+            model_config = None
+    elif config['stage'] == 'train_classifier' or config['stage'] == 'test_model':
+        if "path_model" in config:
+            path = os.path.join(m_path, "configs", "train_model", config['path_model'] + ".json")
+            model_config = json.load(open(path))
+        else:
+            model_config = None
+        clf_config = None
+    else:
+        model_config = None
+        clf_config = None
+
     if "seed" not in config or config['seed'] is None:
-        config["seed"] = SEED
+        if clf_config is not None:
+            config['seed'] = clf_config['seed']
+        elif model_config is not None:
+            config['seed'] = model_config['seed']
+        else:
+            config["seed"] = SEED
 
     seed = config['seed']
     random.seed(seed)
@@ -303,11 +331,23 @@ def config_validation(m_path, config):
                     config['image_recon_scale'] = 0.
                 elif config['exclude_modality'] == 'trajectory':
                     config['traj_recon_scale'] = 0.
+
+                if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
+                    if "mnist_recon_scale" in config and config["mnist_recon_scale"] is not None:
+                        config["mnist_recon_scale"] = None
+                    if "svhn_recon_scale" in config and config["svhn_recon_scale"] is not None:
+                        config["svhn_recon_scale"] = None
             elif config['dataset'] == 'mnist_svhn':
                 if config['exclude_modality'] == 'mnist':
                     config['mnist_recon_scale'] = 0.
                 elif config['exclude_modality'] == 'svhn':
                     config['svhn_recon_scale'] = 0.
+
+                if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
+                    if "image_recon_scale" in config and config["image_recon_scale"] is not None:
+                        config["image_recon_scale"] = None
+                    if "traj_recon_scale" in config and config["traj_recon_scale"] is not None:
+                        config["traj_recon_scale"] = None
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
@@ -385,6 +425,7 @@ def config_validation(m_path, config):
         elif config["optimizer"] != 'adam':
             config["adam_betas"] = None
 
+    save_config(os.path.join(m_path, "results", config['stage'], config['model_out'] + '.txt'), config)
     return config
 
 def create_idx_dict():
@@ -436,25 +477,22 @@ def metrics_analysis(m_path, config):
     except IOError as e:
         traceback.print_exception(*sys.exc_info())
     finally:
-        out_path = out_path = f"{config['architecture']}_{config['dataset']}_metrics.txt"
-        with open(os.path.join(m_path, "compare", config['stage'], out_path), 'w') as res_file:
-            for ckey, cval in config.items():
-                if cval is not None:
-                    print(f'{ckey}: {cval}')
-                    res_file.write(f'{ckey}: {cval}\n')
-
+        last_id = int(config['model_outs'][-1]) + int(config['number_seeds'])
+        out_path = f"{config['dataset']}_{config['model_outs'][0]}_{last_id}_"
         if config['compare_models']:
             if "train" in config['stage']:
-                plot_graph_across_models(m_path, config, loss_dict)
+                plot_graph_across_models(m_path, config, loss_dict, out_path)
             elif "test" in config['stage']:
-                plot_bar_across_models(m_path, config, loss_dict)
+                plot_bar_across_models(m_path, config, out_path)
             else:
                 raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
         else:
+            out_path = f"{config['architecture']}_{out_path}"
+            save_config(os.path.join(m_path, "compare", config['stage'], out_path + 'metrics.txt'), config)
             if "train" in config['stage']:
-                plot_loss_compare_graph(m_path, config, loss_dict)
+                plot_loss_compare_graph(m_path, config, loss_dict, out_path)
             elif "test" in config['stage']:
-                plot_metric_compare_bar(m_path, config, loss_dict)
+                plot_metric_compare_bar(m_path, config, loss_dict, out_path)
             else:
                 raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
             

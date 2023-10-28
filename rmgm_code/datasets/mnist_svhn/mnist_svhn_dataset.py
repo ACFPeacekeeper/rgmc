@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from ..multimodal_dataset import *
@@ -92,4 +94,32 @@ class MnistSvhnDataset(MultimodalDataset):
             self.dataset = {'mnist': data["mnist"].to(self.device), 'svhn': data["svhn"].to(self.device)}
 
         self.labels = data["labels"].to(self.device)
+        return
+    
+    def _show_dataset_label_distribution(self):
+        label_dict = {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0}
+
+        for data_set in ['train', 'test']:
+            data_path = os.path.join(self.dataset_dir, f"mnist_svhn_{data_set}.pt")
+
+            data = torch.load(data_path)
+            labels = data["labels"]
+            dataset_len = len(labels)
+            for label in labels:
+                label_dict[str(label.item())] += 1
+
+            print(f'Label count: {dataset_len}')
+            print(label_dict)
+            X_axis = np.arange(len(label_dict.keys()))
+            fig, ax = plt.subplots()
+            fig.figsize=(20, 10)
+            ax.set_xticks(X_axis)
+            ax.set_xticklabels(label_dict.keys())
+            ax.set_title(f"MNIST-SVHN {data_set} set digit labels")
+            ax.yaxis.grid(True)
+            metrics_bar = ax.bar(X_axis, label_dict.values(), width=1, label="Loss values", align='center', ecolor='black', capsize=10)
+            ax.bar_label(metrics_bar)
+            fig.legend()
+            fig.savefig(os.path.join(self.dataset_dir, f'ms_{data_set}.png'))
+            plt.close()
         return

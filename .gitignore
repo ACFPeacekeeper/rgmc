@@ -400,10 +400,12 @@ FodyWeavers.xsd
 # Datasets, checkpoints and results
 rmgm_code/datasets/mnist_svhn/MNIST
 rmgm_code/datasets/mnist_svhn/*.mat
+rmgm_code/datasets/mnist_svhn/*.png
 rmgm_code/datasets/mnist_svhn/*.pt
 rmgm_code/datasets/pendulum/*.pt
 rmgm_code/datasets/mosei/*.pt
 rmgm_code/datasets/mosi/*.pt
+rmgm_code/datasets/mhd/*.png
 rmgm_code/datasets/mhd/*.pt
 rmgm_code/saved_models
 rmgm_code/checkpoints

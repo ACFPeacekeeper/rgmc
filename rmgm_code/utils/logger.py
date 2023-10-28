@@ -8,6 +8,14 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
 
 
+def save_config(file_path, config):
+    with open(file_path, 'w') as file:
+        for ckey, cval in config.items():
+            if cval is not None:
+                print(f'{ckey}: {cval}')
+                file.write(f'{ckey}: {cval}\n')
+    return
+
 def save_epoch_results(m_path, config, device, runtime, loss_dict=None):
     print(f'- Runtime: {runtime} sec')
     with open(os.path.join(m_path, "results", config['stage'], config['model_out'] + ".txt"), 'a') as file:
@@ -110,7 +118,7 @@ def save_test_results(m_path, config, loss_list_dict):
 def plot_loss_compare_graph(m_path, config, loss_dict):
     return
 
-def plot_metric_compare_bar(m_path, config, loss_dict):
+def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
     if config["param_comp"] is not None:
         tmp_param_values = []
 
@@ -145,17 +153,21 @@ def plot_metric_compare_bar(m_path, config, loss_dict):
         X_axis = np.arange(len(param_values))
     else:
         X_axis = np.arange(len(config['model_outs']))
-    
+
     for loss_key in loss_dict.keys():
         loss_means, loss_stds = zip(*loss_dict[loss_key])
-        out_path = out_path = f"{config['architecture']}_{config['dataset']}_metrics.txt"
-        with open(os.path.join(m_path, "compare", config['stage'], out_path), 'a') as res_file:
+        if loss_key == "accuracy":
+            loss_means = tuple(map(lambda x: x * 100, loss_means))
+            loss_stds = tuple(map(lambda x: x * 100, loss_stds))
+
+        with open(os.path.join(m_path, "compare", config['stage'], out_path + 'metrics.txt'), 'a') as res_file:
             print(f"Values for {loss_key}:")
             print(f'- mean: {loss_means}')
             print(f'- std: {loss_stds}')
             res_file.write(f'Values for {loss_key}:\n')
             res_file.write(f'- mean: {loss_means}\n')
             res_file.write(f'- std: {loss_stds}\n')
+        
         fig, ax = plt.subplots()
         fig.figsize=(20, 10)
         ax.set_xticks(X_axis)
@@ -165,21 +177,53 @@ def plot_metric_compare_bar(m_path, config, loss_dict):
             if "parent_param" in config and config['parent_param'] is not None:
                 title = title + f" for {config['parent_param']} hyperparameter"
             if "target_modality" in config and config['target_modality'] is not None:
-                title = title + f"targetting the {config['target_modality']} modality"
-            out_path = f"{config['architecture']}_{config['dataset']}_{config['param_comp']}_{loss_key}.png"
+                title = title + f"targeting the {config['target_modality']} modality"
         else:
             ax.set_xticklabels([config['architecture']])
             title = f"{loss_key} values"
-            out_path = f"{config['architecture']}_{config['dataset']}_{loss_key}.png"
+            if "parent_param" in config and config['parent_param'] is not None:
+                title = title + f" for {config['parent_param']} hyperparameter"
+                if "target_modality" in config and config['target_modality'] is not None:
+                    title = title + f"targeting the {config['target_modality']} modality"
+
+        img_out_path = out_path + f"{loss_key}"
         ax.set_title(title)
         ax.yaxis.grid(True)
         metric_bar = ax.bar(X_axis, loss_means, yerr=loss_stds, width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)
         ax.bar_label(metric_bar)
-        fig.savefig(os.path.join(m_path, "compare", config['stage'], out_path))
+        fig.savefig(os.path.join(m_path, "compare", config['stage'], img_out_path))
         plt.close()
     return
 
-def plot_bar_across_models(m_path, config, loss_dict):
+def plot_bar_across_models(m_path, config, out_path):
+    ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd']
+    loss_means = []
+    loss_stds = []
+    X_axis = np.arange(len(ARCHITECTURES))
+    for architecture in ARCHITECTURES:
+        path = os.path.join(m_path, "compare", config['stage'], f"{architecture}_{out_path}metrics.txt")
+        with open(path, 'r') as res_file:
+            file_lines = res_file.readlines()
+            mean = file_lines[-2]
+            std = file_lines[-1]
+            mean = mean.removeprefix("- mean: (")
+            mean = mean[:5]
+            std = std.removeprefix("- std: (")
+            std = std[:5]
+            loss_means.append(np.double(mean))
+            loss_stds.append(np.double(std))
+    
+    out_path = os.path.join(m_path, "compare", config['stage'], out_path + "accuracy.png")
+    fig, ax = plt.subplots()
+    fig.figsize=(20, 10)
+    ax.set_xticks(X_axis)
+    ax.set_xticklabels(ARCHITECTURES)
+    ax.set_title(f"Accuracy in the {config['dataset']} dataset")
+    ax.yaxis.grid(True)
+    metric_bar = ax.bar(X_axis, loss_means, yerr=loss_stds, width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)
+    ax.bar_label(metric_bar)
+    fig.savefig(os.path.join(m_path, "compare", config['stage'], out_path))
+    plt.close()
     return
 
 def plot_graph_across_models(m_path, config, loss_dict):

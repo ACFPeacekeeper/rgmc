@@ -1,6 +1,7 @@
-import random
+import random, sys
+import torch.nn.functional as F
 
-from torch.nn import ReLU
+from input_transformations.gaussian_noise import GaussianNoise
 from collections import Counter
 from ..subnetworks.rgmc_networks import *
 from pytorch_lightning import LightningModule
@@ -35,10 +36,8 @@ class RGMC(LightningModule):
             self.num_modalities = 2
             self.modalities = ["image", "trajectory"]
         self.encoder = None
-        self.decoder = None
         self.o3n = None
         self.perturbation = None
-        self.inf_activation = ReLU()
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
@@ -59,7 +58,7 @@ class RGMC(LightningModule):
             target_modality = self.modalities[target_id]
             self.perturbation._set_target_modality(target_modality)
             x = self.perturbation(x)
-        return x
+        return x, target_id
 
     def encode(self, x, sample=False):
         if sample is False and self.noise_factor != 0:
@@ -85,9 +84,8 @@ class RGMC(LightningModule):
             latent = latent_representations[0]
         return latent
 
-    def forward(self, x, sample=False):
-        if sample is False and self.noise_factor != 0:
-            x = self.add_perturbation(x)
+    def forward(self, x, batch_size):
+        x, target_id = self.add_perturbation(x)
 
         # Forward pass through the modality specific encoders
         batch_representations = []
@@ -102,7 +100,7 @@ class RGMC(LightningModule):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             joint_representation = self.encoder(self.processors['joint'](x))
             batch_representations.append(joint_representation)
-        return batch_representations
+        return batch_representations, target_id
 
     def infonce(self, batch_representations, batch_size):
         joint_mod_loss_sum = 0
@@ -180,33 +178,31 @@ class RGMC(LightningModule):
         loss = torch.mean(joint_mod_loss_sum)
         tqdm_dict = {"infonce_loss": loss}
         return loss, tqdm_dict
-
-    def o3n_loss(self, perturbed_preds, clean_pred):
-        clean_pred = clean_pred.view(clean_pred.size(0), 1)
-        preds = torch.cat((perturbed_preds, clean_pred), dim=-1)
-        loss = - torch.mean(torch.log(preds)) * self.scales["o3n_loss"]
+    
+    def o3n_loss(self, perturbed_mod_weights, target_id):
+        ce_loss = nn.CrossEntropyLoss().to(self.device)
+        target_labels = torch.full(perturbed_mod_weights.size(), target_id)
+        target_labels_1hot = F.one_hot(target_labels, self.num_modalities + 1)
+        loss = ce_loss(perturbed_mod_weights, target_labels_1hot)
         return loss, {"o3n_loss": loss}
 
     def training_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
 
         # Forward pass through the encoders
-        batch_representations = self.forward(data)
+        batch_representations, target_id = self.forward(data, batch_size)
+
         # Forward pass through odd-one-out network
-        clean_mod_weights = self.o3n(batch_representations[:-1])
-        perturbed_batch = self.add_perturbation(data)
-        perturbed_reps = self.forward(perturbed_batch)
-        perturbed_mod_weights = self.o3n(perturbed_reps[:-1])
-        o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights[:, :-1], clean_mod_weights[:, -1])
+        perturbed_mod_weights = self.o3n(batch_representations, batch_size)
+        for id in range(self.num_modalities + 1):
+            batch_representations[id] = torch.mul(perturbed_mod_weights[:, id], batch_representations[id])
 
-        for id, rep in enumerate(perturbed_reps):
-            perturbed_reps[id] = torch.mul(rep, perturbed_mod_weights[:, id])
-
+        o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights, target_id)
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(perturbed_reps, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
-            loss, tqdm_dict = self.infonce(perturbed_reps, batch_size)
+            loss, tqdm_dict = self.infonce(batch_representations, batch_size)
 
         total_loss = loss + o3n_loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
@@ -224,7 +220,7 @@ class RGMC(LightningModule):
         o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights[:, :-1], clean_mod_weights[:, -1])
 
         for id, rep in enumerate(perturbed_reps):
-            perturbed_reps[id] = torch.mul(rep, perturbed_mod_weights[:, id])
+            perturbed_reps[:, id] = torch.mul(rep, perturbed_mod_weights[:, id])
 
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
@@ -234,14 +230,6 @@ class RGMC(LightningModule):
         
         total_loss = loss + o3n_loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
-
-    def inference(self, data, labels):
-        z = self.encode(data, sample=True)
-        x_hat = self.decode(z)
-        for key in x_hat.keys():
-            x_hat[key] = self.inf_activation(x_hat)
-        
-        return z, x_hat
 
 
 class MhdRGMC(RGMC):
@@ -253,7 +241,6 @@ class MhdRGMC(RGMC):
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim, dim=image_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim, dim=self.traj_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim, image_dim=image_dim, traj_dim=self.traj_dim)
-        #self.joint_reconstructor = MHDJointDecoder(common_dim=self.common_dim, image_dims=self.image_dims, traj_dim=self.traj_dim)
         if self.exclude_modality == 'image':
             self.num_modalities = 1
             self.modalities = ["trajectory"]
@@ -271,9 +258,8 @@ class MhdRGMC(RGMC):
         }
         self.loss_type = loss_type
         self.encoder = MHDCommonEncoder(common_dim=common_dim, latent_dimension=latent_dimension)
-        #self.decoder = MHDCommonDecoder(common_dim=common_dim, latent_dimension=latent_dimension)
         self.o3n = OddOneOutNetwork(latent_dim=self.latent_dimension, num_modalities=self.num_modalities, modalities=self.modalities, device=device)
-        self.perturbation = None
+        self.perturbation = GaussianNoise(device=self.device, mean=0, std=noise_factor)
 
     def set_perturbation(self, perturbation):
         self.perturbation = perturbation
@@ -291,4 +277,3 @@ class MhdRGMC(RGMC):
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
-        

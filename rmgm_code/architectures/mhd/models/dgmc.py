@@ -59,7 +59,7 @@ class DGMC(LightningModule):
 
             recons = self.decode(encodings)
             latent_representations = []
-            for key in encoding.keys():
+            for key in x.keys():
                 if key != self.exclude_modality:
                     latent_representations.append(self.encoder(self.processors[key](x[key])))
 
@@ -75,13 +75,13 @@ class DGMC(LightningModule):
             if isinstance(z, list):
                 reconstructions = self.reconstructors['joint'](self.decoder(z[-1]))
             else:
-                reconstructions = self.reconstructors['joint'](self.decoder(z))
+                reconstructions = self.reconstructors['joint'](self.decoder(z['joint']))
 
         else:
             reconstructions = dict.fromkeys(z.keys())
-            for key, mod_id in enumerate(reconstructions.keys()):
+            for key in reconstructions.keys():
                 if key != self.exclude_modality:
-                    reconstructions[key] = self.reconstructors[key](self.decoder(z[mod_id]))
+                    reconstructions[key] = self.reconstructors[key](self.decoder(z[key]))
 
         return reconstructions
 
@@ -190,7 +190,6 @@ class DGMC(LightningModule):
             recon_losses[key] = self.scales[key] * (cost / torch.as_tensor(cost.size()).prod().sqrt()).sum() 
 
         loss = sum(recon_losses.values())
-
         return loss, {'image_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']}
 
     def training_step(self, data, labels):

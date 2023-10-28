@@ -15,7 +15,7 @@ def run_inference(m_path, config, device, model, dataset):
         os.makedirs(os.path.join(m_path, "checkpoints", modality), exist_ok=True)
 
     print('Performing inference')
-    with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
+    with open(os.path.join(m_path, "results", config['path_model'] + ".txt"), 'a') as file:
         file.write('Performing inference:\n')
 
     dataloader = iter(DataLoader(dataset, batch_size=1))
@@ -47,7 +47,7 @@ def run_inference(m_path, config, device, model, dataset):
         cuda.empty_cache()
 
     print(f'Total runtime: {inference_stop - inference_start} sec')
-    with open(os.path.join(m_path, "results", os.path.splitext(os.path.basename(config['path_model']))[0] + ".txt"), 'a') as file:
+    with open(os.path.join(m_path, "results", config['path_model'] + ".txt"), 'a') as file:
         file.write(f'- Total runtime: {inference_stop - inference_start} sec\n')
     
     return

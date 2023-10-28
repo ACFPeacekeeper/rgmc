@@ -13,6 +13,7 @@ class OddOneOutNetwork(nn.Module):
             nn.GELU(),
             nn.Conv1d(64, 128, 4, 2, 1),
             nn.GELU(),
+            nn.Dropout(),
         )
         self.clf_fc = nn.Linear(2048, num_modalities + 1)
         self.classificator = nn.Softmax(dim=-1)
@@ -29,6 +30,4 @@ class OddOneOutNetwork(nn.Module):
         h = self.embedder(representations)
         h = self.clf_fc(h.view(h.size(0), -1))
         classes = self.classificator(h)
-        results = torch.cat((classes[:, 1].view(classes.size(0), 1), classes[:, 0].view(classes.size(0), 1)), dim=-1)
-        results = torch.cat((results, classes[:, -1].view(classes.size(0), 1)), dim=-1)
-        return results
+        return classes

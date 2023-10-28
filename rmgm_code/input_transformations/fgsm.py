@@ -12,12 +12,12 @@ class FGSM(AdversarialAttack):
 
 
     def __call__(self, x, y):
-        x = x.clone().detach().to(self.device)
+        x_adv = dict.fromkeys(x)
         for key in x.keys():
-            x[key].requires_grad = True
-            #x[key] = torch.unsqueeze(x[key], dim=0)
+            x_adv[key] = x[key].clone().detach().to(self.device)
+            x_adv[key].requires_grad = True
             
-        result, _ = self.model(x)
+        result, _ = self.model(x_adv)
 
         if y is not None:
             y = y.clone().detach().to(self.device)
@@ -34,13 +34,10 @@ class FGSM(AdversarialAttack):
         if self.targeted:
             cost = (-1) * cost
 
-        grad = torch.autograd.grad(cost, x[self.target_modality], retain_graph=False, create_graph=False)[0]
+        grad = torch.autograd.grad(cost, x_adv[self.target_modality], retain_graph=False, create_graph=False)[0]
+        x_adv = torch.clamp(x_adv[self.target_modality] + self.eps * grad.sign(), torch.min(x_adv[self.target_modality]), torch.max(x_adv[self.target_modality]))
         
-        x_adv = torch.empty(x[self.target_modality].size())
-        x_adv = torch.clamp(x[self.target_modality] + self.eps * grad.sign(), torch.min(x[self.target_modality]), torch.max(x[self.target_modality]))
-        
-        x[self.target_modality] = x_adv.clone().detach().to(self.device)
-
+        x[self.target_modality] = x_adv[self.target_modality].clone().detach().to(self.device)
         return x
     
 

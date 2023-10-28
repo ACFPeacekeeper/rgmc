@@ -26,6 +26,9 @@ class MultimodalDataset(Dataset):
     def _load_data(self, train):
         raise NotImplementedError
     
+    def _show_dataset_label_distribution(self):
+        raise NotImplementedError
+    
     def _get_name(self):
         return self.name
     
