@@ -225,6 +225,3 @@ def plot_bar_across_models(m_path, config, out_path):
     fig.savefig(os.path.join(m_path, "compare", config['stage'], out_path))
     plt.close()
     return
-
-def plot_graph_across_models(m_path, config, loss_dict):
-    return

@@ -19,6 +19,7 @@ from architectures.mhd.models.gmc import MhdGMC
 from architectures.mhd.models.dgmc import MhdDGMC
 from architectures.mhd.models.rgmc import MhdRGMC
 from architectures.mhd.models.gmcwd import MhdGMCWD
+from architectures.mhd.models.rgmcwd import MhdRGMCWD
 from architectures.mhd.downstream.classifier import MHDClassifier
 from architectures.mnist_svhn.models.vae import MSVAE
 from architectures.mnist_svhn.models.dae import MSDAE
@@ -48,7 +49,7 @@ from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 idx_lock = Lock()
 device_lock = Lock()
 
-def setup_device(m_path, config):
+def setup_device(m_path):
     if cuda.is_available():
         device_idx_path = os.path.join(m_path, "device_idx.txt")
         device_lock.acquire()
@@ -66,9 +67,15 @@ def setup_device(m_path, config):
         device_id = device_counter % cuda.device_count()
         device = f"cuda:{device_id}"
         device_lock.release()
-        config['device'] = cuda.get_device_name(cuda.current_device())
     else:
         device = "cpu"
+
+    return device
+
+def setup_env(m_path, config):
+    if cuda.is_available():
+        config['device'] = cuda.get_device_name(cuda.current_device())
+    else:
         command = "cat /proc/cpuinfo"
         all_info = check_output(command, shell=True).decode().strip()
         device_info = ""
@@ -79,7 +86,44 @@ def setup_device(m_path, config):
 
         config['device'] = device_info
 
-    return device
+    experiments_idx_path = os.path.join(m_path, "experiments_idx.json")
+    idx_dict = {}
+    idx_lock.acquire()
+    if os.path.isfile(experiments_idx_path):
+        with open(experiments_idx_path, 'r') as idx_json:
+            idx_dict = json.load(idx_json)
+            idx_dict[config['stage']][config['dataset']][config['architecture']] += 1
+            exp_id = idx_dict[config['stage']][config['dataset']][config['architecture']]
+        with open(experiments_idx_path, 'w') as idx_json:
+            json.dump(idx_dict, idx_json, indent=4)
+    else:
+        with open(experiments_idx_path, 'w') as idx_json:
+            idx_dict = create_idx_dict()
+            idx_dict[config['stage']][config['dataset']][config['architecture']] = 1
+            json.dump(idx_dict, idx_json, indent=4)
+            exp_id = 1
+    idx_lock.release()
+    
+    if 'model_out' not in config or config["model_out"] is None:
+        model_out = config['architecture'] + '_' + config['dataset'] + f'_exp{exp_id}'
+        if 'classifier' in config['stage']:
+            model_out = 'clf_' + model_out
+        config['model_out'] = model_out
+
+    if ("path_model" not in config or config["path_model"] is None) and config["stage"] != "train_model":
+        if "path_classifier" in config and config['path_classifier'] is not None:
+            path = os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + ".json")
+            clf_config = json.load(open(path))
+            config['path_model'] = clf_config['path_model']
+        else:
+            config["path_model"] = os.path.join("saved_models", config["architecture"] + "_" + config["dataset"] + f"_exp{exp_id}")
+
+    if ("path_classifier" not in config or config["path_classifier"] is None) and config["stage"] == "test_classifier":
+        config["path_classifier"] = os.path.join("saved_models", "clf_" + os.path.basename(config["path_model"]))
+
+    config = config_validation(m_path, config)
+
+    return config
 
 def setup_experiment(m_path, config, device, train=True):
     def setup_dataset(m_path, config, device, train):
@@ -141,10 +185,13 @@ def setup_experiment(m_path, config, device, train=True):
             model = MhdDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
         elif config['architecture'] == 'rgmc':
             scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss_scale': config['o3n_loss_scale']}
-            model = MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
+            model = MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['adv_std'], device=device)
         elif config['architecture'] == 'gmcwd':
             scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MhdGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+        elif config['architecture'] == 'rgmcwd':
+            scales = {'image': config['image_recon_scale'], 'trajectory': config['traj_recon_scale'], 'infonce_temp': config['infonce_temperature'], 'o3n_loss_scale': config['o3n_loss_scale']}
+            model = MhdRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['adv_std'], device=device)
     elif config['dataset'] == 'mnist_svhn':
         if config['architecture'] == 'vae':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'kld_beta': config['kld_beta']}
@@ -211,7 +258,7 @@ def setup_experiment(m_path, config, device, train=True):
         model.to(device)
         if 'classifier' in config['stage']:
             if "path_classifier" in config and config["path_classifier"] is not None and config["stage"] == "test_classifier":
-                clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", os.path.basename(os.path.splitext(config['path_classifier'])[0]) + '.json')))
+                clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + '.json')))
                 model = setup_classifier(latent_dim=clf_config['latent_dimension'], model=model, exclude_mod=clf_config['exclude_modality'])
                 model.load_state_dict(load(os.path.join(m_path, "saved_models", config["path_classifier"] + ".pt")))
                 model.eval()
@@ -229,6 +276,29 @@ def setup_experiment(m_path, config, device, train=True):
         if latent_dim != config["latent_dimension"]:
             model.set_latent_dim(config["latent_dimension"])
             model.to(device)
+
+    if config['architecture'] == 'rgmc':
+        gmc_config = json.load(open(os.path.join(m_path, "configs", "train_model", config['model_out'][1:] + '.json')))
+        if config['dataset'] == 'mhd':
+            gmc_model = MhdGMC(gmc_config['architecture'], gmc_config['exclude_modality'], gmc_config['common_dimension'], gmc_config['latent_dimension'], gmc_config['infonce_temperature'])
+        elif config['dataset'] == 'mnist_svhn':
+            gmc_model = MSGMC(gmc_config['architecture'], gmc_config['exclude_modality'], gmc_config['common_dimension'], gmc_config['latent_dimension'], gmc_config['infonce_temperature'])
+        
+        gmc_model.load_state_dict(load(os.path.join(m_path, "saved_models", gmc_config["model_out"] + ".pt")))
+        for param in gmc_model.parameters():
+            param.requires_grad = False
+
+        gmc_model.to(device)
+        clf_gmc_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", 'clf_' + config['model_out'][1:] + '.json')))
+        clf_gmc_model = setup_classifier(latent_dim=gmc_config['latent_dimension'], model=gmc_model, exclude_mod=gmc_config['exclude_modality'])
+        clf_gmc_model.load_state_dict(load(os.path.join(m_path, "saved_models", clf_gmc_config["model_out"] + ".pt")))
+        clf_gmc_model.eval()
+        for param in clf_gmc_model.parameters():
+            param.requires_grad = False
+
+        clf_gmc_model.to(device)
+        attack = fgsm.FGSM(device=device, model=clf_gmc_model, target_modality=None, eps=config['adv_std'])
+        model.set_perturbation(attack)
 
     if config['adversarial_attack'] is not None:
         target_modality = config['target_modality']
@@ -248,9 +318,6 @@ def setup_experiment(m_path, config, device, train=True):
             dataset.dataset = attack(dataset.dataset, dataset.labels)
         else:
             dataset.dataset = attack(dataset.dataset)
-
-        #if config['architecture'] == 'rgmc':
-            #model.set_perturbation(attack)
 
     if False:
         if "notes" not in config:
@@ -285,43 +352,3 @@ def setup_experiment(m_path, config, device, train=True):
         optimizer = None
         
     return dataset, model, optimizer
-
-def setup_env(m_path, config):
-    experiments_idx_path = os.path.join(m_path, "experiments_idx.json")
-    idx_dict = {}
-    idx_lock.acquire()
-    if os.path.isfile(experiments_idx_path):
-        with open(experiments_idx_path, 'r') as idx_json:
-            idx_dict = json.load(idx_json)
-            idx_dict[config['stage']][config['dataset']][config['architecture']] += 1
-            exp_id = idx_dict[config['stage']][config['dataset']][config['architecture']]
-        with open(experiments_idx_path, 'w') as idx_json:
-            json.dump(idx_dict, idx_json, indent=4)
-    else:
-        with open(experiments_idx_path, 'w') as idx_json:
-            idx_dict = create_idx_dict()
-            idx_dict[config['stage']][config['dataset']][config['architecture']] = 1
-            json.dump(idx_dict, idx_json, indent=4)
-            exp_id = 1
-    idx_lock.release()
-    
-    if 'model_out' not in config or config["model_out"] is None:
-        model_out = config['architecture'] + '_' + config['dataset'] + f'_exp{exp_id}'
-        if 'classifier' in config['stage']:
-            model_out = 'clf_' + model_out
-        config['model_out'] = model_out
-
-    if ("path_model" not in config or config["path_model"] is None) and config["stage"] != "train_model":
-        if "path_classifier" in config and config['path_classifier'] is not None:
-            path = os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + ".json")
-            clf_config = json.load(open(path))
-            config['path_model'] = clf_config['path_model']
-        else:
-            config["path_model"] = os.path.join("saved_models", config["architecture"] + "_" + config["dataset"] + f"_exp{exp_id}")
-
-    if ("path_classifier" not in config or config["path_classifier"] is None) and config["stage"] == "test_classifier":
-        config["path_classifier"] = os.path.join("saved_models", "clf_" + os.path.basename(config["path_model"]))
-
-    config = config_validation(m_path, config)
-
-    return config

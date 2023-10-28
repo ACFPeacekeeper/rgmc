@@ -11,7 +11,7 @@ class FGSM(AdversarialAttack):
         self.eps = eps
 
 
-    def __call__(self, x, y):
+    def __call__(self, x, y=None):
         x_adv = dict.fromkeys(x)
         for key in x.keys():
             x_adv[key] = x[key].clone().detach().to(self.device)
@@ -21,12 +21,11 @@ class FGSM(AdversarialAttack):
 
         if y is not None:
             y = y.clone().detach().to(self.device)
-            y = y.float()
-            if y.dim() == 0:
-                y = torch.unsqueeze(F.one_hot(y, result.size(dim=-1)), dim=0)
+            if y.dim() == 1:
+                y = F.one_hot(y, result.size(dim=-1))
             
-            loss = nn.CrossEntropyLoss().to(self.device)
-            cost = loss(result, y)
+            loss = nn.BCEWithLogitsLoss().to(self.device)
+            cost = loss(result, y.float())
         else:
             loss = nn.MSELoss().to(self.device)
             cost = loss(result[self.target_modality], x[self.target_modality])
@@ -35,7 +34,7 @@ class FGSM(AdversarialAttack):
             cost = (-1) * cost
 
         grad = torch.autograd.grad(cost, x_adv[self.target_modality], retain_graph=False, create_graph=False)[0]
-        x_adv = torch.clamp(x_adv[self.target_modality] + self.eps * grad.sign(), torch.min(x_adv[self.target_modality]), torch.max(x_adv[self.target_modality]))
+        x_adv[self.target_modality] = torch.clamp(x_adv[self.target_modality] + self.eps * grad.sign(), torch.min(x_adv[self.target_modality]), torch.max(x_adv[self.target_modality]))
         
         x[self.target_modality] = x_adv[self.target_modality].clone().detach().to(self.device)
         return x

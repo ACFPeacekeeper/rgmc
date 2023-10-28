@@ -49,9 +49,9 @@ def inference(config, device):
 def call_with_configs(config_ls):
     def decorate(run_experiment):
         def wrapper(*args, **kwargs):
+            device = setup_device(m_path)
             for config in config_ls:
                 config = setup_env(m_path, config)
-                device = setup_device(m_path, config)
                 kwargs['device'] = torch_device(device)
                 kwargs['config'] = config
                 print(f'Starting up experiment on device {device}...')

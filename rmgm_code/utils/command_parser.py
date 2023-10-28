@@ -10,11 +10,11 @@ import numpy as np
 from itertools import product
 from torch.backends import cudnn
 from torch import manual_seed, cuda
-from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, plot_graph_across_models, save_config
+from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, save_config
 
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'rgmc', 'gmcwd']
+ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd', 'rgmc']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]
@@ -131,10 +131,16 @@ def process_arguments(m_path):
             'param_comp': args['param_comp'],
             'parent_param': args['parent_param'],
             'number_seeds': args['number_seeds'],
-            'compare_models': args['compare_models']
+            'compare_models': args['compare_models'],
+            'target_modality': args['target_modality']
         }
 
-        metrics_analysis(m_path, config)
+        if config['architecture'] == 'all':
+            for architecture in ARCHITECTURES:
+                config['architecture'] = architecture
+                metrics_analysis(m_path, config)
+        else:
+            metrics_analysis(m_path, config)
         sys.exit(0)
 
     if args['command'] == 'clear':
@@ -441,6 +447,14 @@ def metrics_analysis(m_path, config):
     if ("parent_param" in config and "parent_param" in ADVERSARIAL_ATTACKS) or "param_comp" in ADVERSARIAL_ATTACKS:
         if "target_modality" not in config or config["target_modality"] not in MODALITIES[config['dataset']]:
             raise argparse.ArgumentError(f"Argument error: must specify valid target modality to compare adversarial attacks.\n")
+    if 'model_outs' not in config or config['model_outs'] is None:
+        raise argparse.ArgumentError("Argument error: model_outs must contain at least one positive integer.")
+    else:
+        for mos in config['model_outs']:
+            if mos <= 0:
+                raise argparse.ArgumentError("Argument error: all model_outs must be positive integer.")
+    if 'number_seeds' not in config or config['number_seeds'] is None or config['number_seeds'] <= 0:
+        raise argparse.ArgumentError("Argument error: number_seeds parameter must be a positive integer.")
     if "model" in config['stage']:
         if config['architecture'] is None:
             raise argparse.ArgumentError("Argument error: must define a valid architecture when comparing metrics for train_model or test_model stages.")
@@ -480,12 +494,7 @@ def metrics_analysis(m_path, config):
         last_id = int(config['model_outs'][-1]) + int(config['number_seeds'])
         out_path = f"{config['dataset']}_{config['model_outs'][0]}_{last_id}_"
         if config['compare_models']:
-            if "train" in config['stage']:
-                plot_graph_across_models(m_path, config, loss_dict, out_path)
-            elif "test" in config['stage']:
-                plot_bar_across_models(m_path, config, out_path)
-            else:
-                raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
+            plot_bar_across_models(m_path, config, out_path)
         else:
             out_path = f"{config['architecture']}_{out_path}"
             save_config(os.path.join(m_path, "compare", config['stage'], out_path + 'metrics.txt'), config)
@@ -494,6 +503,6 @@ def metrics_analysis(m_path, config):
             elif "test" in config['stage']:
                 plot_metric_compare_bar(m_path, config, loss_dict, out_path)
             else:
-                raise argparse.ArgumentError("Argument error: number_seeds parameter must be a non-negative integer.")
+                raise argparse.ArgumentError("Argument error: cannot compare results for inference stage.")
             
     return

@@ -1,5 +1,5 @@
 from torch import autograd, clamp
-from torch.nn import CrossEntropyLoss
+from torch.nn import BCEWithLogitsLoss
 from input_transformations.adversarial_attack import AdversarialAttack
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/bim.py
@@ -14,27 +14,31 @@ class BIM(AdversarialAttack):
             self.steps = steps
 
     def forward(self, x, y):
-        x = x.clone().detach().to(self.device)
+        x_adv = dict.fromkeys(x)
+        for key in x.keys():
+            x_adv[key] = x[key].clone().detach().to(self.device)
+            x_adv[key].requires_grad = True
+
         y = y.clone().detach().to(self.device)
 
-        loss = CrossEntropyLoss()
+        loss = BCEWithLogitsLoss()
 
-        original_x = x[self.target_modality].clone().detach()
+        original_x = x_adv[self.target_modality].clone().detach()
 
         for _ in range(self.steps):
             for key in x.keys():
-                x[key].requires_grad = True
+                x_adv[key].requires_grad = True
                 
-            model_output = self.model(x)
+            model_output, _ = self.model(x_adv)
 
-            cost = loss(model_output[self.target_modality], y)
-            grad = autograd.grad(cost, x, retain_graph=False, create_graph=False)[0]
+            cost = loss(model_output, y)
+            grad = autograd.grad(cost, x_adv[self.target_modality], retain_graph=False, create_graph=False)[0]
 
-            adv_x = x[self.target_modality] + self.alpha * grad.sign()
+            x_adv[self.target_modality] = x[self.target_modality] + self.alpha * grad.sign()
             a = clamp(original_x - self.eps, min=0)
-            b = (adv_x >= a).float() * adv_x + (adv_x < a).float() * a
+            b = (x_adv[self.target_modality] >= a).float() * x_adv[self.target_modality] + (x_adv[self.target_modality] < a).float() * a
             c = (b > original_x + self.eps).float() * (original_x + self.eps) + (b <= original_x + self.eps).float() * b
-            x[self.target_modality] = clamp(c, max=1).detach()
+            x_adv[self.target_modality][self.target_modality] = clamp(c, max=1).detach()
 
-        return x
+        return x_adv
 
