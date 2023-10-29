@@ -17,7 +17,7 @@ TIMEOUT = 0 # Seconds to wait for user to input notes
 ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'cmdvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd', 'rgmc']
 DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
 OPTIMIZERS = ['sgd', 'adam', None]
-ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", None]
+ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", "bim", None]
 EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
 STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference']
 MODALITIES = {
@@ -44,8 +44,8 @@ MODEL_TRAIN_NOISE_FACTOR_DEFAULT = 1.0
 MOMENTUM_DEFAULT = 0.9
 ADAM_BETAS_DEFAULTS = [0.9, 0.999]
 NOISE_STD_DEFAULT = 1.0
-ADV_EPSILON_DEFAULT = 0.1
-ADV_ALPHA_DEFAULT = 2 / 255
+ADV_EPSILON_DEFAULT = 0.15
+ADV_ALPHA_DEFAULT = 25 / 255
 ADV_STEPS_DEFAULT = 10
 ADV_KAPPA_DEFAULT = 10
 ADV_LR_DEFAULT = 0.001
@@ -55,10 +55,10 @@ RECON_SCALE_DEFAULTS = {
 }
 
 def process_arguments(m_path):
-    parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several generative models with clean and noisy/adversarial samples.")
+    parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several different models with clean and noisy/adversarial samples.")
     subparsers = parser.add_subparsers(help="command", dest="command")
     comp_parser = subparsers.add_parser("compare")
-    comp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES, help='Architecture to be used in the comparison.')
+    comp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES + ["all"], help='Architecture to be used in the comparison.')
     comp_parser.add_argument('-d', '--dataset', type=str, default='mhd', choices=DATASETS, help='Dataset to be used in the comparison.')
     comp_parser.add_argument('-s', '--stage', type=str, default='train_model', choices=STAGES, help='Stage of the pipeline to be used in the comparison.')
     comp_parser.add_argument('--model_outs', '--mos', type=int, nargs='+')

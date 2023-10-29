@@ -72,14 +72,10 @@ class RGMC(LightningModule):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             mod_weights = self.o3n(latent_representations)
             latent_representations.append(self.encoder(self.processors['joint'](x)))
-            for id, rep in enumerate(latent_representations):
-                latent_representations[id] = torch.mul(rep, mod_weights[:, id])
+            latent_representations = torch.stack(latent_representations).view(self.latent_dimension, *mod_weights.size())
+            latent_representations = torch.mul(latent_representations, mod_weights).view(*mod_weights.size(), self.latent_dimension).mean(dim=1)
 
-        # Take the average of the latent representations
-        if len(latent_representations) > 1:
-            return torch.stack(latent_representations, dim=0).mean(dim=0)
-        else:
-            return latent_representations[0]
+        return latent_representations
 
     def forward(self, x, y):
         clean_representations = []

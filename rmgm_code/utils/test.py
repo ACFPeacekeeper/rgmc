@@ -53,7 +53,7 @@ def run_inference(m_path, config, device, model, dataset):
     return
 
 def run_test(m_path, config, device, model, dataset):
-    dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True))
+    dataloader = iter(DataLoader(dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True))
     test_bnumber = len(dataloader)
     loss_dict = Counter(dict.fromkeys(dataset.dataset.keys(), 0.))
     tracemalloc.start()

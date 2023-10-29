@@ -281,7 +281,7 @@ def setup_experiment(m_path, config, device, train=True):
             model.set_latent_dim(config["latent_dimension"])
             model.to(device)
 
-    if config['architecture'] == 'rgmc':
+    if config['architecture'] == 'rgmc' and "train" in config['stage']:
         if config['stage'] == 'train_model':
             gmc_config = json.load(open(os.path.join(m_path, "configs", "train_model", config['model_out'][1:] + '.json')))
         else:
@@ -316,13 +316,13 @@ def setup_experiment(m_path, config, device, train=True):
         if config['adversarial_attack'] == 'gaussian_noise':
             attack = gaussian_noise.GaussianNoise(device=device, target_modality=target_modality, std=config['noise_std'])
         elif config['adversarial_attack'] == 'fgsm':
-            attack = fgsm.FGSM(device=device, model=model, target_modality=target_modality, eps=config['adv_std'])
+            attack = fgsm.FGSM(device=device, model=model, target_modality=target_modality, eps=config['adv_epsilon'])
         elif config['adversarial_attack'] == 'bim':
-            attack = bim.BIM(device=device, model=model, target_modality=target_modality, eps=config['adv_std'], alpha=config['adv_alpha'], steps=config['adv_steps'])
+            attack = bim.BIM(device=device, model=model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
         elif config['adversarial_attack'] == 'pgd':
-            attack = pgd.PGD(device=device, model=model, target_modality=target_modality, eps=config['adv_eps'], alpha=config['adv_alpha'], steps=config['adv_steps'])
+            attack = pgd.PGD(device=device, model=model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
         elif config['adversarial_attack'] == 'cw':
-            attack = cw.CW(device=device, model=model, target_modality=target_modality, c_val=config['adv_eps'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
+            attack = cw.CW(device=device, model=model, target_modality=target_modality, c_val=config['adv_epsilon'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
 
         if "classifier" in config['stage'] or config['stage'] == 'train_supervised':
             dataset.dataset = attack(dataset.dataset, dataset.labels)

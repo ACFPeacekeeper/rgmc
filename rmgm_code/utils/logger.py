@@ -250,13 +250,14 @@ def plot_bar_across_models(m_path, config, out_path, architectures):
     
     out_path = os.path.join(m_path, "compare", config['stage'], out_path + "accuracy.png")
     fig, ax = plt.subplots()
-    fig.figsize=(20, 10)
+    fig.figsize=(25, 10)
     ax.set_xticks(X_axis)
     ax.set_xticklabels(architectures)
     ax.set_title(f"Accuracy in the {config['dataset']} dataset")
     ax.yaxis.grid(True)
     metric_bar = ax.bar(X_axis, loss_means, yerr=loss_stds, width=0.4, align="center", alpha=0.5, ecolor='black', capsize=10)
     ax.bar_label(metric_bar)
+    plt.xticks(fontweight='light', fontsize='x-small')
     fig.savefig(os.path.join(m_path, "compare", config['stage'], out_path))
     plt.close()
     return

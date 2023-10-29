@@ -14,12 +14,14 @@ class PGD(AdversarialAttack):
         self.random_start = random_start
 
 
-    def forward(self, x, y):
-        adv_x = x.clone().detach().to(self.device)
+    def __call__(self, x, y):
+        adv_x = dict.fromkeys(x)
+        for key in x.keys():
+            adv_x[key] = x[key].clone().detach().to(self.device)
+
         if y is not None:
             y = y.clone().detach().to(self.device)
-            y = y.float()
-            loss = nn.CrossEntropyLoss().to(self.device)
+            loss = nn.BCEWithLogitsLoss().to(self.device)
             if self.targeted:
                 target_labels = self._get_target_label(adv_x, y)
         else:
@@ -36,6 +38,8 @@ class PGD(AdversarialAttack):
 
             result, _ = self.model(adv_x)
             if y is not None:
+                if y.dim() == 1:
+                    y = F.one_hot(y, result.size(dim=-1)).float()
                 if self.targeted:
                     cost = (-1) * loss(result, target_labels)
                 else:
