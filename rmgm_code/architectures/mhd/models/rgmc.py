@@ -199,7 +199,7 @@ class RGMC(LightningModule):
         clean_representations, batch_representations, target_id = self.forward(data, labels)
 
         # Forward pass through odd-one-out network
-        perturbed_mod_weights = self.o3n(batch_representations, batch_size)
+        perturbed_mod_weights = self.o3n(batch_representations)
         o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights, target_id, batch_size)
 
         for id, rep in enumerate(batch_representations):

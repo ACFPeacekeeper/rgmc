@@ -1,4 +1,4 @@
-import os
+import os, sys
 import torch
 import tracemalloc
 
@@ -115,7 +115,40 @@ def save_test_results(m_path, config, loss_list_dict):
     plot_metrics_bar(m_path, config, loss_list_dict)
     return
 
-def plot_loss_compare_graph(m_path, config, loss_dict):
+def plot_loss_compare_graph(m_path, config, loss_dict, out_path):
+    loss_list_dict = dict.fromkeys(loss_dict.keys(), [])
+    model_in = config['model_outs'][0]
+    for id in range(model_in, config['number_seeds'] + model_in):
+        if "classifier" in config['stage']:
+            res_path = os.path.join(m_path, "results", config['stage'], f"clf_{config['architecture']}_{config['dataset']}_exp{id}.txt")
+        else:
+            res_path = os.path.join(m_path, "results", config['stage'], f"{config['architecture']}_{config['dataset']}_exp{id}.txt")
+    
+        for loss_key in loss_list_dict.keys():
+            with open(res_path, 'r') as res_file:
+                tmp_loss = []
+                for line in res_file:
+                    if loss_key in line:
+                        tmp_loss.append(np.double(line.removeprefix(f'- {loss_key}: ')))
+            loss_list_dict[loss_key].append(tmp_loss)
+    
+    for idx, loss_key in enumerate(loss_dict.keys()):
+        losses = np.array(list(map(list, zip(*loss_list_dict[loss_key]))))
+        loss_means = np.mean(losses, axis=1)
+        loss_stds = np.std(losses, axis=1)
+        plt.figure(idx, figsize=(20, 20))
+        plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.10f}'))
+        plt.plot(range(len(loss_means)), loss_means, label="loss values", color="blue", linewidth=2.0)
+        plt.fill_between(range(len(loss_stds)), loss_means-loss_stds, loss_means+loss_stds, color="blue", alpha=0.2)
+        plt.axhline(y=loss_means[-1], color="red", linestyle="dashed")
+        plt.plot(len(loss_means), loss_means[-1], marker="o", markersize=5, markeredgecolor="red", markerfacecolor="blue")
+        plt.annotate("{:.3f}".format(loss_means[-1]), xy=(len(loss_means), loss_means[-1]), horizontalalignment="left", verticalalignment="bottom")
+        plt.xlabel("epoch")
+        plt.ylabel(loss_key)
+        plt.title(f'{loss_key} for {config["architecture"]} model')
+        plt.legend()
+        plt.savefig(os.path.join(m_path, "compare", config['stage'], f"{out_path}{loss_key}.png"))
+        plt.close(idx)
     return
 
 def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
