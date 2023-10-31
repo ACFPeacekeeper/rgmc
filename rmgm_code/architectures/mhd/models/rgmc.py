@@ -75,7 +75,7 @@ class RGMC(LightningModule):
             latent_representations[0] = latent_representations[1]
             latent_representations[1] = latent_rep
             for id, rep in enumerate(latent_representations):
-                latent_representations[id] = torch.mul(rep, mod_weights[:, id]) * self.num_modalities
+                latent_representations[id] = torch.mul(rep, mod_weights[:, id]) * (self.num_modalities + 1)
 
             return torch.stack(latent_representations, dim=0).mean(0)
         else:
