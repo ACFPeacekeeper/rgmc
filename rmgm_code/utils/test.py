@@ -31,10 +31,10 @@ def run_inference(m_path, config, device, model, dataset):
                     if "adversarial_attack" not in config or config["target_modality"] == "mnist" or config["target_modality"] == "image":
                         imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_orig.png'), squeeze(batch_feats[modality]).detach().clone().cpu())
                         imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_recon.png'), squeeze(x_hat[modality]).detach().clone().cpu())
-                elif modality == 'trajectory':
+                elif (modality == 'trajectory' and "adversarial_attack" not in config) or config["target_modality"] == "trajectory":
                     save_trajectory(m_path, os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_orig.png'), batch_feats['trajectory'])
                     save_trajectory(m_path, os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_recon.png'), x_hat['trajectory'])
-                elif modality == 'svhn':
+                elif (modality == 'svhn' and "adversarial_attack" not in config) or config["target_modality"] == "svhn":
                     batch_feats['svhn'] = squeeze(batch_feats['svhn']).permute(1, 2, 0).detach().clone().cpu().numpy()
                     x_hat['svhn'] = squeeze(x_hat['svhn']).permute(1, 2, 0).detach().clone().cpu().numpy()
                     imsave(os.path.join("checkpoints", "svhn", config['model_out'] + f'_{idx}_{label}_orig.png'), batch_feats['svhn'])
