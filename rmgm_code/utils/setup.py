@@ -66,7 +66,6 @@ def setup_device(m_path):
                 device_file.write('0')
         
         device_id = device_counter % cuda.device_count()
-        device_id = 1
         device = f"cuda:{device_id}"
         device_lock.release()
     else:
