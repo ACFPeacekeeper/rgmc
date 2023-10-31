@@ -60,7 +60,6 @@ class RGMC(LightningModule):
         return x, target_id
 
     def encode(self, x, sample=False):
-        batch_size = list(x.values())[0].size(dim=0)
         if sample is False and self.noise_factor != 0:
             x = self.add_perturbation(x)
 
@@ -72,10 +71,15 @@ class RGMC(LightningModule):
         if self.exclude_modality == 'none' or self.exclude_modality is None:
             mod_weights = self.o3n(latent_representations)
             latent_representations.append(self.encoder(self.processors['joint'](x)))
-            latent_representations = torch.stack(latent_representations).view(self.latent_dimension, *mod_weights.size())
-            latent_representations = torch.mul(latent_representations, mod_weights).view(*mod_weights.size(), self.latent_dimension).mean(dim=1)
+            latent_rep = latent_representations[0]
+            latent_representations[0] = latent_representations[1]
+            latent_representations[1] = latent_rep
+            for id, rep in enumerate(latent_representations):
+                latent_representations[id] = torch.mul(rep, mod_weights[:, id]) * self.num_modalities
 
-        return latent_representations
+            return torch.stack(latent_representations, dim=0).mean(0)
+        else:
+            return latent_representations[0]
 
     def forward(self, x, y):
         clean_representations = []
@@ -198,8 +202,6 @@ class RGMC(LightningModule):
         perturbed_mod_weights = self.o3n(batch_representations)
         o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights, target_id, batch_size)
 
-        for id, rep in enumerate(batch_representations):
-            batch_representations[id] = torch.mul(rep, perturbed_mod_weights[:, id])
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(clean_representations, batch_size)

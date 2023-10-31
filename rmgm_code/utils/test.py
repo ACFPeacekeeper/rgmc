@@ -28,8 +28,9 @@ def run_inference(m_path, config, device, model, dataset):
             label = int(batch_labels[0])
             for modality in batch_feats.keys():
                 if modality == 'image' or modality == 'mnist':
-                    imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_orig.png'), squeeze(batch_feats[modality]).detach().clone().cpu())
-                    imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_recon.png'), squeeze(x_hat[modality]).detach().clone().cpu())
+                    if "adversarial_attack" not in config or config["target_modality"] == "mnist" or config["target_modality"] == "image":
+                        imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_orig.png'), squeeze(batch_feats[modality]).detach().clone().cpu())
+                        imsave(os.path.join("checkpoints", modality, config['model_out'] + f'_{idx}_{label}_recon.png'), squeeze(x_hat[modality]).detach().clone().cpu())
                 elif modality == 'trajectory':
                     save_trajectory(m_path, os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_orig.png'), batch_feats['trajectory'])
                     save_trajectory(m_path, os.path.join("checkpoints", "trajectory", config['model_out'] + f'_{idx}_{label}_recon.png'), x_hat['trajectory'])

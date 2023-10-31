@@ -66,6 +66,7 @@ def setup_device(m_path):
                 device_file.write('0')
         
         device_id = device_counter % cuda.device_count()
+        device_id = 1
         device = f"cuda:{device_id}"
         device_lock.release()
     else:
@@ -313,18 +314,29 @@ def setup_experiment(m_path, config, device, train=True):
     if config['adversarial_attack'] is not None:
         target_modality = config['target_modality']
 
+        if config['stage'] == "inference":
+            clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + '.json')))
+            clf_model = setup_classifier(latent_dim=clf_config['latent_dimension'], model=model, exclude_mod=clf_config['exclude_modality'])
+            clf_model.load_state_dict(load(os.path.join(m_path, "saved_models", clf_config["model_out"] + ".pt")))
+            clf_model.eval()
+            for param in clf_model.parameters():
+                param.requires_grad = False
+            clf_model.to(device)
+        else:
+            clf_model = model
+
         if config['adversarial_attack'] == 'gaussian_noise':
             attack = gaussian_noise.GaussianNoise(device=device, target_modality=target_modality, std=config['noise_std'])
         elif config['adversarial_attack'] == 'fgsm':
-            attack = fgsm.FGSM(device=device, model=model, target_modality=target_modality, eps=config['adv_epsilon'])
+            attack = fgsm.FGSM(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'])
         elif config['adversarial_attack'] == 'bim':
-            attack = bim.BIM(device=device, model=model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
+            attack = bim.BIM(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
         elif config['adversarial_attack'] == 'pgd':
-            attack = pgd.PGD(device=device, model=model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
+            attack = pgd.PGD(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
         elif config['adversarial_attack'] == 'cw':
-            attack = cw.CW(device=device, model=model, target_modality=target_modality, c_val=config['adv_epsilon'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
+            attack = cw.CW(device=device, model=clf_model, target_modality=target_modality, c_val=config['adv_epsilon'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
 
-        if "classifier" in config['stage'] or config['stage'] == 'train_supervised':
+        if "classifier" in config['stage'] or config['stage'] == 'train_supervised' or config['stage'] == 'inference':
             dataset.dataset = attack(dataset.dataset, dataset.labels)
         else:
             dataset.dataset = attack(dataset.dataset)

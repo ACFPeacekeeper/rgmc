@@ -191,8 +191,15 @@ def plot_metric_compare_bar(m_path, config, loss_dict, out_path):
         X_axis = np.arange(len(config['model_outs']))
 
     for loss_key in loss_dict.keys():
+        if loss_key == 'nll_loss':
+            continue
         loss_means, loss_stds = zip(*loss_dict[loss_key])
         if loss_key == "accuracy":
+            lucky = list(zip(list(map(lambda x: round(x * 100, 2), loss_means)), list(map(lambda x: round(x * 100, 2), loss_stds))))
+            for lu in lucky:
+                print(f"{lu[0]} - {lu[1]}")
+                print("#"*40)
+            continue
             loss_means = tuple(map(lambda x: x * 100, loss_means))
             loss_stds = tuple(map(lambda x: x * 100, loss_stds))
 

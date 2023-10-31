@@ -176,6 +176,17 @@ def process_arguments(m_path):
             hyperparams = json.load(conf_path)
             keys, values = zip(*hyperparams.items())
             configs = [dict(zip(keys, v)) for v in product(*values)]
+            for idx, conf in enumerate(configs):
+                if "adversarial_attack" in conf and conf["adversarial_attack"] == "bim":
+                    if conf['adv_alpha'] == 0.06 or conf['adv_alpha'] == 0.08:
+                        configs[idx]['adv_epsilon'] = 0.2
+                    if conf['adv_alpha'] == 0.1 or conf['adv_alpha'] == 0.12:
+                        configs[idx]['adv_epsilon'] = 0.3
+                elif "adversarial_attack" in conf and conf["adversarial_attack"] == "pgd":
+                    if conf['adv_alpha'] == 0.04 or conf['adv_alpha'] == 0.06:
+                        configs[idx]['adv_epsilon'] = 0.2
+                    if conf['adv_alpha'] == 0.08 or conf['adv_alpha'] == 0.1:
+                        configs[idx]['adv_epsilon'] = 0.3
         else:
             config_data = json.load(open(os.path.join(m_path, args['load_config'])))
             configs = config_data['configs']
