@@ -60,7 +60,8 @@ class RGMC(LightningModule):
             x = self.perturbation(x, y)
         return x, target_id
 
-    def encode(self, x, sample=False): 
+    def encode(self, x, sample=False):
+        batch_size = list(x.values())[0].size(dim=0) 
         if sample is False and self.noise_factor != 0:
             x = self.add_perturbation(x)
 
@@ -76,7 +77,7 @@ class RGMC(LightningModule):
             latent_representations[0] = latent_representations[1]
             latent_representations[1] = latent_rep
             for id, rep in enumerate(latent_representations):
-                latent_representations[id] = torch.mul(rep, mod_weights[:, id]) * (self.num_modalities + 1)
+                latent_representations[id] = (torch.mul(rep.view(self.latent_dimension, batch_size), mod_weights[:, id]) * (self.num_modalities + 1)).view(batch_size, self.latent_dimension)
 
             return torch.stack(latent_representations, dim=0).mean(0)
         else:
@@ -218,21 +219,18 @@ class RGMC(LightningModule):
         # Forward pass through the encoders
         batch_representations = self.forward(data)
 
-        # Forward pass through odd-one-out network
-        clean_mod_weights = self.o3n(batch_representations[:-1])
-        perturbed_batch = self.add_perturbation(data)
-        perturbed_reps = self.forward(perturbed_batch)
-        perturbed_mod_weights = self.o3n(perturbed_reps[:-1])
-        o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights[:, :-1], clean_mod_weights[:, -1])
+        # Forward pass through the encoders
+        clean_representations, batch_representations, target_id = self.forward(data, labels)
 
-        for id, rep in enumerate(perturbed_reps):
-            perturbed_reps[id] = torch.mul(rep, perturbed_mod_weights[:, id])
+        # Forward pass through odd-one-out network
+        perturbed_mod_weights = self.o3n(batch_representations)
+        o3n_loss, o3n_dict = self.o3n_loss(perturbed_mod_weights, target_id, batch_size)
 
         # Compute contrastive loss
         if self.loss_type == "infonce_with_joints_as_negatives":
-            loss, tqdm_dict = self.infonce_with_joints_as_negatives(perturbed_reps, batch_size)
+            loss, tqdm_dict = self.infonce_with_joints_as_negatives(clean_representations, batch_size)
         else:
-            loss, tqdm_dict = self.infonce(perturbed_reps, batch_size)
+            loss, tqdm_dict = self.infonce(clean_representations, batch_size)
         
         total_loss = loss + o3n_loss
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})

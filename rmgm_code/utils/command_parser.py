@@ -499,29 +499,31 @@ def metrics_analysis(m_path, config):
             raise argparse.ArgumentError("Argument error: must define a valid architecture when comparing metrics for train_model or test_model stages.")
         
         if config['architecture'] == 'vae':
-            loss_dict = {'elbo_loss': [], 'kld_loss': []}
+            loss_dict = {'elbo_loss': []}
         elif config['architecture'] == 'dae':
             loss_dict = {'total_loss': []}
         elif config['architecture'] == 'gmc':
             loss_dict = {'infonce_loss': []}
         elif config['architecture'] == 'mvae':
-            loss_dict = {'elbo_loss': [], 'kld_loss': []}
+            loss_dict = {'elbo_loss': []}
+        elif config['architecture'] == 'cmvae':
+            loss_dict = {'total_loss': []}
+        elif config['architecture'] == 'cmdvae':
+            loss_dict = {'total_loss': []}
+        elif config['architecture'] == 'mdae':
+            loss_dict = {'total_loss': []}
+        elif config['architecture'] == 'cmdae':
+            loss_dict = {'total_loss': []}
         elif config['architecture'] == 'dgmc':
-            loss_dict = {'total_loss': [], 'infonce_loss': []}
+            loss_dict = {'total_loss': []}
         elif config['architecture'] == 'rgmc':
-            loss_dict = {'total_loss': [], 'infonce_loss': [], 'o3n_loss': []}
+            loss_dict = {'total_loss': []}
         elif config['architecture'] == 'gmcwd':
-            loss_dict = {'total_loss': [], 'infonce_loss': []}
+            loss_dict = {'total_loss': []}
         
-        if config['dataset'] == 'mhd':
-            if 'ae' in config['architecture'] or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
-                loss_dict = {**loss_dict, 'img_recon_loss': [], 'traj_recon_loss': []}
-        elif config['dataset'] == 'mnist_svhn':
-            if 'ae' in config['architecture'] or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
-                loss_dict = {**loss_dict, 'mnist_recon_loss': [], 'svhn_recon_loss': []}
 
     elif "classifier" in config['stage'] or "train_supervised" in config['stage']:
-        loss_dict = {'nll_loss': [], 'accuracy': []}
+        loss_dict = {'accuracy': []}
     else:
         raise ValueError(f"Invalid stage {config['stage']} for metric comparison.")
 
