@@ -85,7 +85,7 @@ def process_arguments(m_path):
 
     configs_parser = subparsers.add_parser("config")
     configs_parser.add_argument('--load_config', '--load_json', type=str, help='File path where the experiment(s) configurations are to loaded from.')
-    configs_parser.add_argument('--config_permute', '--permute_config', type=str, help='Generate several config runs from permutations of dict of lists with hyperparams.')
+    configs_parser.add_argument('--config_permute', '--permute_config', type=str, nargs='+', help='Generate several config runs from permutations of dict of lists with hyperparams.')
     configs_parser.add_argument('--seed', '--torch_seed', type=int, default=SEED, help='Seed value for results replication.')
 
     exp_parser = subparsers.add_parser("experiment")
@@ -172,27 +172,17 @@ def process_arguments(m_path):
 
     if args['command'] == 'config':
         if "config_permute" in args and args['config_permute'] is not None:
-            conf_path = open(os.path.join(m_path, args['config_permute']))
-            hyperparams = json.load(conf_path)
-            keys, values = zip(*hyperparams.items())
-            configs = [dict(zip(keys, v)) for v in product(*values)]
-            for idx, conf in enumerate(configs):
-                if "adversarial_attack" in conf and conf["adversarial_attack"] == "bim":
-                    if conf['adv_alpha'] == 0.06 or conf['adv_alpha'] == 0.08:
-                        configs[idx]['adv_epsilon'] = 0.2
-                    if conf['adv_alpha'] == 0.1 or conf['adv_alpha'] == 0.12:
-                        configs[idx]['adv_epsilon'] = 0.3
-                elif "adversarial_attack" in conf and conf["adversarial_attack"] == "pgd":
-                    if conf['adv_alpha'] == 0.04 or conf['adv_alpha'] == 0.06:
-                        configs[idx]['adv_epsilon'] = 0.2
-                    if conf['adv_alpha'] == 0.08 or conf['adv_alpha'] == 0.1:
-                        configs[idx]['adv_epsilon'] = 0.3
+            configs = []
+            for partial_path in args['config_permute']:
+                conf_path = open(os.path.join(m_path, partial_path))
+                hyperparams = json.load(conf_path)
+                keys, values = zip(*hyperparams.items())
+                configs.append([dict(zip(keys, v)) for v in product(*values)])
+            configs = [x for subconf in configs for x in subconf]
         else:
-            config_data = json.load(open(os.path.join(m_path, args['load_config'])))
-            configs = config_data['configs']
-            if not isinstance(configs, list):
-                configs = [configs]
-            configs = [dict(item, **{'seed': args['seed']}) for item in configs]
+            configs = []
+            for partial_path in args['load_config']:
+                configs.append(open(os.path.join(m_path, args['load_config'])))
         return configs
     
     if args['command'] == 'experiment':
