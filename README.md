@@ -4,7 +4,7 @@
 ## Setup Conda Environment
 ```bash
 conda env create -f environment.yml
-conda activate RMGM
+conda activate RGMC
 ```
 ## Setup Project
 In order to setup the project, you simply need to execute the following command:

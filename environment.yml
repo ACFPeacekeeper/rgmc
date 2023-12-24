@@ -1,4 +1,4 @@
-name: RMGM
+name: RGMC
 channels:
   - pytorch
   - nvidia
