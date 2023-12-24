@@ -1,4 +1,4 @@
-# Robust Multimodal Generative Model
+# Robust Geometric Multimodal Contrastive Learning Framework
 
 
 ## Setup Conda Environment
