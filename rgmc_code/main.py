@@ -11,7 +11,7 @@ from utils.command_parser import process_arguments
 from utils.setup import setup_experiment, setup_env, setup_device
 
 # Assign path to current directory
-m_path = "C:\\Users\\afons\\Repositories\\rmgm\\rmgm_code"
+m_path = os.getcwd()
 
 WAIT_TIME = 0 # Seconds to wait between sequential experiments
 
