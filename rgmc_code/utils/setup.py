@@ -33,17 +33,9 @@ from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
 from architectures.mnist_svhn.models.gmcwd import MSGMCWD
 from architectures.mnist_svhn.downstream.classifier import MSClassifier
-from architectures.pendulum.models.vae import PendulumVAE
-from architectures.pendulum.models.dae import PendulumDAE
-from architectures.pendulum.models.mvae import PendulumMVAE
-from architectures.pendulum.models.gmc import PendulumGMC
-from architectures.pendulum.models.dgmc import PendulumDGMC
-from architectures.pendulum.models.gmcwd import PendulumGMCWD
-from architectures.pendulum.models.rgmc import PendulumRGMC
 from datasets.mhd.mhd_dataset import MhdDataset
 from datasets.mosi.mosi_dataset import MosiDataset
 from datasets.mosei.mosi_dataset import MoseiDataset
-from datasets.pendulum.pendulum_dataset import PendulumDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 
@@ -134,8 +126,6 @@ def setup_experiment(m_path, config, device, train=True):
             dataset = MosiDataset('mosi', os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosei':
             dataset = MoseiDataset('mosei', os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
-        elif config['dataset'] == 'pendulum':
-            dataset = PendulumDataset('pendulum', os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mnist_svhn':
             dataset = MnistSvhnDataset('mnist_svhn', os.path.join(m_path, "datasets", "mnist_svhn"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
@@ -226,28 +216,6 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'gmcwd':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
-    elif config['dataset'] == 'pendulum':
-        if config['architecture'] == 'vae':
-            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'kld_beta': config['kld_beta']}
-            model = PendulumVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'])
-        elif config['architecture'] == 'dae':
-            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale']}
-            model = PendulumDAE(config['architecture'], latent_dim, device, exclude_modality, scales, noise_factor=config['train_noise_factor'])
-        elif config['architecture'] == 'mvae':
-            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'kld_beta': config['kld_beta']}
-            model = PendulumMVAE(config['architecture'], latent_dim, device, exclude_modality, scales, config['rep_trick_mean'], config['rep_trick_std'], config['experts_fusion'], config['poe_eps'])
-        elif config['architecture'] == 'gmc':
-            model = PendulumGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'])
-        elif config['architecture'] == 'dgmc':
-            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-            model = PendulumDGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
-        elif config['architecture'] == 'rgmc':
-            scales = {'infonce_temp': config['infonce_temperature'], 'o3n_loss': config['o3n_loss_scale']}
-            model = PendulumRGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'], device=device)
-        elif config['architecture'] == 'gmcwd':
-            scales = {'image': config['image_recon_scale'], 'sound': config['sound_recon_scale'], 'infonce_temp': config['infonce_temperature']}
-            model = PendulumGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
-
 
     if config['stage'] == 'train_supervised':
         model = setup_classifier(latent_dim=config['latent_dimension'], model=model, exclude_mod=config['exclude_modality'])
