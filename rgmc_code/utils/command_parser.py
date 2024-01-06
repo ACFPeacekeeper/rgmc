@@ -19,7 +19,7 @@ DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", "bim", None]
 EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
-STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference']
+STAGES = ['train_model', 'train_classifier', 'train_supervised', 'test_model', 'test_classifier', 'inference']
 MODALITIES = {
     'mhd': ['image', 'trajectory'],
     'mnist_svhn': ['mnist', 'svhn']
@@ -54,7 +54,7 @@ RECON_SCALE_DEFAULTS = {
 }
 
 def process_arguments(m_path):
-    parser = argparse.ArgumentParser(prog="rmgm", description="Program tests the performance and robustness of several different models with clean and noisy/adversarial samples.")
+    parser = argparse.ArgumentParser(prog="rgmc", description="Program tests the performance and robustness of several different models with clean and noisy/adversarial samples.")
     subparsers = parser.add_subparsers(help="command", dest="command")
     comp_parser = subparsers.add_parser("compare")
     comp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES + ["all"], help='Architecture to be used in the comparison.')
@@ -211,7 +211,7 @@ def config_validation(m_path, config):
         config['latent_dimension'] = LATENT_DIM_DEFAULT
     if config['latent_dimension'] < 1:
         raise argparse.ArgumentError("Argument error: latent_dimension value must be a positive and non-zero integer.")
-    if "exclude_modality" in config and config["exclude_modality"] not in MODALITIES[config['dataset']]:
+    if "exclude_modality" in config and config['exclude_modality'] is not None and config["exclude_modality"] not in MODALITIES[config['dataset']]:
         raise argparse.ArgumentError("Argument error: must define a valid modality to exclude.")
     if "adversarial_attack" in config and config['adversarial_attack'] is not None:
         if config["adversarial_attack"] not in ADVERSARIAL_ATTACKS:
@@ -334,6 +334,8 @@ def config_validation(m_path, config):
                 config['kld_beta'] = None
                 config['rep_trick_mean'] = None
                 config['rep_trick_std'] = None
+                config['experts_fusion'] = None
+                config['poe_eps'] = None
 
             if config['dataset'] == 'mhd':
                 if config['exclude_modality'] == 'image':

@@ -29,7 +29,6 @@ def train_supervised_model(config, device):
     dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
     model = run_training(m_path, config, device, dataset, model, optimizer)
     return model
-    
 
 def test_model(config, device):
     dataset, model, _ = setup_experiment(m_path, config, device, train=False)
@@ -69,6 +68,8 @@ def run_experiment(**kwargs):
             train_model(config, device)
         elif config['stage'] == 'train_classifier':
             train_downstream_classifier(config, device)
+        elif config['stage'] == 'train_supervised':
+            train_supervised_model(config, device)
         elif config['stage'] == 'test_model':
             test_model(config, device)
         elif config['stage'] == 'test_classifier':

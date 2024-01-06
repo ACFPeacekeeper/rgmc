@@ -328,7 +328,7 @@ def setup_experiment(m_path, config, device, train=True):
                 optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
 
         if False:
-            wandb.init(project="rmgm", 
+            wandb.init(project="rgmc", 
                 name=config['model_out'],
                 config={key: value for key, value in config.items() if value is not None}, 
                 notes=notes,
