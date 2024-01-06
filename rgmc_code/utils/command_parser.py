@@ -266,7 +266,7 @@ def config_validation(m_path, config):
     
     try:
         os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)
-        if config['stage'] == 'train_model' or config['stage'] == 'train_classifier':
+        if "train" in config['stage']:
             os.makedirs(os.path.join(m_path, "configs", config['stage']), exist_ok=True)
             if "epochs" not in config or config["epochs"] is None:
                 config['epochs'] = EPOCHS_DEFAULT

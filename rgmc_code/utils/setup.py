@@ -218,7 +218,9 @@ def setup_experiment(m_path, config, device, train=True):
             model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
 
     if config['stage'] == 'train_supervised':
+        model.to(device)
         model = setup_classifier(latent_dim=config['latent_dimension'], model=model, exclude_mod=config['exclude_modality'])
+        model.to(device)
     else:
         if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
             model.load_state_dict(load(os.path.join(m_path, "saved_models", config["path_model"] + ".pt")))
