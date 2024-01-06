@@ -120,7 +120,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('--momentum', type=float, default=MOMENTUM_DEFAULT, help='Momentum for the SGD optimizer.')
     exp_parser.add_argument('--noise_std', type=float, default=NOISE_STD_DEFAULT, help='Standard deviation for noise distribution.')
     exp_parser.add_argument('--adv_epsilon', type=float, default=ADV_EPSILON_DEFAULT, help='Epsilon value for adversarial example generation.')
-    exp_parser.add_argument('--black_box', action="store_true", help='Defines in adversarial attack is performed in a black-box setting.')
+    exp_parser.add_argument('--black_box', action="store_true", help='Defines if an adversarial attack is performed in a black-box setting.')
     exp_parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
     
     args = vars(parser.parse_args())
