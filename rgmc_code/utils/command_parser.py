@@ -15,15 +15,14 @@ from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_
 
 TIMEOUT = 0 # Seconds to wait for user to input notes
 ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'cmdvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd', 'rgmc']
-DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei', 'pendulum']
+DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", "bim", None]
 EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
 STAGES = ['train_model', 'train_classifier', 'test_model', 'test_classifier', 'inference']
 MODALITIES = {
     'mhd': ['image', 'trajectory'],
-    'mnist_svhn': ['mnist', 'svhn'],
-    'pendulum': ['image', 'sound']
+    'mnist_svhn': ['mnist', 'svhn']
 }
 
 SEED = 42
