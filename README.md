@@ -2,6 +2,7 @@
 
 
 ## Setup Conda Environment
+To setup the conda environment for the project, you just need to run the following commands in the main directory:
 ```bash
 conda env create -f environment.yml
 conda activate RGMC
