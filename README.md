@@ -30,5 +30,3 @@ bash download_mhd_dataset.sh
 ```bash
 python main.py compare -a dae -d mhd -s test_classifier --pc noise_std --pp target_modality
 ```
-
-This script setups the datasets, copies the code required to run the GMC framework from the [gmc repository](https://github.com/miguelsvasco/gmc) and defines the [m_path variable](https://github.com/MrIceHavoc/rgmc/blob/main/rgmc_code/main.py#L25). 
