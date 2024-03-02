@@ -8,6 +8,8 @@ dependencies:
   - cuda-cudart=11.8.89
   - cuda-libraries=11.8.0
   - cuda-runtime=11.8.0
+  - matplotlib=3.7.1
+  - matplotlib-base=3.7.1
   - numpy=1.24.3
   - numpy-base=1.24.3
   - python=3.11.3
