@@ -4,6 +4,7 @@ channels:
   - nvidia
   - conda-forge
   - defaults
+  - anaconda
 dependencies:
   - cuda-cudart=11.8.89
   - cuda-libraries=11.8.0
@@ -17,6 +18,7 @@ dependencies:
   - pytorch-cuda=11.8
   - pytorch-lightning=2.0.2
   - pytorch-mutex=1.0
+  - scipy=1.11.3
   - torchaudio=2.0.2
   - torchmetrics=0.11.4
   - torchvision=0.15.2
