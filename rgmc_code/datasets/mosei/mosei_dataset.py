@@ -1,5 +1,5 @@
 import os
-from subprocess import call
+from subprocess import run
 from ..multimodal_dataset import *
 
 class MoseiDataset(MultimodalDataset):
@@ -7,8 +7,9 @@ class MoseiDataset(MultimodalDataset):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
         self.meta = None
 
-    def _download(self):
-        call("./download_mosei_dataset.sh", shell=True)
+    @staticmethod
+    def _download():
+        run([os.path.join(os.getcwd(), "datasets", "mosei", "download_mosei_dataset.sh"), "bash"], shell=True)
         return
     
     def _load_data(self, train):   

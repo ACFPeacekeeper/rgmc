@@ -1,13 +1,15 @@
 import os
-from subprocess import call
+import numpy as np
+from subprocess import run
 from ..multimodal_dataset import *
 
 class MosiDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', train=True, transform=None, adv_attack=None, target_modality='none'):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
 
-    def _download(self):
-        call("./download_mosi_dataset.sh", shell=True)
+    @staticmethod
+    def _download():
+        run([os.path.join(os.getcwd(), "datasets", "mosi", "download_mosi_dataset.sh"), "bash"], shell=True)
         return
     
     def _load_data(self, train):     

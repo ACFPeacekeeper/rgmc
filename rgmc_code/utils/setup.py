@@ -35,7 +35,7 @@ from architectures.mnist_svhn.models.gmcwd import MSGMCWD
 from architectures.mnist_svhn.downstream.classifier import MSClassifier
 from datasets.mhd.mhd_dataset import MhdDataset
 from datasets.mosi.mosi_dataset import MosiDataset
-from datasets.mosei.mosi_dataset import MoseiDataset
+from datasets.mosei.mosei_dataset import MoseiDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 

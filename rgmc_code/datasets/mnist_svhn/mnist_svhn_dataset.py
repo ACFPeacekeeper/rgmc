@@ -14,7 +14,8 @@ class MnistSvhnDataset(MultimodalDataset):
         self.max_d = max_d  # maximum number of datapoints per class
         self.dm = dm        # data multiplier: random permutations to match 
         
-    def _download(self):
+    @staticmethod
+    def _download():
         # Get the individual datasets
         tx = transforms.ToTensor()
         train_mnist = datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=True, download=True, transform=tx)

@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from subprocess import call
+from subprocess import run
 from ..multimodal_dataset import *
 
 class MhdDataset(MultimodalDataset):
@@ -10,8 +10,9 @@ class MhdDataset(MultimodalDataset):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
         self.modalities = ["image", "trajectory"] 
 
-    def _download(self):
-        call("bash download_mhd_dataset.sh", shell=True)
+    @staticmethod
+    def _download():
+        run([os.path.join(os.getcwd(), "datasets", "mhd", "download_mhd_dataset.sh"), "bash"], shell=True)
         return
 
     def _load_data(self, train):
