@@ -18,7 +18,7 @@ Afterwards, you need to follow the instructions below for the dataset you want t
 For the MHD dataset, you need to go into the mhd directory and then run the bash script to download it:
 ```bash
 cd mhd
-bash setup.sh
+bash download_mhd_dataset.sh
 ```
 
 ### Modified National Institute of Standards and Technology and Street View House Numbers (MNIST-SVHN) Dataset
