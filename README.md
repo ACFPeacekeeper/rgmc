@@ -12,7 +12,7 @@ In order to setup the project, you first need to go into the datasets directory:
 ```bash
 cd rgmc_code/datasets
 ```
-Afterwards, you need to follow the instructions below corresponding to which dataset you want to download and prepare. 
+Afterwards, you need to follow the instructions below for the dataset you want to download and prepare. 
 
 ### Multimodal Handwritten Digits (MHD) Dataset
 For the MHD dataset, you need to go into the mhd directory and then run the bash script to download it:
