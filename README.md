@@ -32,7 +32,7 @@ python main.py config --load_config <json_filepath>
 ```
 If instead you want to run multiple experiments with all possible hyper-parameter permutations, you can load the configurations json file with the `--config_permute <json_filepath>` option.
 
-### Compare Experimental Results
+## Compare Experimental Results
 
 ### Compare metrics for DAE-based classifier on MHD dataset given different standard deviation values for gaussian noise on image modality
 
