@@ -27,7 +27,7 @@ You can also run several experiments in succession by reading a JSON file with a
 ```bash
 python main.py config --load_config <json_filepath>
 ```
-If instead you want to run multiple experiments with all possible configuration permutations, you can load the json file with the `--config_permute <json_filepath>` option.
+If instead you want to run multiple experiments with all possible configuration permutations, you can load the config json file with the `--config_permute <json_filepath>` option.
 
 ## Example commands
 
