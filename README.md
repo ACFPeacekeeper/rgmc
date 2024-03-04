@@ -34,7 +34,7 @@ If instead you want to run multiple experiments with all possible hyper-paramete
 
 ## Compare Experimental Results
 
-### Compare metrics for DAE-based classifier on MHD dataset given different standard deviation values for gaussian noise on image modality
+For example, to compare metrics for DAE-based classifier on MHD dataset given different standard deviation values for gaussian noise on image modality, you can run the following command:
 
 ```bash
 python main.py compare -a dae -d mhd -s test_classifier --pc noise_std --pp target_modality
