@@ -16,7 +16,7 @@ python download_datasets.py
 ```
 
 ## Running experiments
-They are two different ways you can train and/or test models.
+There are two different ways you can train and/or test models.
 
 ### Command Line 
 In order to begin a new experiment from the command line, you must choose the architecture, dataset and stage for the experiment:
