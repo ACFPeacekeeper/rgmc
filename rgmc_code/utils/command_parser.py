@@ -87,7 +87,7 @@ def process_arguments(m_path):
     configs_parser.add_argument('--config_permute', '--permute_config', type=str, nargs='+', help='Generate several config runs from permutations of dict of lists with hyperparams.')
     configs_parser.add_argument('--seed', '--torch_seed', type=int, default=SEED, help='Seed value for results replication.')
 
-    exp_parser = subparsers.add_parser("exp")
+    exp_parser = subparsers.add_parser("exp", aliases=['experiment'])
     exp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES, help='Architecture to be used in the experiment.')
     exp_parser.add_argument('-p', '--path_model', type=str, default=None, help="Filename of the file where the model is to be loaded from.")
     exp_parser.add_argument('--seed', '--torch_seed', '--pytorch_seed', type=int, default=SEED, help='Seed value for results replication.')
@@ -184,7 +184,7 @@ def process_arguments(m_path):
                 configs.append(open(os.path.join(m_path, args['load_config'])))
         return configs
     
-    if args['command'] == 'experiment':
+    if args['command'] == 'exp' or args['command'] == 'experiment':
         args.pop('command')
         return [args]
 
