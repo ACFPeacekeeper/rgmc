@@ -29,7 +29,7 @@ def get_affect_network(self_type='l', layers=1):
                               relu_dropout=0.1,
                               res_dropout=0.1,
                               embed_dropout=0.25,
-                              attn_mask=True)
+                              attn_mask=False)
 
 
 

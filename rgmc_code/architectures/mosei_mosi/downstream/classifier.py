@@ -6,6 +6,7 @@ from torch.nn import functional as F
 
 class MMClassifier(nn.Module):
     def __init__(self, latent_dimension, model, exclude_modality):
+        super(MMClassifier, self).__init__()
         self.model = model
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
@@ -33,11 +34,12 @@ class MMClassifier(nn.Module):
             _, z = self.model(x, sample)
         encodings = self.proj2(F.relu(self.proj1(z)))
         encodings += z
-        return self.classifier(F.relu(encodings))
+        return self.classifier(F.relu(encodings)), z
 
     def loss(self, y_preds, labels):
+        y_preds = y_preds.unsqueeze(-1)
         batch_size = labels.size()[0]
-        loss_function = nn.CrossEntropyLoss()
+        loss_function = nn.L1Loss()
         loss = loss_function(y_preds, labels)
         accuracy = 0.
         for pred, label in zip(y_preds, labels):

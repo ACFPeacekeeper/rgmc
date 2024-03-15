@@ -34,6 +34,7 @@ from architectures.mnist_svhn.models.rgmc import MSRGMC
 from architectures.mnist_svhn.models.gmcwd import MSGMCWD
 from architectures.mnist_svhn.downstream.classifier import MSClassifier
 from architectures.mosei_mosi.models.gmc import AffectGMC
+from architectures.mosei_mosi.downstream.classifier import MMClassifier
 from datasets.mhd.mhd_dataset import MhdDataset
 from datasets.mosi.mosi_dataset import MosiDataset
 from datasets.mosei.mosei_dataset import MoseiDataset
@@ -136,6 +137,8 @@ def setup_experiment(m_path, config, device, train=True):
             clf = MHDClassifier(latent_dim, model, exclude_mod)
         elif config['dataset'] == 'mnist_svhn':
             clf = MSClassifier(latent_dim, model, exclude_mod)
+        elif config['dataset'] == 'mosei' or config['dataset'] == 'mosi':
+            clf = MMClassifier(latent_dim, model, exclude_mod)
         return clf
 
     dataset = setup_dataset(m_path, config, device, train)

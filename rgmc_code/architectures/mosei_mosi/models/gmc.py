@@ -25,7 +25,6 @@ class SuperGMC(LightningModule):
         }
 
         self.encoder = None
-        self.criterion = nn.L1Loss()
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
