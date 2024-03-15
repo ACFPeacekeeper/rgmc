@@ -1,5 +1,6 @@
 import os
 import sys
+import wandb
 import traceback
 
 from torch import device as torch_device
@@ -77,7 +78,8 @@ def run_experiment(**kwargs):
         elif config['stage'] == 'inference':
             inference(config, device)
     except:
-        #wandb.finish(exit_code=1)
+        if 'wandb' in config and config['wandb']:
+            wandb.finish(exit_code=1)
         traceback.print_exception(*sys.exc_info())
 
 def main():

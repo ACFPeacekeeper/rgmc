@@ -1,3 +1,4 @@
+import wandb
 import tracemalloc
 
 from time import time
@@ -56,7 +57,8 @@ def run_train_epoch(m_path, epoch, config, device, model, train_set, train_losse
         if config['optimizer'] is not None:
             optimizer.step()
 
-        #wandb.log({**batch_loss_dict})
+        if 'wandb' in config and config['wandb']:
+            wandb.log({**batch_loss_dict})
 
     for key, value in loss_dict.items():
         loss_dict[key] = value / train_bnumber
@@ -106,5 +108,6 @@ def run_training(m_path, config, device, dataset, model, optimizer):
     if device.type == 'cuda':
         cuda.empty_cache()
 
-    #wandb.finish()
+    if 'wandb' in config and config['wandb']:
+        wandb.finish()
     return model

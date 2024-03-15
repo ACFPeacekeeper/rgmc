@@ -1,5 +1,8 @@
 import os
 import json
+import wandb
+
+import sys, select
 
 from re import sub
 from threading import Lock
@@ -43,6 +46,7 @@ from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 idx_lock = Lock()
 device_lock = Lock()
+WAIT_TIME = 0 # Seconds to wait for experimental notes
 
 def setup_device(m_path):
     if cuda.is_available():
@@ -319,18 +323,6 @@ def setup_experiment(m_path, config, device, train=True):
         else:
             dataset.dataset = attack(dataset.dataset)
 
-    if False:
-        if "notes" not in config:
-            print('Enter experiment notes:')
-            notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
-            if (notes):
-                notes = sys.stdin.readline().strip()
-            else:
-                notes = ""
-            #termios.tcflush(sys.stdin, termios.TCIOFLUSH)
-        else:
-            notes = config["notes"]
-
     if train and config['stage'] != 'inference':
         if config['optimizer'] is not None:
             if config['optimizer'] == 'adam':
@@ -338,7 +330,20 @@ def setup_experiment(m_path, config, device, train=True):
             elif config['optimizer'] == 'sgd':
                 optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
 
-        if False:
+        if 'notes' not in config:
+            sys.stdout.write('Enter you experimental notes:\n')
+            sys.stdout.flush()
+            notes, _, _ = select.select([sys.stdin], [], [], WAIT_TIME)
+            if notes:
+                notes = sys.stdin.readline().rstrip('\n')
+            else:
+                notes = None
+                print(f"Timeout! Maximum time to enter notes is {WAIT_TIME} seconds!")
+        else:
+            notes = config['notes']
+            config['notes'] = None
+
+        if 'wandb' in config and config['wandb']:
             wandb.init(project="rgmc", 
                 name=config['model_out'],
                 config={key: value for key, value in config.items() if value is not None}, 

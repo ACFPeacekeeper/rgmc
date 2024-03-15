@@ -126,6 +126,7 @@ def process_arguments(m_path):
     exp_parser.add_argument('--noise_std', type=float, default=NOISE_STD_DEFAULT, help='Standard deviation for noise distribution.')
     exp_parser.add_argument('--adv_epsilon', type=float, default=ADV_EPSILON_DEFAULT, help='Epsilon value for adversarial example generation.')
     exp_parser.add_argument('--black_box', action="store_true", help='Defines if an adversarial attack is performed in a black-box setting.')
+    exp_parser.add_argument('--wandb', type=bool, default=False, help='If true, activates weights and biases logging.')
     exp_parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
     
     args = vars(parser.parse_args())
@@ -296,6 +297,9 @@ def config_validation(m_path, config):
 
         if "target_modality" not in config:
             config['target_modality'] = None
+
+        if "wandb" not in config:
+            config['wandb'] = None
 
         if "download" not in config:
             config["download"] = None

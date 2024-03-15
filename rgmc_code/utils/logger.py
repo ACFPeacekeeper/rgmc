@@ -1,4 +1,5 @@
-import os, sys
+import os
+import wandb
 import torch
 import tracemalloc
 
@@ -26,7 +27,8 @@ def save_epoch_results(m_path, config, device, runtime, loss_dict=None):
             for key, value in loss_dict.items():
                 print(f'- {key}: {value}')
                 file.write(f'- {key}: {value}\n')
-                #wandb.log({key: value})
+                if 'wandb' in config and config['wandb']:
+                    wandb.log({key: value})
 
     print('- Current RAM usage: %f GB'%(tracemalloc.get_traced_memory()[0]/1024/1024/1024))
     print('- Peak RAM usage: %f GB'%(tracemalloc.get_traced_memory()[1]/1024/1024/1024))
