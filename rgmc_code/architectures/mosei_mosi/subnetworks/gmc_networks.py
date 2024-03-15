@@ -88,7 +88,7 @@ class AffectJointProcessor(torch.nn.Module):
 
 
     def forward(self, x):
-        x_l, x_a, x_v = x[0], x[1], x[2]
+        x_l, x_a, x_v = x['text'], x['audio'], x['vision']
 
         """
         text, audio, and vision should have dimension [batch_size, seq_len, n_features]

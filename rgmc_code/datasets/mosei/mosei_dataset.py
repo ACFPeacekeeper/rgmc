@@ -19,13 +19,13 @@ class MoseiDataset(MultimodalDataset):
             data = torch.load(data_path)
             val_data_path = os.path.join(self.dataset_dir, "mosei_valid.dt")
             val_data = torch.load(val_data_path)
-            self.dataset = {'vision': torch.concat((data.vision, val_data.vision)).to(self.device), 'text': torch.concat((data.text, val_data.text)).to(self.device)}
+            self.dataset = {'text': torch.concat((data.text, val_data.text)).to(self.device), 'audio': torch.concat((data.audio, val_data.audio)).to(self.device), 'vision': torch.concat((data.vision, val_data.vision)).to(self.device)}
             self.labels = torch.concat((data.labels, val_data.labels)).to(self.device)
             
         else:
             data_path = os.path.join(self.dataset_dir, "mosei_test.dt")
             data = torch.load(data_path)
-            self.dataset = {'vision': data.vision.to(self.device), 'text': data.text.to(self.device)}
+            self.dataset = {'text': data.text.to(self.device), 'audio': data.audio.to(self.device), 'vision': data.vision.to(self.device)}
             self.labels = data.labels.to(self.device)
 
         self.dataset_len = len(self.labels)
@@ -33,7 +33,7 @@ class MoseiDataset(MultimodalDataset):
         if self.exclude_modality != 'none' and self.exclude_modality is not None:
             self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
 
-        for mod in ['vision', 'text']:
+        for mod in ['text', 'audio', 'vision']:
             if mod != self.exclude_modality:
                 self.dataset[mod] = (self.dataset[mod] - torch.min(self.dataset[mod])) / (torch.max(self.dataset[mod]) - torch.min(self.dataset[mod]))
 

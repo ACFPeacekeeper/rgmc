@@ -13,13 +13,15 @@ class SuperGMC(LightningModule):
         self.exclude_modality = exclude_modality
         self.infonce_temperature = infonce_temperature
 
-        self.vision_processor = None
         self.language_processor = None
+        self.audio_processor = None
+        self.vision_processor = None
         self.joint_processor = None
         self.processors = {
-            'vision': self.vision_processor,
             'text': self.language_processor,
-            'joint': self.joint_processor,
+            'audio': self.audio_processor,
+            'vision': self.vision_processor,
+            'joint': self.joint_processor
         }
 
         self.encoder = None
@@ -163,13 +165,16 @@ class AffectGMC(SuperGMC):
         self.joint_processor = AffectJointProcessor(latent_dim, scenario)
 
         if exclude_modality == 'vision':
-            self.processors = {'text': self.language_processor}
+            self.processors = {'text': self.language_processor, 'audio': self.audio_processor}
         elif exclude_modality == 'text':
-            self.processors = {'vision': self.vision_processor}
+            self.processors = {'audio': self.audio_processor, 'vision': self.vision_processor}
+        elif exclude_modality == 'audio':
+            self.processors = {'text': self.language_processor, 'vision': self.vision_processor}
         else:
             self.processors = {
-                'vision': self.vision_processor,
                 'text': self.language_processor,
+                'audio': self.audio_processor,
+                'vision': self.vision_processor,
                 'joint': self.joint_processor
             }
 
