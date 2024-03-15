@@ -4,15 +4,15 @@ from torch import nn
 from collections import Counter
 from torch.nn import functional as F
 
-class MHDClassifier(nn.Module):
+class MMClassifier(nn.Module):
     def __init__(self, latent_dimension, model, exclude_modality):
-        super(MHDClassifier, self).__init__()
         self.model = model
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-        self.fc1 = nn.Linear(latent_dimension, latent_dimension)
-        self.fc2 = nn.Linear(latent_dimension, latent_dimension)
-        self.fc3 = nn.Linear(latent_dimension, 10)
+
+        self.proj1 = nn.Linear(latent_dimension, latent_dimension)
+        self.proj2 = nn.Linear(latent_dimension, latent_dimension)
+        self.classifier = nn.Linear(latent_dimension, 1)
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality
@@ -25,19 +25,16 @@ class MHDClassifier(nn.Module):
     def set_perturbation(self, perturbation):
         self.model.set_perturbation(perturbation)
 
+    
     def forward(self, x, sample=True):
         if 'gmc' in self.model.name:
             z = self.model.encode(x, sample)
         else:
             _, z = self.model(x, sample)
-        encoding = self.fc1(z)
-        encoding = F.relu(encoding)
-        encoding = self.fc2(encoding)
-        encoding = F.relu(encoding)
-        encoding = self.fc3(encoding)
-        classification = F.log_softmax(encoding, dim=-1)
-        return classification, z
-    
+        encodings = self.proj2(F.relu(self.proj1(z)))
+        encodings += z
+        return self.classifier(F.relu(encodings))
+
     def loss(self, y_preds, labels):
         batch_size = labels.size()[0]
         loss_function = nn.CrossEntropyLoss()
@@ -58,3 +55,4 @@ class MHDClassifier(nn.Module):
     
     def validation_step(self, x, labels):
         return self.training_step(x, labels)
+        

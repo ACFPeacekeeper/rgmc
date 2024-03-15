@@ -22,7 +22,8 @@ EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
 STAGES = ['train_model', 'train_classifier', 'train_supervised', 'test_model', 'test_classifier', 'inference']
 MODALITIES = {
     'mhd': ['image', 'trajectory'],
-    'mnist_svhn': ['mnist', 'svhn']
+    'mnist_svhn': ['mnist', 'svhn'],
+    'mosei_mosi': ['vision', 'text'],
 }
 
 SEED = 42
@@ -50,7 +51,8 @@ ADV_KAPPA_DEFAULT = 10
 ADV_LR_DEFAULT = 0.001
 RECON_SCALE_DEFAULTS = {
     'mhd': {'image': 0.5, 'trajectory': 0.5}, 
-    'mnist_svhn': {'mnist': 0.5, 'svhn': 0.5}
+    'mnist_svhn': {'mnist': 0.5, 'svhn': 0.5},
+    'mosei_mosi': {'vision': 0.5, 'text': 0.5},
 }
 
 def process_arguments(m_path):
@@ -110,6 +112,8 @@ def process_arguments(m_path):
     exp_parser.add_argument('--traj_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mhd']['trajectory'], help='Weight for the trajectory reconstruction loss.')
     exp_parser.add_argument('--mnist_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mnist_svhn']['mnist'], help='Weight for the mnist reconstruction loss.')
     exp_parser.add_argument('--svhn_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mnist_svhn']['svhn'], help='Weight for the svhn reconstruction loss.')
+    exp_parser.add_argument('--vision_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mosei_mosi']['vision'], help='Weight for the vision reconstruction loss.')
+    exp_parser.add_argument('--text_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mosei_mosi']['text'], help='Weight for the text reconstruction loss.')
     exp_parser.add_argument('--kld_beta', type=float, default=KLD_BETA_DEFAULT, help='Beta value for KL divergence.')
     exp_parser.add_argument('--experts_fusion', type=str, default='poe', choices=EXPERTS_FUSION_TYPES, help='Type of experts to use in the fusion of the modalities for the mvae.')
     exp_parser.add_argument('--rep_trick_mean', type=float, default=REPARAMETERIZATION_MEAN_DEFAULT, help='Mean value for the reparameterization trick for the vae and mvae.')
@@ -311,6 +315,11 @@ def config_validation(m_path, config):
                     config["mnist_recon_scale"] = RECON_SCALE_DEFAULTS['mnist_svhn']['mnist']
                 if "svhn_recon_scale" not in config:
                     config["svhn_recon_scale"] = RECON_SCALE_DEFAULTS['mnist_svhn']['svhn']
+            elif config['dataset'] == 'mosei' or config['dataset'] == 'mosi':
+                if "vision_recon_scale" not in config:
+                    config["vision_recon_scale"] = RECON_SCALE_DEFAULTS['mosei_mosi']['vision']
+                if "text_recon_scale" not in config:
+                    config["text_recon_scale"] = RECON_SCALE_DEFAULTS['mosei_mosi']['text']
 
             if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
                 if "train_noise_factor" not in config or config['train_noise_factor'] is None:
@@ -363,11 +372,24 @@ def config_validation(m_path, config):
                         config["image_recon_scale"] = None
                     if "traj_recon_scale" in config and config["traj_recon_scale"] is not None:
                         config["traj_recon_scale"] = None
+            elif config['dataset'] == 'mosei' or config['dataset'] == 'mosi':
+                if config['exclude_modality'] == 'vision':
+                    config['vision_recon_scale'] = 0.
+                elif config['exclude_modality'] == 'text':
+                    config['text_recon_scale'] = 0.
+
+                if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
+                    if "vision_recon_scale" in config and config["vision_recon_scale"] is not None:
+                        config["vision_recon_scale"] = None
+                    if "text_recon_scale" in config and config["text_recon_scale"] is not None:
+                        config["text_recon_scale"] = None
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
             config['mnist_recon_scale'] = None
             config['svhn_recon_scale'] = None
+            config['vision_recon_scale'] = None
+            config['text_recon_scale'] = None
             config['kld_beta'] = None
             config['rep_trick_mean'] = None
             config['rep_trick_std'] = None
@@ -398,6 +420,8 @@ def config_validation(m_path, config):
             config['traj_recon_scale'] = None
             config['mnist_recon_scale'] = None
             config['svhn_recon_scale'] = None
+            config['vision_recon_scale'] = None
+            config['text_recon_scale'] = None
             config['infonce_temperature'] = None
             config['o3n_loss_scale'] = None
             config['kld_beta'] = None

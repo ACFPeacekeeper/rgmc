@@ -1,8 +1,8 @@
 import torch
-from torch import nn
-from torch.nn import functional as F
 
+from torch import nn
 from collections import Counter
+from torch.nn import functional as F
 
 class MSClassifier(nn.Module):
     def __init__(self, latent_dimension, model, exclude_modality):
@@ -10,9 +10,9 @@ class MSClassifier(nn.Module):
         self.model = model
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-        self.fc1 = nn.Linear(latent_dimension, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 10)
+        self.fc1 = nn.Linear(latent_dimension, latent_dimension)
+        self.fc2 = nn.Linear(latent_dimension, latent_dimension)
+        self.fc3 = nn.Linear(latent_dimension, 10)
 
     def set_modalities(self, exclude_modality):
         self.exclude_modality = exclude_modality

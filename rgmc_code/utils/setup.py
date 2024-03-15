@@ -33,6 +33,7 @@ from architectures.mnist_svhn.models.dgmc import MSDGMC
 from architectures.mnist_svhn.models.rgmc import MSRGMC
 from architectures.mnist_svhn.models.gmcwd import MSGMCWD
 from architectures.mnist_svhn.downstream.classifier import MSClassifier
+from architectures.mosei_mosi.models.gmc import AffectGMC
 from datasets.mhd.mhd_dataset import MhdDataset
 from datasets.mosi.mosi_dataset import MosiDataset
 from datasets.mosei.mosei_dataset import MoseiDataset
@@ -216,6 +217,9 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['architecture'] == 'gmcwd':
             scales = {'mnist': config['mnist_recon_scale'], 'svhn': config['svhn_recon_scale'], 'infonce_temp': config['infonce_temperature']}
             model = MSGMCWD(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, scales, noise_factor=config['train_noise_factor'])
+    elif config['dataset'] == 'mosei' or config['dataset'] == 'mosi':
+        if config['architecture'] == 'gmc':
+            model = AffectGMC(config['architecture'], exclude_modality, config['common_dimension'], latent_dim, config['infonce_temperature'], scenario=config['dataset'])
 
     if config['stage'] == 'train_supervised':
         model.to(device)
@@ -260,7 +264,9 @@ def setup_experiment(m_path, config, device, train=True):
             gmc_model = MhdGMC(gmc_config['architecture'], gmc_config['exclude_modality'], gmc_config['common_dimension'], gmc_config['latent_dimension'], gmc_config['infonce_temperature'])
         elif config['dataset'] == 'mnist_svhn':
             gmc_model = MSGMC(gmc_config['architecture'], gmc_config['exclude_modality'], gmc_config['common_dimension'], gmc_config['latent_dimension'], gmc_config['infonce_temperature'])
-        
+        elif config['dataset'] == 'mosei' or config['dataset'] == 'mosi':
+            gmc_model = AffectGMC(gmc_config['architecture'], gmc_config['exclude_modality'], gmc_config['common_dimension'], gmc_config['latent_dimension'], gmc_config['infonce_temperature'])
+
         gmc_model.load_state_dict(load(os.path.join(m_path, "saved_models", gmc_config["model_out"] + ".pt")))
         for param in gmc_model.parameters():
             param.requires_grad = False
