@@ -1,10 +1,11 @@
 import os
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
-from ..multimodal_dataset import *
 from torchvision import datasets, transforms
+from ..multimodal_dataset import MultimodalDataset
 
 # Adapted from https://github.com/iffsid/mmvae
 class MnistSvhnDataset(MultimodalDataset):

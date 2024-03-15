@@ -1,7 +1,8 @@
 import os
-import numpy as np
+import torch
+
 from subprocess import run
-from ..multimodal_dataset import *
+from ..multimodal_dataset import MultimodalDataset
 
 class MosiDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', train=True, transform=None, adv_attack=None, target_modality='none'):
@@ -13,26 +14,25 @@ class MosiDataset(MultimodalDataset):
         return
     
     def _load_data(self, train):     
-        modalities = ['vision', 'text']
+        if train:
+            data_path = os.path.join(self.dataset_dir, "mosi_train.dt")
+            data = torch.load(data_path)
+            val_data_path = os.path.join(self.dataset_dir, "mosi_valid.dt")
+            val_data = torch.load(val_data_path)
+            self.dataset = {'vision': torch.concat((data.vision, val_data.vision)).to(self.device), 'text': torch.concat((data.text, val_data.text)).to(self.device)}
+            self.labels = torch.concat((data.labels, val_data.labels)).to(self.device)
+            
+        else:
+            data_path = os.path.join(self.dataset_dir, "mosi_test.dt")
+            data = torch.load(data_path)
+            self.dataset = {'vision': data.vision.to(self.device), 'text': data.text.to(self.device)}
+            self.labels = data.labels.to(self.device)
+
         if self.exclude_modality != 'none':
-            modalities.remove(self.exclude_modality)
+            self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
 
-        if train:
-            data_path = os.path.join(self.dataset_dir, "mosi_train.pt")
-            data = torch.load(open(data_path, 'rb'))
-            val_data_path = os.path.join(self.dataset_dir, "mosi_valid.pt")
-            val_data = torch.load(open(val_data_path, 'rb'))
-            for modal in modalities:
-                self.dataset[modal] = torch.concat((data[modal], val_data[modal]), dim=0)
-        else:
-            data_path = os.path.join(self.dataset_dir, "mosi_test.pt")
-            data = torch.load(open(data_path, 'rb'))
-            for modal in modalities:
-                self.dataset[modal] = torch.tensor(data['test'][modal].astype(np.float32))
-
-        if train:
-            self.labels = torch.concat((data['labels'], val_data['labels']), dim=0)
-        else:
-            self.labels = data['labels']
+        for mod in self.modalities:
+            if mod != self.exclude_modality:
+                self.dataset[mod] = (self.dataset[mod] - torch.min(self.dataset[mod])) / (torch.max(self.dataset[mod]) - torch.min(self.dataset[mod]))
 
         return

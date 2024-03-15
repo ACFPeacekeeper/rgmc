@@ -397,7 +397,7 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-# Datasets, checkpoints and results
+# Datasets
 rgmc_code/datasets/mnist_svhn/MNIST
 rgmc_code/datasets/mnist_svhn/*.mat
 rgmc_code/datasets/mnist_svhn/*.png
@@ -406,6 +406,8 @@ rgmc_code/datasets/mosei/*.dt
 rgmc_code/datasets/mosi/*.dt
 rgmc_code/datasets/mhd/*.png
 rgmc_code/datasets/mhd/*.pt
+
+# Results and Configurations
 rgmc_code/configs/train_supervised
 rgmc_code/configs/train_classifier
 rgmc_code/configs/train_model
@@ -416,5 +418,7 @@ rgmc_code/results
 rgmc_code/compare
 rgmc_code/images
 rgmc_code/wandb
+
+# Other
 gmc/
 tmp/

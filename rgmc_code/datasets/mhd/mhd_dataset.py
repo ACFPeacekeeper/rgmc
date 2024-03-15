@@ -1,9 +1,10 @@
 import os
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 
 from subprocess import run
-from ..multimodal_dataset import *
+from ..multimodal_dataset import MultimodalDataset
 
 class MhdDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
