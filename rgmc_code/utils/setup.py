@@ -1,8 +1,7 @@
 import os
+import sys
 import json
 import wandb
-
-import sys, select
 
 from re import sub
 from threading import Lock
@@ -42,7 +41,6 @@ from datasets.mhd.mhd_dataset import MhdDataset
 from datasets.mosi.mosi_dataset import MosiDataset
 from datasets.mosei.mosei_dataset import MoseiDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
-
 
 idx_lock = Lock()
 device_lock = Lock()
@@ -331,14 +329,37 @@ def setup_experiment(m_path, config, device, train=True):
                 optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
 
         if 'notes' not in config:
-            sys.stdout.write('Enter you experimental notes:\n')
-            sys.stdout.flush()
-            notes, _, _ = select.select([sys.stdin], [], [], WAIT_TIME)
-            if notes:
-                notes = sys.stdin.readline().rstrip('\n')
+            if os.name == 'posix':
+                import select
+
+                sys.stdout.write('Enter you experimental notes:\n')
+                sys.stdout.flush()
+                notes, _, _ = select.select([sys.stdin], [], [], WAIT_TIME)
+                if notes:
+                    notes = sys.stdin.readline().rstrip('\n')
+                else:
+                    notes = None
+                    print(f"Timeout! Maximum time to enter notes is {WAIT_TIME} seconds!")
+            elif os.name == 'nt':
+                import msvcrt, time
+
+                timer = time.monotonic
+                sys.stdout.write('Enter you experimental notes:\n')
+                sys.stdout.flush()
+                endtime = timer() + WAIT_TIME
+                output = []
+                while timer() < endtime:
+                    if msvcrt.kbhit():
+                        output.append(msvcrt.getwche())
+                        if output[-1] == '\r':
+                            notes = ''.join(output[:-1])
+                    time.sleep(0.05)
+                else:
+                    notes = None
+                    print(f"Timeout! Maximum time to enter notes is {WAIT_TIME} seconds!")
             else:
                 notes = None
-                print(f"Timeout! Maximum time to enter notes is {WAIT_TIME} seconds!")
+            
         else:
             notes = config['notes']
             config['notes'] = None

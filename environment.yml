@@ -10,7 +10,6 @@ dependencies:
   - cuda-cudart=11.7
   - cudatoolkit=11.7
   - matplotlib=3.7
-  - matplotlib-base=3.7
   - numpy=1.24
   - numpy-base=1.24
   - python=3.11
