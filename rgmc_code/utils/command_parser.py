@@ -161,12 +161,7 @@ def process_arguments(m_path):
         if args['clear_wandb']:
             shutil.rmtree(os.path.join(m_path, "wandb"), ignore_errors=True)
         if args['clear_idx']:
-            path = os.path.join(m_path, "experiments_idx.json")
-            device_idx_path = os.path.join(m_path, "device_idx.txt")
-            if os.path.exists(path):
-                os.remove(path)
-            if os.path.exists(device_idx_path):
-                os.remove(device_idx_path)
+            shutil.rmtree(os.path.join(m_path, "tmp"), ignore_errors=True)
         if args['clear_configs']:
             for dir in os.listdir(os.path.join(m_path, "configs")):
                 if os.path.isdir(os.path.join(m_path, "configs", dir)):

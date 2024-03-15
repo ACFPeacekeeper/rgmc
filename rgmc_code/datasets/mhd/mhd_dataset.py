@@ -9,7 +9,6 @@ from ..multimodal_dataset import MultimodalDataset
 class MhdDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
-        self.modalities = ["image", "trajectory"] 
 
     @staticmethod
     def _download():
@@ -22,7 +21,6 @@ class MhdDataset(MultimodalDataset):
         else:
             data_path = os.path.join(self.dataset_dir, "mhd_test.pt")
         
-        print(data_path)
         data = list(torch.load(data_path))
         self.dataset_len = len(data[0])
 

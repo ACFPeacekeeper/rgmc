@@ -87,6 +87,7 @@ def main():
         os.makedirs(os.path.join(m_path, "configs"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
         os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
+        os.makedirs(os.path.join(m_path, "tmp"), exist_ok=True)
     except IOError as e:
         traceback.print_exception(*sys.exc_info())
     finally:

@@ -7,8 +7,6 @@ from ..multimodal_dataset import MultimodalDataset
 class MoseiDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
         super().__init__(dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
-        self.meta = None
-        self.modalities = ['vision', 'text']
 
     @staticmethod
     def _download():
@@ -30,10 +28,12 @@ class MoseiDataset(MultimodalDataset):
             self.dataset = {'vision': data.vision.to(self.device), 'text': data.text.to(self.device)}
             self.labels = data.labels.to(self.device)
 
-        if self.exclude_modality != 'none':
+        self.dataset_len = len(self.labels)
+
+        if self.exclude_modality != 'none' and self.exclude_modality is not None:
             self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
 
-        for mod in self.modalities:
+        for mod in ['vision', 'text']:
             if mod != self.exclude_modality:
                 self.dataset[mod] = (self.dataset[mod] - torch.min(self.dataset[mod])) / (torch.max(self.dataset[mod]) - torch.min(self.dataset[mod]))
 

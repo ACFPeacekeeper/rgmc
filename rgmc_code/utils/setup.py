@@ -45,7 +45,7 @@ device_lock = Lock()
 
 def setup_device(m_path):
     if cuda.is_available():
-        device_idx_path = os.path.join(m_path, "device_idx.txt")
+        device_idx_path = os.path.join(m_path, "tmp", "device_idx.txt")
         device_lock.acquire()
         if os.path.isfile(device_idx_path):
             with open(device_idx_path, 'r+') as device_file:
@@ -80,7 +80,7 @@ def setup_env(m_path, config):
 
         config['device'] = device_info
 
-    experiments_idx_path = os.path.join(m_path, "experiments_idx.json")
+    experiments_idx_path = os.path.join(m_path, "tmp", "experiments_idx.json")
     idx_dict = {}
     idx_lock.acquire()
     if os.path.isfile(experiments_idx_path):

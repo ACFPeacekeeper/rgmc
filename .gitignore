@@ -413,12 +413,10 @@ rgmc_code/configs/train_classifier
 rgmc_code/configs/train_model
 rgmc_code/saved_models
 rgmc_code/checkpoints
-rgmc_code/*.txt
 rgmc_code/results
 rgmc_code/compare
 rgmc_code/images
 rgmc_code/wandb
 
 # Other
-gmc/
 tmp/

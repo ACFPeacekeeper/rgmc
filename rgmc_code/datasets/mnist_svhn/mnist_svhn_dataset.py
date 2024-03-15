@@ -11,7 +11,6 @@ from ..multimodal_dataset import MultimodalDataset
 class MnistSvhnDataset(MultimodalDataset):
     def __init__(self, name, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None, max_d = 10000, dm=30):
         super().__init__(name, dataset_dir, device, download, exclude_modality, target_modality, train, transform, adv_attack)
-        self.modalities = ["mnist", "svhn"]
         self.max_d = max_d  # maximum number of datapoints per class
         self.dm = dm        # data multiplier: random permutations to match 
         
