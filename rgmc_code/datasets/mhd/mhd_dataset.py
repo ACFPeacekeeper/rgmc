@@ -21,7 +21,7 @@ class MhdDataset(MultimodalDataset):
         else:
             data_path = os.path.join(self.dataset_dir, "mhd_test.pt")
         
-        data = list(torch.load(data_path))
+        data = torch.load(data_path)
         self.dataset_len = len(data[0])
 
         # Normalize datasets
