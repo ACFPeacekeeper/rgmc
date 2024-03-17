@@ -9,6 +9,7 @@ channels:
 dependencies:
   - cuda-cudart=11.7
   - cudatoolkit=11.7
+  - ipykernel=6.25
   - matplotlib=3.7
   - numpy=1.24
   - numpy-base=1.24
