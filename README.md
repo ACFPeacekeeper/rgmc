@@ -4,6 +4,7 @@
 - [PyTorch](https://pytorch.org/)
 - [Pytorch Lightning](https://lightning.ai/docs/pytorch/stable/)
 - [Jupyter](https://jupyter.org/)
+- [Anaconda](https://www.anaconda.com/)
 
 ## Setup Conda Environment
 To setup the conda environment for the project, you just need to run the following commands in the main directory:
