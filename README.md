@@ -1,5 +1,8 @@
 # Robust Geometric Multimodal Contrastive Learning Framework
-
+## Tech Stack
+- [Python Programming Language](https://www.python.org/)
+- [PyTorch](https://pytorch.org/)
+- [Jupyter](https://jupyter.org/)
 
 ## Setup Conda Environment
 To setup the conda environment for the project, you just need to run the following commands in the main directory:
