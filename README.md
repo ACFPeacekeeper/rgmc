@@ -2,6 +2,7 @@
 ## Tech Stack
 - [Python Programming Language](https://www.python.org/)
 - [PyTorch](https://pytorch.org/)
+- [Pytorch Lightning](https://lightning.ai/docs/pytorch/stable/)
 - [Jupyter](https://jupyter.org/)
 
 ## Setup Conda Environment
