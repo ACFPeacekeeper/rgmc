@@ -1,4 +1,6 @@
 # Robust Geometric Multimodal Contrastive Learning Framework
+Unsupervised Multimodal DL architectures that are robust to noisy and adversarial data.
+
 ## Tech Stack
 - [Python Programming Language](https://www.python.org/)
 - [PyTorch](https://pytorch.org/)
