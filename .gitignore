@@ -402,6 +402,7 @@ rgmc_code/datasets/mnist_svhn/MNIST
 rgmc_code/datasets/mnist_svhn/*.mat
 rgmc_code/datasets/mnist_svhn/*.png
 rgmc_code/datasets/mnist_svhn/*.pt
+rgmc_code/datasets/pendulum/*.pt
 rgmc_code/datasets/mosei/*.dt
 rgmc_code/datasets/mosei/*.pt
 rgmc_code/datasets/mosi/*.dt
