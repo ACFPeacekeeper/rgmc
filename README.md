@@ -55,4 +55,4 @@ python main.py compare -a dae -d mhd -s test_classifier --pc noise_std --pp targ
 
 ## Contacts & Questions
 
-For any additional questions, feel free to email `afonso.fernandes[at]tecnico.ulisboa.pt".
+For any additional questions, feel free to email "afonso.fernandes[at]tecnico.ulisboa.pt".
