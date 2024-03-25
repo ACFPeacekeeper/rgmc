@@ -10,8 +10,8 @@ class MosiDataset(MultimodalDataset):
 
     @staticmethod
     def _download():
-        run([os.path.join(os.getcwd(), "datasets", "mosi", "download_mosi_dataset.sh"), "bash"], shell=True)
         dataset_dir = os.path.join(os.getcwd(), "datasets", "mosi")
+        run([os.path.join(dataset_dir, "download_mosi_dataset.sh"), "bash"], shell=True)
         data = torch.load(os.path.join(dataset_dir, "mosi_train.dt"))
         val_data = torch.load(os.path.join(dataset_dir, "mosi_valid.dt"))
         dataset = {'text': torch.concat((data.text, val_data.text)), 'audio': torch.concat((data.audio, val_data.audio)), 'vision': torch.concat((data.vision, val_data.vision)), 'labels': torch.concat((data.labels, val_data.labels))}
@@ -29,16 +29,20 @@ class MosiDataset(MultimodalDataset):
             data_path = os.path.join(self.dataset_dir, "mosi_test.pt")
 
         data = torch.load(data_path)
-        self.dataset = {'text': data['text'].to(self.device), 'audio': data['audio'].to(self.device), 'vision': data['vision'].to(self.device)}
+        self.dataset = {
+            'text': data['text'].to(self.device), 
+            'audio': data['audio'].to(self.device), 
+            'vision': data['vision'].to(self.device)
+        }
         self.labels = data['labels'].to(self.device)
 
         self.dataset_len = len(self.labels)
 
-        if self.exclude_modality != 'none' and self.exclude_modality is not None:
-            self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
-
         for mod in ['text', 'audio', 'vision']:
             if mod != self.exclude_modality:
                 self.dataset[mod] = (self.dataset[mod] - torch.min(self.dataset[mod])) / (torch.max(self.dataset[mod]) - torch.min(self.dataset[mod]))
+
+        if self.exclude_modality != 'none' and self.exclude_modality is not None:
+            self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
 
         return
