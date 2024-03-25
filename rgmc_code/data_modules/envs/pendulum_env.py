@@ -5,7 +5,7 @@ from enum import Enum
 from pysine import sine
 from gym.envs.classic_control import rendering
 from gym.envs.classic_control.pendulum import PendulumEnv
-from gmc_code.rl.data_modules.utils.game_utils import modified_doppler_effect, inverse_square_law_observer_receiver
+from ..utils.game_utils import modified_doppler_effect, inverse_square_law_observer_receiver
 
 # TODO(rsilva): This should go inside PendulumSound, but it seems we
 # are getting circular dependencies when we do so

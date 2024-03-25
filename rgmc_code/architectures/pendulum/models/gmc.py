@@ -1,5 +1,5 @@
 from pytorch_lightning import LightningModule
-from gmc_code.rl.architectures.models.gmc_networks import *
+from ..models.gmc_networks import *
 
 
 class GMC(LightningModule):

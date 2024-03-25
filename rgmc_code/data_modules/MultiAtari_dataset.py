@@ -3,7 +3,7 @@ import torch
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, random_split
 from torch.utils.data.dataset import Dataset, IterableDataset
-from rgmc_code.data_modules.utils.atari_dataset_utils import generate_dataset_filename, generate_dataset
+from .utils.atari_dataset_utils import generate_dataset_filename, generate_dataset
 
 # 'state', 'action', 'next_state', 'reward', 'terminal'
 
