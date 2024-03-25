@@ -44,7 +44,7 @@ class PendulumDataset(MultimodalDataset):
             }
 
         if self.exclude_modality != 'none' and self.exclude_modality is not None:
-            self.dataset[f'{self.exclude_modality}_t'] = torch.full(self.dataset[f'{self.exclude_modality}_t'].size(), -1).to(self.device)
-            self.dataset[f'{self.exclude_modality}_t++'] = torch.full(self.dataset[f'{self.exclude_modality}_t++'].size(), -1).to(self.device)
+            self.dataset[f'{self.exclude_modality}'] = torch.full(self.dataset[f'{self.exclude_modality}'].size(), -1).to(self.device)
+            self.dataset[f'{self.exclude_modality}++'] = torch.full(self.dataset[f'{self.exclude_modality}++'].size(), -1).to(self.device)
 
         return

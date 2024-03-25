@@ -19,11 +19,12 @@ DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei']
 OPTIMIZERS = ['sgd', 'adam', None]
 ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", "bim", None]
 EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
-STAGES = ['train_model', 'train_classifier', 'train_supervised', 'test_model', 'test_classifier', 'inference']
+STAGES = ['train_model', 'train_classifier', 'train_supervised', 'train_rl', 'test_model', 'test_classifier', 'inference']
 MODALITIES = {
-    'mhd': ['image', 'trajectory'],
+    'mhd': ['image', 'trajectory', 'sound'],
     'mnist_svhn': ['mnist', 'svhn'],
     'mosei_mosi': ['text', 'audio', 'vision'],
+    'pendulum': ['image_t', 'audio_t']
 }
 
 SEED = 42
@@ -50,9 +51,10 @@ ADV_STEPS_DEFAULT = 10
 ADV_KAPPA_DEFAULT = 10
 ADV_LR_DEFAULT = 0.001
 RECON_SCALE_DEFAULTS = {
-    'mhd': {'image': 0.5, 'trajectory': 0.5}, 
+    'mhd': {'image': 0.5, 'trajectory': 0.5, 'sound': 0.0}, 
     'mnist_svhn': {'mnist': 0.5, 'svhn': 0.5},
     'mosei_mosi': {'text': 1/3, 'audio': 1/3, 'vision': 1/3},
+    'pendulum': {'image_t': 0.5, 'audio_t': 0.5}
 }
 
 def process_arguments(m_path):
@@ -110,11 +112,14 @@ def process_arguments(m_path):
     exp_parser.add_argument('--infonce_temperature', '--infonce_temp', type=float, default=INFONCE_TEMPERATURE_DEFAULT, help='Temperature for the infonce loss.')
     exp_parser.add_argument('--image_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mhd']['image'], help='Weight for the image reconstruction loss.')
     exp_parser.add_argument('--traj_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mhd']['trajectory'], help='Weight for the trajectory reconstruction loss.')
+    exp_parser.add_argument('--sound_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mhd']['sound'], help='Weight for the sound reconstruction loss.')
     exp_parser.add_argument('--mnist_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mnist_svhn']['mnist'], help='Weight for the mnist reconstruction loss.')
     exp_parser.add_argument('--svhn_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mnist_svhn']['svhn'], help='Weight for the svhn reconstruction loss.')
     exp_parser.add_argument('--text_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mosei_mosi']['text'], help='Weight for the text reconstruction loss.')
     exp_parser.add_argument('--audio_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mosei_mosi']['audio'], help='Weight for the audio reconstruction loss.')
     exp_parser.add_argument('--vision_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['mosei_mosi']['vision'], help='Weight for the vision reconstruction loss.')
+    exp_parser.add_argument('--imaget_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['pendulum']['image_t'], help='Weight for the image reconstruction loss.')
+    exp_parser.add_argument('--audiot_recon_scale', type=float, default=RECON_SCALE_DEFAULTS['pendulum']['audio_t'], help='Weight for the trajectory reconstruction loss.')
     exp_parser.add_argument('--kld_beta', type=float, default=KLD_BETA_DEFAULT, help='Beta value for KL divergence.')
     exp_parser.add_argument('--experts_fusion', type=str, default='poe', choices=EXPERTS_FUSION_TYPES, help='Type of experts to use in the fusion of the modalities for the mvae.')
     exp_parser.add_argument('--rep_trick_mean', type=float, default=REPARAMETERIZATION_MEAN_DEFAULT, help='Mean value for the reparameterization trick for the vae and mvae.')
@@ -201,6 +206,10 @@ def base_validation(function):
             raise argparse.ArgumentError("Argument error: must specify a valid pipeline stage.")
         if "dataset" not in config or config["dataset"] not in DATASETS:
             raise argparse.ArgumentError("Argument error: must specify a dataset for the experiments.")
+        if (config['dataset'] == 'mosi' or config['dataset'] == 'mosei') and (config['stage'] not in ['train_supervised', 'test_classifier']):
+            raise argparse.ArgumentError("Argument error: mosi and mosei datasets are only available in stages 'train_supervised'||'test_classifier'.")
+        if config['dataset'] == 'pendulum' and config['stage'] not in ['train_rl']:
+            raise argparse.ArgumentError("Argument error: pendulum dataset is only available in stage 'train_rl'.")
         return function(m_path, config)
     return wrapper
 
@@ -310,6 +319,8 @@ def config_validation(m_path, config):
                     config["image_recon_scale"] = RECON_SCALE_DEFAULTS['mhd']['image']
                 if "traj_recon_scale" not in config:
                     config["traj_recon_scale"] = RECON_SCALE_DEFAULTS['mhd']['trajectory']
+                if "sound_recon_scale" not in config:
+                    config["sound_recon_scale"] = RECON_SCALE_DEFAULTS['mhd']['sound']
             elif config['dataset'] == "mnist_svhn":
                 if "mnist_recon_scale" not in config:
                     config["mnist_recon_scale"] = RECON_SCALE_DEFAULTS['mnist_svhn']['mnist']
@@ -322,6 +333,11 @@ def config_validation(m_path, config):
                     config["audio_recon_scale"] = RECON_SCALE_DEFAULTS['mosei_mosi']['audio']
                 if "vision_recon_scale" not in config:
                     config["vision_recon_scale"] = RECON_SCALE_DEFAULTS['mosei_mosi']['vision']
+            elif config['dataset'] == 'pendulum':
+                if "imaget_recon_scale" not in config:
+                    config["imaget_recon_scale"] = RECON_SCALE_DEFAULTS['pendulum']['image_t']
+                if "audiot_recon_scale" not in config:
+                    config["audiot_recon_scale"] = RECON_SCALE_DEFAULTS['pendulum']['audio_t']
 
             if config['architecture'] == 'dae' or config['architecture'] == 'dgmc' or config['architecture'] == 'gmcwd':
                 if "train_noise_factor" not in config or config['train_noise_factor'] is None:
@@ -357,12 +373,24 @@ def config_validation(m_path, config):
                     config['image_recon_scale'] = 0.
                 elif config['exclude_modality'] == 'trajectory':
                     config['traj_recon_scale'] = 0.
+                elif config['exclude_modality'] == 'sound':
+                    config['sound_recon_scale'] = 0.
 
                 if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
                     if "mnist_recon_scale" in config and config["mnist_recon_scale"] is not None:
                         config["mnist_recon_scale"] = None
                     if "svhn_recon_scale" in config and config["svhn_recon_scale"] is not None:
                         config["svhn_recon_scale"] = None
+                    if "text_recon_scale" in config and config["text_recon_scale"] is not None:
+                        config["text_recon_scale"] = None
+                    if "audio_recon_scale" in config and config["audio_recon_scale"] is not None:
+                        config["audio_recon_scale"] = None
+                    if "vision_recon_scale" in config and config["vision_recon_scale"] is not None:
+                        config["vision_recon_scale"] = None
+                    if "imaget_recon_scale" in config and config["imaget_recon_scale"] is not None:
+                        config["imaget_recon_scale"] = None
+                    if "audiot_recon_scale" in config and config["audiot_recon_scale"] is not None:
+                        config["audiot_recon_scale"] = None
             elif config['dataset'] == 'mnist_svhn':
                 if config['exclude_modality'] == 'mnist':
                     config['mnist_recon_scale'] = 0.
@@ -374,6 +402,18 @@ def config_validation(m_path, config):
                         config["image_recon_scale"] = None
                     if "traj_recon_scale" in config and config["traj_recon_scale"] is not None:
                         config["traj_recon_scale"] = None
+                    if "sound_recon_scale" in config and config["sound_recon_scale"] is not None:
+                        config["sound_recon_scale"] = None
+                    if "text_recon_scale" in config and config["text_recon_scale"] is not None:
+                        config["text_recon_scale"] = None
+                    if "audio_recon_scale" in config and config["audio_recon_scale"] is not None:
+                        config["audio_recon_scale"] = None
+                    if "vision_recon_scale" in config and config["vision_recon_scale"] is not None:
+                        config["vision_recon_scale"] = None
+                    if "imaget_recon_scale" in config and config["imaget_recon_scale"] is not None:
+                        config["imaget_recon_scale"] = None
+                    if "audiot_recon_scale" in config and config["audiot_recon_scale"] is not None:
+                        config["audiot_recon_scale"] = None
             elif config['dataset'] == 'mosei' or config['dataset'] == 'mosi':
                 if config['exclude_modality'] == 'text':
                     config['text_recon_scale'] = 0.
@@ -383,6 +423,37 @@ def config_validation(m_path, config):
                     config['vision_recon_scale'] = 0.
 
                 if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
+                    if "image_recon_scale" in config and config["image_recon_scale"] is not None:
+                        config["image_recon_scale"] = None
+                    if "traj_recon_scale" in config and config["traj_recon_scale"] is not None:
+                        config["traj_recon_scale"] = None
+                    if "sound_recon_scale" in config and config["sound_recon_scale"] is not None:
+                        config["sound_recon_scale"] = None
+                    if "mnist_recon_scale" in config and config["mnist_recon_scale"] is not None:
+                        config["mnist_recon_scale"] = None
+                    if "svhn_recon_scale" in config and config["svhn_recon_scale"] is not None:
+                        config["svhn_recon_scale"] = None
+                    if "imaget_recon_scale" in config and config["imaget_recon_scale"] is not None:
+                        config["imaget_recon_scale"] = None
+                    if "audiot_recon_scale" in config and config["audiot_recon_scale"] is not None:
+                        config["audiot_recon_scale"] = None
+            elif config['dataset'] == 'pendulum':
+                if config['exclude_modality'] == 'image_t':
+                    config['imaget_recon_scale'] = 0.
+                elif config['exclude_modality'] == 'audio_t':
+                    config['audiot_recon_scale'] = 0.
+
+                if "ae" in config['architecture'] or config['architecture'] == "dgmc" or config['architecture'] == 'gmcwd':
+                    if "image_recon_scale" in config and config["image_recon_scale"] is not None:
+                        config["image_recon_scale"] = None
+                    if "traj_recon_scale" in config and config["traj_recon_scale"] is not None:
+                        config["traj_recon_scale"] = None
+                    if "sound_recon_scale" in config and config["sound_recon_scale"] is not None:
+                        config["sound_recon_scale"] = None
+                    if "mnist_recon_scale" in config and config["mnist_recon_scale"] is not None:
+                        config["mnist_recon_scale"] = None
+                    if "svhn_recon_scale" in config and config["svhn_recon_scale"] is not None:
+                        config["svhn_recon_scale"] = None
                     if "text_recon_scale" in config and config["text_recon_scale"] is not None:
                         config["text_recon_scale"] = None
                     if "audio_recon_scale" in config and config["audio_recon_scale"] is not None:
@@ -392,10 +463,13 @@ def config_validation(m_path, config):
         else:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
+            config['sound_recon_scale'] = None
             config['mnist_recon_scale'] = None
             config['svhn_recon_scale'] = None
             config['text_recon_scale'] = None
             config["audio_recon_scale"] = None
+            config['imaget_recon_scale'] = None
+            config["audiot_recon_scale"] = None
             config['vision_recon_scale'] = None
             config['kld_beta'] = None
             config['rep_trick_mean'] = None
@@ -422,13 +496,17 @@ def config_validation(m_path, config):
 
         if "model" in config['stage']:
             config["path_classifier"] = None
-        else:
+        elif "classifier" in config['stage']:
             config['image_recon_scale'] = None
             config['traj_recon_scale'] = None
+            config['sound_recon_scale'] = None
             config['mnist_recon_scale'] = None
             config['svhn_recon_scale'] = None
-            config['vision_recon_scale'] = None
             config['text_recon_scale'] = None
+            config['audio_recon_scale'] = None
+            config['vision_recon_scale'] = None
+            config['imaget_recon_scale'] = None
+            config['audiot_recon_scale'] = None
             config['infonce_temperature'] = None
             config['o3n_loss_scale'] = None
             config['kld_beta'] = None

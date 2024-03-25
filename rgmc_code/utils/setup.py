@@ -40,6 +40,7 @@ from architectures.mosei_mosi.downstream.classifier import MMClassifier
 from datasets.mhd.mhd_dataset import MhdDataset
 from datasets.mosi.mosi_dataset import MosiDataset
 from datasets.mosei.mosei_dataset import MoseiDataset
+from datasets.pendulum.pendulum_dataset import PendulumDataset
 from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 idx_lock = Lock()
@@ -130,6 +131,8 @@ def setup_experiment(m_path, config, device, train=True):
             dataset = MosiDataset('mosi', os.path.join(m_path, "datasets", "mosi"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mosei':
             dataset = MoseiDataset('mosei', os.path.join(m_path, "datasets", "mosei"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
+        elif config['dataset'] == 'pendulum':
+            dataset = PendulumDataset('pendulum', os.path.join(m_path, "datasets", "pendulum"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         elif config['dataset'] == 'mnist_svhn':
             dataset = MnistSvhnDataset('mnist_svhn', os.path.join(m_path, "datasets", "mnist_svhn"), device, config['download'], config['exclude_modality'], config['target_modality'], train)
         return dataset
