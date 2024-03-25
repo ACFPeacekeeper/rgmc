@@ -8,6 +8,11 @@ Unsupervised Multimodal DL architectures that are robust to noisy and adversaria
 - [Jupyter](https://jupyter.org/)
 - [Anaconda](https://www.anaconda.com/)
 
+### Adapted Code
+This project contains code that was adapted from the following repositories:
+- [Geometric Multimodal Contrastive Representation Learning](https://github.com/miguelsvasco/gmc)
+- [Adversarial Attacks with PyTorch](https://github.com/Harry24k/adversarial-attacks-pytorch)
+
 ## Setup Conda Environment
 To setup the conda environment for the project, you just need to run the following commands in the main directory:
 ```bash
