@@ -84,17 +84,15 @@ class MnistSvhnDataset(MultimodalDataset):
         self.dataset_len = len(data["labels"])
 
         # Normalize datasets
-        data['mnist'] = (data['mnist'] - torch.min(data['mnist'])) / (torch.max(data['mnist']) - torch.min(data['mnist']))
-        data['svhn'] = (data['svhn'] - torch.min(data['svhn'])) / (torch.max(data['svhn']) - torch.min(data['svhn']))
+        self.dataset = {
+            'mnist': (data['mnist'] - torch.min(data['mnist'])) / (torch.max(data['mnist']) - torch.min(data['mnist'])),    # size (n_samples x n_channels x npixels_width x npixels_height) = 56068||10000 x 1 x 28 x 28
+            'svhn': (data['svhn'] - torch.min(data['svhn'])) / (torch.max(data['svhn']) - torch.min(data['svhn']))          # size (n_samples x n_channels x npixels_width x npixels_height) = 56068||10000 x 3 x 32 x 32
+        }
+        self.labels = data["labels"].to(self.device)                                                                        # size (n_samples) = 56068||10000 (int value)
 
-        if self.exclude_modality == 'mnist':
-            self.dataset = {'mnist': torch.full(data["mnist"].size(), -1).to(self.device), 'svhn': data["svhn"].to(self.device)}
-        elif self.exclude_modality == 'svhn':
-            self.dataset = {'mnist': data["mnist"].to(self.device), 'svhn': torch.full(data["svhn"].size(), -1).to(self.device)}
-        else:
-            self.dataset = {'mnist': data["mnist"].to(self.device), 'svhn': data["svhn"].to(self.device)}
+        if self.exclude_modality != 'none' and self.exclude_modality is not None:
+            self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
 
-        self.labels = data["labels"].to(self.device)
         return
     
     def _show_dataset_label_distribution(self):
