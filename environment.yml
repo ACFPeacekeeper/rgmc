@@ -9,11 +9,13 @@ channels:
 dependencies:
   - cuda-cudart=11.7
   - cudatoolkit=11.7
+  - gym=0.26
   - ipykernel=6.25
   - matplotlib=3.7
   - numpy=1.24
   - numpy-base=1.24
-  - python=3.11
+  - pyglet=1.5
+  - python=3.10
   - pytorch=2.0
   - pytorch-lightning=2.0
   - pytorch-mutex=1.0
@@ -23,3 +25,6 @@ dependencies:
   - torchvision=0.15
   - tqdm=4.65
   - wandb=0.15
+  - pip=23.3
+  - pip:
+    - pysine==0.9.2
