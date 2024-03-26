@@ -5,21 +5,18 @@ import wandb
 
 from re import sub
 from threading import Lock
+from torch import cuda, load
+from torch.optim import SGD, Adam
 from subprocess import check_output
-from torch import optim, cuda, load
 
+from input_transformations import *
 from utils.command_parser import create_idx_dict, config_validation
-from input_transformations import gaussian_noise, fgsm, pgd, cw, bim
 
+from datasets import *
 from architectures.mhd import *
 from architectures.mnist_svhn import *
 from architectures.mosei_mosi import *
 from architectures.pendulum import *
-from datasets.mhd.mhd_dataset import MhdDataset
-from datasets.mosi.mosi_dataset import MosiDataset
-from datasets.mosei.mosei_dataset import MoseiDataset
-from datasets.pendulum.pendulum_dataset import PendulumDataset
-from datasets.mnist_svhn.mnist_svhn_dataset import MnistSvhnDataset
 
 idx_lock = Lock()
 device_lock = Lock()
@@ -272,7 +269,7 @@ def setup_experiment(m_path, config, device, train=True):
             param.requires_grad = False
 
         clf_gmc_model.to(device)
-        attack = fgsm.FGSM(device=device, model=clf_gmc_model, target_modality=None, eps=config['adv_std'])
+        attack = FGSM(device=device, model=clf_gmc_model, target_modality=None, eps=config['adv_std'])
         model.set_perturbation(attack)
 
     if config['adversarial_attack'] is not None:
@@ -290,15 +287,15 @@ def setup_experiment(m_path, config, device, train=True):
             clf_model = model
 
         if config['adversarial_attack'] == 'gaussian_noise':
-            attack = gaussian_noise.GaussianNoise(device=device, target_modality=target_modality, std=config['noise_std'])
+            attack = GaussianNoise(device=device, target_modality=target_modality, std=config['noise_std'])
         elif config['adversarial_attack'] == 'fgsm':
-            attack = fgsm.FGSM(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'])
+            attack = FGSM(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'])
         elif config['adversarial_attack'] == 'bim':
-            attack = bim.BIM(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
+            attack = BIM(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
         elif config['adversarial_attack'] == 'pgd':
-            attack = pgd.PGD(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
+            attack = PGD(device=device, model=clf_model, target_modality=target_modality, eps=config['adv_epsilon'], alpha=config['adv_alpha'], steps=config['adv_steps'])
         elif config['adversarial_attack'] == 'cw':
-            attack = cw.CW(device=device, model=clf_model, target_modality=target_modality, c_val=config['adv_epsilon'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
+            attack = CW(device=device, model=clf_model, target_modality=target_modality, c_val=config['adv_epsilon'], kappa=config['adv_kappa'], learning_rate=config['adv_lr'], steps=config['adv_steps'])
 
         if "classifier" in config['stage'] or config['stage'] == 'train_supervised' or config['stage'] == 'inference':
             dataset.dataset = attack(dataset.dataset, dataset.labels)
@@ -308,9 +305,9 @@ def setup_experiment(m_path, config, device, train=True):
     if train and config['stage'] != 'inference':
         if config['optimizer'] is not None:
             if config['optimizer'] == 'adam':
-                optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
+                optimizer = Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
             elif config['optimizer'] == 'sgd':
-                optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
+                optimizer = SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
 
         if 'notes' not in config:
             if os.name == 'posix':
