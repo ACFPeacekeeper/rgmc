@@ -16,10 +16,12 @@ class GMC(LightningModule):
 
         self.image_processor = None
         self.trajectory_processor = None
+        self.sound_processor = None
         self.joint_processor = None
         self.processors = {
             'image': self.image_processor,
             'trajectory': self.trajectory_processor,
+            'sound': self.sound_processor,
             'joint': self.joint_processor,
         }
         self.encoder = None
@@ -170,15 +172,19 @@ class MhdGMC(GMC):
         self.common_dim = common_dim
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim)
+        self.sound_processor = MHDSoundProcessor(common_dim=self.common_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim)
         if exclude_modality == 'image':
-            self.processors = {'trajectory': self.trajectory_processor}
+            self.processors = {'trajectory': self.trajectory_processor, 'sound': self.sound_processor}
         elif exclude_modality == 'trajectory':
-            self.processors = {'image': self.image_processor}
+            self.processors = {'image': self.image_processor, 'sound': self.sound_processor}
+        elif exclude_modality == 'sound':
+            self.processors = {'image': self.image_processor, 'trajectory': self.trajectory_processor}
         else:
             self.processors = {
                 'image': self.image_processor,
                 'trajectory': self.trajectory_processor,
+                'sound': self.sound_processor,
                 'joint': self.joint_processor,
             }
 
