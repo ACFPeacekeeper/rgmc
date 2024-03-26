@@ -13,7 +13,6 @@ dependencies:
   - ipykernel=6.25
   - matplotlib=3.7
   - numpy=1.24
-  - numpy-base=1.24
   - pyglet=1.5
   - python=3.10
   - pytorch=2.0
