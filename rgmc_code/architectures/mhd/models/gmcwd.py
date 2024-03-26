@@ -211,9 +211,9 @@ class GMCWD(LightningModule):
         return z, x_hat
 
 
-class MhdGMCWD(GMCWD):
+class MHDGMCWD(GMCWD):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
-        super(MhdGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
+        super(MHDGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
         self.traj_dim = 512
         self.image_dims = [128, 7, 7]
         image_dim = reduce(lambda x, y: x * y, self.image_dims)

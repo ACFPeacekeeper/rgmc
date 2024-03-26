@@ -232,9 +232,9 @@ class RGMC(LightningModule):
         return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
 
 
-class MhdRGMC(RGMC):
+class MHDRGMC(RGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, scales, noise_factor, device, loss_type="infonce"):
-        super(MhdRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
+        super(MHDRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
         self.traj_dim = 512
         self.image_dims = [128, 7, 7]
         image_dim = reduce(lambda x, y: x * y, self.image_dims)

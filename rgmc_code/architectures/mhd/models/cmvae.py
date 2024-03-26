@@ -5,9 +5,9 @@ from collections import Counter
 from ..subnetworks.cmvae_networks import *
 
 
-class MhdCMVAE(nn.Module):
+class MHDCMVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std):
-        super(MhdCMVAE, self).__init__()
+        super(MHDCMVAE, self).__init__()
         self.kld = 0.
         self.std = std
         self.mean = mean

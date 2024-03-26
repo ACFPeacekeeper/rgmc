@@ -5,9 +5,9 @@ from collections import Counter
 from ..subnetworks.dae_networks import *
 
 
-class MhdDAE(nn.Module):
+class MHDDAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.5):
-        super(MhdDAE, self).__init__()
+        super(MHDDAE, self).__init__()
         self.name = name
         self.layer_dim = 28 * 28 + 200
         self.modality_dims = [0, 28 * 28, 200]

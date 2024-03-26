@@ -7,9 +7,9 @@ from ..subnetworks.mvae_networks import *
 
 
 # Code adapted from https://github.com/mhw32/multimodal-vae-public/blob/master/mnist/model.py
-class MhdMVAE(nn.Module):
+class MHDMVAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, mean, std, expert_type, poe_eps):
-        super(MhdMVAE, self).__init__()
+        super(MHDMVAE, self).__init__()
         self.name = name
         self.device = device
         self.mean = mean

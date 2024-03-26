@@ -236,9 +236,9 @@ class DGMC(LightningModule):
         return z, x_hat
 
 
-class MhdDGMC(DGMC):
+class MHDDGMC(DGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dimension, infonce_temperature, noise_factor, loss_type="infonce"):
-        super(MhdDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
+        super(MHDDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
         self.traj_dim = 512
         self.image_dims = [128, 7, 7]
         image_dim = reduce(lambda x, y: x * y, self.image_dims)

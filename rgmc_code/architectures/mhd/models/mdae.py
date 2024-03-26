@@ -5,9 +5,9 @@ from collections import Counter
 from ..subnetworks.mdae_networks import *
 
 
-class MhdMDAE(nn.Module):
+class MHDMDAE(nn.Module):
     def __init__(self, name, latent_dimension, device, exclude_modality, scales, noise_factor=0.5):
-        super(MhdMDAE, self).__init__()
+        super(MHDMDAE, self).__init__()
         self.name = name
         self.device = device
         self.noise_factor = noise_factor
