@@ -1,31 +1,5 @@
 import torch.nn as nn
 
-class CommonEncoder(nn.Module):
-    def __init__(self, latent_dimension):
-        super(CommonEncoder, self).__init__()
-        self.latent_dimension = latent_dimension
-        self.latent_fc = nn.Linear(latent_dimension, latent_dimension)
-
-    def set_latent_dim(self, latent_dim):
-        self.latent_fc = nn.Linear(latent_dim, latent_dim)
-        self.latent_dimension = latent_dim
-
-    def forward(self, x):
-        return self.latent_fc(x)
-    
-class CommonDecoder(nn.Module):
-    def __init__(self, latent_dimension):
-        super(CommonDecoder, self).__init__()
-        self.latent_dimension = latent_dimension
-        self.latent_fc = nn.Linear(latent_dimension, latent_dimension)
-
-    def set_latent_dim(self, latent_dim):
-        self.latent_fc = nn.Linear(latent_dim, latent_dim)
-        self.latent_dimension = latent_dim
-
-    def forward(self, z):
-        return self.latent_fc(z)
-    
 
 class MNISTEncoder(nn.Module):
     def __init__(self, latent_dimension):
@@ -36,15 +10,18 @@ class MNISTEncoder(nn.Module):
             nn.Conv2d(64, 128, 4, 2, 1),
             nn.GELU(),
         )
-        self.latent_fc = nn.Linear(128 * 7 * 7, latent_dimension)
+
+        self.fc_mean = nn.Linear(128 * 7 * 7, latent_dimension)
+        self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        self.latent_fc = nn.Linear(128 * 7 * 7, latent_dim)
+        self.fc_mean = nn.Linear(128 * 7 * 7, latent_dim)
+        self.fc_logvar = nn.Linear(128 * 7 * 7, latent_dim)
 
     def forward(self, x):
         h = self.feature_extractor(x)
         h = h.view(h.size(0), -1)
-        return self.latent_fc(h)
+        return self.fc_mean(h), self.fc_logvar(h)
       
 
 class SVHNEncoder(nn.Module):
@@ -59,15 +36,17 @@ class SVHNEncoder(nn.Module):
             nn.GELU(),
         )
 
-        self.latent_fc = nn.Linear(32 * 32 * 2, latent_dimension)
+        self.fc_mean = nn.Linear(32 * 32 * 2, latent_dimension)
+        self.fc_logvar = nn.Linear(32 * 32 * 2, latent_dimension)
 
     def set_latent_dim(self, latent_dim):
-        self.latent_fc = nn.Linear(32 * 32 * 2, latent_dim)
+        self.fc_mean = nn.Linear(32 * 32 * 2, latent_dim)
+        self.fc_logvar = nn.Linear(32 * 32 * 2, latent_dim)
 
     def forward(self, x):
         h = self.feature_extractor(x)
         h = h.view(h.size(0), -1)
-        return self.latent_fc(h)
+        return self.fc_mean(h), self.fc_logvar(h)
 
 
 class MNISTDecoder(nn.Module):

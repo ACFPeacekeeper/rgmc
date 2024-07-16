@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class MNISTEncoder(nn.Module):
     def __init__(self, latent_dimension):
         super(MNISTEncoder, self).__init__()

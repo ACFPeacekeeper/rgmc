@@ -1,9 +1,9 @@
 import random
 
-from ..subnetworks.ooo_network import OddOneOutNetwork
-from pytorch_lightning import LightningModule
-from ..subnetworks.rgmc_networks import *
 from collections import Counter
+from ..modules.rgmc_networks import *
+from pytorch_lightning import LightningModule
+from ..modules.ooo_network import OddOneOutNetwork
 
 
 class RGMC(LightningModule):

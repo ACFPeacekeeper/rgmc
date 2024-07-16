@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 filter_base = 32
+
 
 class MSCommonEncoder(nn.Module):
     def __init__(self, common_dim, latent_dimension):

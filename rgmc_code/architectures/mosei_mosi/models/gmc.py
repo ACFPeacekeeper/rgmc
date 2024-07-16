@@ -1,5 +1,6 @@
-from ..subnetworks.gmc_networks import *
 from collections import Counter
+from ..modules.gmc_networks import *
+
 
 # Code adapted from https://github.com/miguelsvasco/gmc
 class SuperGMC(LightningModule):

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class OddOneOutNetwork(nn.Module):
     def __init__(self, latent_dim, num_modalities, modalities, device):
         super().__init__()

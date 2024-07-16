@@ -1,7 +1,7 @@
-from pytorch_lightning import LightningModule
-from ..subnetworks.gmcwd_networks import *
-from collections import Counter
 from torch.nn import ReLU
+from collections import Counter
+from ..modules.gmcwd_networks import *
+from pytorch_lightning import LightningModule
 
 
 class GMCWD(LightningModule):

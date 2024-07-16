@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from pytorch_lightning import LightningModule
-from ..subnetworks.transformer_networks import TransformerEncoder
+from ..modules.transformer_networks import TransformerEncoder
 
 
 # Code adapted from https://github.com/miguelsvasco/gmc

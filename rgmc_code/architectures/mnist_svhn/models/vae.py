@@ -2,7 +2,7 @@ import torch
 
 from torch.nn import ReLU
 from collections import Counter
-from ..subnetworks.vae_networks import *
+from ..modules.vae_networks import *
 
 
 class MSVAE(nn.Module):

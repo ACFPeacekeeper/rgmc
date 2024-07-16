@@ -1,7 +1,7 @@
-from pytorch_lightning import LightningModule
-from ..subnetworks.gmc_networks import *
-from collections import Counter
 from functools import reduce
+from collections import Counter
+from ..modules.gmc_networks import *
+from pytorch_lightning import LightningModule
 
 
 class GMC(LightningModule):

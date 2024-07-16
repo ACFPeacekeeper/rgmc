@@ -3,7 +3,7 @@ import torch
 from torch.nn import ReLU
 from collections import Counter
 from torch.autograd import Variable
-from ..subnetworks.mvae_networks import *
+from ..modules.mvae_networks import *
 
 
 # Code adapted from https://github.com/mhw32/multimodal-vae-public/blob/master/mnist/model.py

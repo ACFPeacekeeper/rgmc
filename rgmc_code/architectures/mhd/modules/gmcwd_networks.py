@@ -4,7 +4,9 @@ import torch.nn.functional as F
 
 from functools import reduce
 
+
 filter_base = 32
+
 
 class MHDCommonEncoder(nn.Module):
     def __init__(self, common_dim, latent_dimension):
@@ -64,9 +66,9 @@ class MHDImageProcessor(nn.Module):
         self.dim = dim
         self.common_dim = common_dim
         self.image_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.Conv2d(1, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
         self.projector = nn.Linear(dim, common_dim)
@@ -85,10 +87,11 @@ class MHDTrajectoryProcessor(nn.Module):
     def __init__(self, common_dim, dim):
         super(MHDTrajectoryProcessor, self).__init__()
         self.dim = dim
+        self.common_dim = common_dim
         self.trajectory_features = nn.Sequential(
             nn.Linear(200, 512),
             nn.GELU(),
-            nn.Linear(512, 512),
+            nn.Linear(512, self.dim),
             nn.GELU(),
         )
         self.projector = nn.Linear(self.dim, common_dim)
@@ -109,9 +112,9 @@ class MHDJointProcessor(nn.Module):
         self.image_dim = image_dim
         self.common_dim = common_dim
         self.img_features = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1),
+            nn.Conv2d(1, filter_base * 2, 4, 2, 1, bias=False),
             nn.GELU(),
-            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.Conv2d(filter_base * 2, filter_base * 4, 4, 2, 1, bias=False),
             nn.GELU(),
         )
 
@@ -138,3 +141,44 @@ class MHDJointProcessor(nn.Module):
         h_trajectory = self.trajectory_features(x_trajectory)
 
         return self.projector(torch.cat((h_img, h_trajectory), dim=-1))
+
+
+class MHDJointDecoder(nn.Module):
+    def __init__(self, common_dim, image_dims, traj_dim):
+        super(MHDJointDecoder, self).__init__()
+        self.traj_dim = traj_dim
+        self.image_dims = image_dims
+        self.common_dim = common_dim
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.image_dims) + 512)
+        self.image_reconstructor = nn.Sequential(
+           nn.GELU(),
+           nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
+           nn.GELU(),
+           nn.ConvTranspose2d(filter_base * 2, 1, 4, 2, 1, bias=False), 
+        )
+
+        self.trajectory_reconstructor = nn.Sequential(
+            nn.GELU(),
+            nn.Linear(self.traj_dim, 512),
+            nn.GELU(),
+            nn.Linear(512, 200)
+        )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.image_dims) + self.traj_dim)
+        self.common_dim = common_dim
+
+    def forward(self, z):
+        x_hat = self.projector(z)
+
+        # Image recon
+        image_dim = reduce(lambda x, y: x * y, self.image_dims)
+        img_hat = x_hat[:, :image_dim]
+        img_hat = img_hat.view(img_hat.size(0), *self.image_dims)
+        img_hat = self.image_reconstructor(img_hat)
+
+        # Trajectory recon
+        traj_hat = x_hat[:, image_dim:image_dim + self.traj_dim]
+        traj_hat = self.trajectory_reconstructor(traj_hat)
+
+        return {"image": img_hat, "trajectory": traj_hat}

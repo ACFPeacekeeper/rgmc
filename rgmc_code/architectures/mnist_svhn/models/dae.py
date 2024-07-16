@@ -2,7 +2,7 @@ import torch
 
 from torch.nn import ReLU
 from collections import Counter
-from ..subnetworks.dae_networks import *
+from ..modules.dae_networks import *
 
 
 class MSDAE(nn.Module):

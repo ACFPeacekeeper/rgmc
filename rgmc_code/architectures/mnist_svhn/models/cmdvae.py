@@ -2,7 +2,7 @@ import torch
 
 from torch.nn import ReLU
 from collections import Counter
-from ..subnetworks.cmdvae_networks import *
+from ..modules.cmdvae_networks import *
 
 
 class MSCMDVAE(nn.Module):

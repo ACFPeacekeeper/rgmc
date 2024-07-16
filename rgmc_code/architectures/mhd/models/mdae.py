@@ -2,7 +2,7 @@ import torch
 
 from torch.nn import ReLU
 from collections import Counter
-from ..subnetworks.mdae_networks import *
+from ..modules.mdae_networks import *
 
 
 class MHDMDAE(nn.Module):

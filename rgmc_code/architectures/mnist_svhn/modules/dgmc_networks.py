@@ -4,7 +4,9 @@ import torch.nn.functional as F
 
 from functools import reduce
 
+
 filter_base = 32
+
 
 class MSCommonEncoder(nn.Module):
     def __init__(self, common_dim, latent_dimension):
@@ -81,6 +83,29 @@ class MSMNISTProcessor(nn.Module):
         return self.projector(h)
 
 
+class MSMNISTDecoder(nn.Module):
+    def __init__(self, common_dim, dims):
+        super(MSMNISTDecoder, self).__init__()
+        self.dims = dims
+        self.common_dim = common_dim
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.dims))
+        self.mnist_reconstructor = nn.Sequential(
+            nn.GELU(),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+            nn.GELU(),
+            nn.ConvTranspose2d(64, 1, 4, 2, 1, bias=False)
+        )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.dims))
+        self.common_dim = common_dim
+
+    def forward(self, z):
+        x_hat = self.projector(z)
+        x_hat = x_hat.view(x_hat.size(0), *self.dims)
+        return self.mnist_reconstructor(x_hat)
+
+
 class MSSVHNProcessor(nn.Module):
     def __init__(self, common_dim, dim):
         super(MSSVHNProcessor, self).__init__()
@@ -103,7 +128,31 @@ class MSSVHNProcessor(nn.Module):
     def forward(self, x):
         h = self.svhn_features(x)
         h = h.view(h.size(0), -1)
-        return self.projector(h)     
+        return self.projector(h)
+
+class MSSVHNDecoder(nn.Module):
+    def __init__(self, common_dim, dims):
+        super(MSSVHNDecoder, self).__init__()
+        self.dims = dims
+        self.common_dim = common_dim
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.dims))
+        self.svhn_reconstructor = nn.Sequential(
+            nn.GELU(),
+            nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
+            nn.GELU(),
+            nn.ConvTranspose2d(filter_base * 2, filter_base, 4, 2, 1, bias=False),
+            nn.GELU(),
+            nn.ConvTranspose2d(filter_base, 3, 4, 2, 1, bias=False),
+        )
+
+    def set_common_dim(self, common_dim):
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.dims))
+        self.common_dim = common_dim
+
+    def forward(self, h):
+        x_hat = self.projector(h)
+        x_hat = x_hat.view(x_hat.size(0), *self.dims)
+        return self.svhn_reconstructor(x_hat)        
 
 
 class MSJointProcessor(nn.Module):
@@ -158,7 +207,7 @@ class MSJointDecoder(nn.Module):
            nn.GELU(),
            nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
            nn.GELU(),
-           nn.ConvTranspose2d(filter_base * 2, 1, 4, 2, 1, bias=False),
+           nn.ConvTranspose2d(filter_base * 2, 1, 4, 2, 1, bias=False), 
         )
 
         self.svhn_reconstructor = nn.Sequential(

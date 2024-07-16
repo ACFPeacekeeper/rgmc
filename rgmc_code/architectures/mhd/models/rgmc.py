@@ -2,9 +2,10 @@ import random, sys
 import torch.nn.functional as F
 
 from collections import Counter
-from ..subnetworks.rgmc_networks import *
+from ..modules.rgmc_networks import *
 from pytorch_lightning import LightningModule
-from ..subnetworks.ooo_network import OddOneOutNetwork
+from ..modules.ooo_network import OddOneOutNetwork
+
 
 class RGMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, scales, noise_factor=0.3, loss_type="infonce"):

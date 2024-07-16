@@ -4,7 +4,9 @@ import torch.nn.functional as F
 
 from functools import reduce
 
+
 filter_base = 32
+
 
 class MHDCommonEncoder(nn.Module):
     def __init__(self, common_dim, latent_dimension):
