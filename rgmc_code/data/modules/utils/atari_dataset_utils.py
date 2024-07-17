@@ -3,8 +3,9 @@ import gym
 import errno
 import torch
 import numpy as np
+import modules.envs.pendulum_env as ps
+
 from collections import deque
-import data_modules.envs.pendulum_env as ps
 from ..utils.game_utils import pendulum_image_preprocess
 
 def _random_action(env):
