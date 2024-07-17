@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning import LightningModule
 from rgmc_code.data.modules.utils.game_utils import pendulum_image_preprocess, pendulum_sound_preprocess
 
 
@@ -33,7 +33,6 @@ class PendulumProcessor(Processor):
         return self.sound_norm
 
     def preprocess(self, observation):
-
         if self.sound_norm is None:
             raise ValueError('[Pendulum Processor] No sound normalization factor available. Please set it first.')
 
@@ -61,10 +60,8 @@ class PendulumProcessor(Processor):
             pre_obs.append(sound_p)
 
         return pre_obs
-
 
     def eval_preprocess(self, observation):
-
         if self.sound_norm is None:
             raise ValueError('[Pendulum Processor] No sound normalization factor available. Please set it first.')
 
@@ -93,9 +90,7 @@ class PendulumProcessor(Processor):
 
         return pre_obs
 
-
     def postprocess(self, observation):
-
         if 0 in self.mods and 1 in self.mods:
             image, sound = observation
         elif 0 in self.mods:

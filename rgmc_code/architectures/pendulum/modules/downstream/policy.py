@@ -83,4 +83,3 @@ class PendulumPolicy(Policy):
         with torch.no_grad():
             action = self.policy_net(state).squeeze(0).detach().cpu().numpy()
             return np.clip(action, self.action_space.low, self.action_space.high)
-

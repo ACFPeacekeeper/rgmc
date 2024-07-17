@@ -1,8 +1,8 @@
-import random
 import torch
+import random
+import collections
 import numpy as np
 
-from collections import deque
 from rgmc_code.utils.rl_utils import Transition
 
 
@@ -34,7 +34,7 @@ class FrameBuffer:
         self.frames_per_state = frames_per_state
         self.samples = []
         for _ in range(self.mods):
-            self.samples.append(deque(maxlen=frames_per_state))
+            self.samples.append(collections.deque(maxlen=frames_per_state))
 
         self.processor = processor
         self.eval_mode = eval_mode

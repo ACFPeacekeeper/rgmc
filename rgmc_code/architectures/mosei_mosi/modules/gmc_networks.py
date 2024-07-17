@@ -33,11 +33,9 @@ def get_affect_network(self_type='l', layers=1):
                               attn_mask=False)
 
 
-
 class AffectJointProcessor(torch.nn.Module):
     def __init__(self, common_dim, scenario='mosei'):
         super(AffectJointProcessor, self).__init__()
-
         self.common_dim = common_dim
         if scenario == 'mosei':
             # Language
@@ -76,21 +74,17 @@ class AffectJointProcessor(torch.nn.Module):
             self.trans_v_with_a = get_affect_network(self_type='va', layers=5)
             self.trans_v_mem = get_affect_network(self_type='v_mem', layers=5)
 
-
         # Projector
         self.proj1 = nn.Linear(60*3, 60*3)
         self.proj2 = nn.Linear(60*3, 60*3)
         self.projector = nn.Linear(60*3, common_dim)
 
-
     def set_common_dim(self, common_dim):
         self.common_dim = common_dim
         self.projector = nn.Linear(60*3, common_dim)
 
-
     def forward(self, x):
         x_l, x_a, x_v = x['text'], x['audio'], x['vision']
-
         """
         text, audio, and vision should have dimension [batch_size, seq_len, n_features]
         """
@@ -143,17 +137,14 @@ class AffectJointProcessor(torch.nn.Module):
         return self.projector(last_hs_proj)
 
 
-
 class AffectGRUEncoder(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, latent_dim, timestep, batch_first=False):
         super(AffectGRUEncoder, self).__init__()
-
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
 
-        self.gru = nn.GRU(input_size=input_dim, hidden_size=hidden_dim,
-                          batch_first=batch_first)
+        self.gru = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, batch_first=batch_first)
         self.projector = nn.Linear(self.hidden_dim*timestep, latent_dim)
 
         self.ts = timestep
@@ -170,12 +161,10 @@ class AffectGRUEncoder(torch.nn.Module):
 
 
 class AffectEncoder(LightningModule):
-
     def __init__(self, common_dim, latent_dim):
         super(AffectEncoder, self).__init__()
         self.common_dim = common_dim
         self.latent_dim = latent_dim
-
         self.encode = nn.Linear(common_dim, latent_dim)
 
     def set_latent_dim(self, latent_dim):

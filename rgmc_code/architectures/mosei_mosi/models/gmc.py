@@ -1,5 +1,8 @@
-from collections import Counter
-from ..modules.gmc_networks import *
+import torch
+import collections
+
+from pytorch_lightning import LightningModule
+from ..modules.gmc_networks import AffectGRUEncoder, AffectJointProcessor, AffectEncoder
 
 
 # Code adapted from https://github.com/miguelsvasco/gmc
@@ -152,7 +155,7 @@ class SuperGMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+        return loss, collections.Counter(tqdm_dict)
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -165,16 +168,13 @@ class SuperGMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
-
-
+        return loss, collections.Counter(tqdm_dict)
 
 
 # Affect
 class AffectGMC(SuperGMC):
     def __init__(self, name, exclude_modality, common_dim, latent_dim, infonce_temperature, loss_type="infonce", scenario='mosei'):
         super(AffectGMC, self).__init__(name, common_dim, exclude_modality, latent_dim, infonce_temperature, loss_type)
-
         if scenario == 'mosei':
             self.language_processor = AffectGRUEncoder(input_dim=300, hidden_dim=30, latent_dim=latent_dim, timestep=50)
             self.audio_processor = AffectGRUEncoder(input_dim=74, hidden_dim=30, latent_dim=latent_dim, timestep=50)
@@ -185,7 +185,6 @@ class AffectGMC(SuperGMC):
             self.vision_processor = AffectGRUEncoder(input_dim=20, hidden_dim=30, latent_dim=latent_dim, timestep=50)
 
         self.joint_processor = AffectJointProcessor(latent_dim, scenario)
-
         if exclude_modality == 'vision':
             self.processors = {'text': self.language_processor, 'audio': self.audio_processor}
         elif exclude_modality == 'text':

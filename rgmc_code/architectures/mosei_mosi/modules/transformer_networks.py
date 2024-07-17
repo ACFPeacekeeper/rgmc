@@ -1,9 +1,7 @@
 import math
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-
-from torch import nn
-from torch.nn import Parameter
 
 
 # Code adapted from the fairseq repo.
@@ -11,7 +9,6 @@ class MultiheadAttention(nn.Module):
     """Multi-headed attention.
     See "Attention Is All You Need" for more details.
     """
-
     def __init__(self, embed_dim, num_heads, attn_dropout=0.,
                  bias=True, add_bias_kv=False, add_zero_attn=False):
         super().__init__()
@@ -22,20 +19,19 @@ class MultiheadAttention(nn.Module):
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
         self.scaling = self.head_dim ** -0.5
 
-        self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
+        self.in_proj_weight = nn.Parameter(torch.Tensor(3 * embed_dim, embed_dim))
         self.register_parameter('in_proj_bias', None)
         if bias:
-            self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
+            self.in_proj_bias = nn.Parameter(torch.Tensor(3 * embed_dim))
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         if add_bias_kv:
-            self.bias_k = Parameter(torch.Tensor(1, 1, embed_dim))
-            self.bias_v = Parameter(torch.Tensor(1, 1, embed_dim))
+            self.bias_k = nn.Parameter(torch.Tensor(1, 1, embed_dim))
+            self.bias_v = nn.Parameter(torch.Tensor(1, 1, embed_dim))
         else:
             self.bias_k = self.bias_v = None
 
         self.add_zero_attn = add_zero_attn
-
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -158,10 +154,7 @@ class MultiheadAttention(nn.Module):
         return F.linear(input, weight, bias)
 
 
-
-
 # Code adapted from the fairseq repo.
-
 def make_positions(tensor, padding_idx, left_pad):
     """Replace non-padding symbols with their position numbers.
     Position numbers begin at padding_idx+1.
@@ -189,7 +182,6 @@ class SinusoidalPositionalEmbedding(nn.Module):
     Padding symbols are ignored, but it is necessary to specify whether padding
     is added on the left side (left_pad=True) or right side (left_pad=False).
     """
-
     def __init__(self, embedding_dim, padding_idx=0, left_pad=0, init_size=128):
         super().__init__()
         self.embedding_dim = embedding_dim
@@ -237,8 +229,6 @@ class SinusoidalPositionalEmbedding(nn.Module):
         return int(1e5)  # an arbitrary large number
 
 
-
-
 class TransformerEncoder(nn.Module):
     """
     Transformer encoder consisting of *args.encoder_layers* layers. Each layer
@@ -252,7 +242,6 @@ class TransformerEncoder(nn.Module):
         res_dropout (float): dropout applied on the residual block
         attn_mask (bool): whether to apply mask on the attention weights
     """
-
     def __init__(self, embed_dim, num_heads, layers, attn_dropout=0.0, relu_dropout=0.0, res_dropout=0.0,
                  embed_dropout=0.0, attn_mask=False):
         super().__init__()
@@ -341,7 +330,6 @@ class TransformerEncoderLayer(nn.Module):
     Args:
         embed_dim: Embedding dimension
     """
-
     def __init__(self, embed_dim, num_heads=4, attn_dropout=0.1, relu_dropout=0.1, res_dropout=0.1,
                  attn_mask=False):
         super().__init__()

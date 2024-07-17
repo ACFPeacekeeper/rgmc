@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 # Pendulum
@@ -24,7 +23,7 @@ class PendulumCommonEncoder(nn.Module):
         self.feature_extractor[0] = nn.Linear(common_dim, 128)
 
     def forward(self, x):
-        return F.normalize(self.feature_extractor(x), dim=-1)
+        return nn.functional.normalize(self.feature_extractor(x), dim=-1)
 
 
 class PendulumImageProcessor(nn.Module):
