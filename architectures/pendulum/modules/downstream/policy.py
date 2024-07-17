@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from rgmc_code.utils.rl_utils import OUNoise
+from utils.rl_utils import OUNoise
 
 
 class Policy(object):

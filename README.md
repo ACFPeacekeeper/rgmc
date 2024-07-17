@@ -22,9 +22,8 @@ conda activate RGMC
 ```
 
 ## Setup Project
-In order to setup the project, just change to the rgmc_code directory and then run the python script to download and prepare all datasets:
+In order to setup the project, just run the python script to download and prepare all datasets:
 ```bash
-cd rgmc_code
 python download_datasets.py
 ```
 
@@ -36,7 +35,7 @@ In order to begin a new experiment from the command line, you must choose the ar
 ```bash
 python main.py exp --a <architecture> --d <dataset> --s <train_model||train_classifier||test_model||test_classifier>
 ```
-This will begin an experiment with the default hyper-parameters for the given architecture, dataset and stage, but you can also define the values you want for each hyper-parameter in the arguments (e.g., learning rate, batch size, number of epochs). For the full list of hyper-parameters you can tune, [see](https://github.com/MrIceHavoc/rgmc/blob/6d7f73afcb8e87e5dfcb289e43370c49ea07d29c/rgmc_code/utils/command_parser.py#L90).
+This will begin an experiment with the default hyper-parameters for the given architecture, dataset and stage, but you can also define the values you want for each hyper-parameter in the arguments (e.g., learning rate, batch size, number of epochs). For the full list of hyper-parameters you can tune, [see](https://github.com/MrIceHavoc/rgmc/blob/6d7f73afcb8e87e5dfcb289e43370c49ea07d29c/utils/command_parser.py#L90).
 
 ### Config File
 You can also run several experiments in succession by reading a JSON file with a list of experimental configurations:

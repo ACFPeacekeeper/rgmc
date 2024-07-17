@@ -3,7 +3,7 @@ import random
 import collections
 import numpy as np
 
-from rgmc_code.utils.rl_utils import Transition
+from utils.rl_utils import Transition
 
 
 class FrameBuffer:

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from pytorch_lightning import LightningModule
-from rgmc_code.data.modules.utils.game_utils import pendulum_image_preprocess, pendulum_sound_preprocess
+from data.modules.utils.game_utils import pendulum_image_preprocess, pendulum_sound_preprocess
 
 
 class Processor(LightningModule):
