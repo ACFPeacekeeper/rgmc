@@ -1,15 +1,14 @@
 import os
 import sys
 import json
+import torch
 import shutil
 import random
 import argparse
+import itertools
 import traceback
 import numpy as np
 
-from itertools import product
-from torch.backends import cudnn
-from torch import manual_seed, cuda
 from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, save_config
 
 
@@ -56,6 +55,7 @@ RECON_SCALE_DEFAULTS = {
     'mosei_mosi': {'text': 1/3, 'audio': 1/3, 'vision': 1/3},
     'pendulum': {'image_t': 0.5, 'audio_t': 0.5}
 }
+
 
 def process_arguments(m_path):
     parser = argparse.ArgumentParser(prog="rgmc", description="Program to test the performance and robustness of several different models with clean and noisy/adversarial samples.")
@@ -182,7 +182,7 @@ def process_arguments(m_path):
                 conf_path = open(os.path.join(m_path, partial_path))
                 hyperparams = json.load(conf_path)
                 keys, values = zip(*hyperparams.items())
-                configs.append([dict(zip(keys, v)) for v in product(*values)])
+                configs.append([dict(zip(keys, v)) for v in itertools.product(*values)])
             configs = [x for subconf in configs for x in subconf]
         else:
             configs = []
@@ -273,10 +273,10 @@ def config_validation(m_path, config):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
-    manual_seed(seed)
-    cuda.manual_seed(seed)
-    cudnn.deterministic = True
-    cudnn.benchmark = True
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
     
     try:
         os.makedirs(os.path.join(m_path, "results", config['stage']), exist_ok=True)

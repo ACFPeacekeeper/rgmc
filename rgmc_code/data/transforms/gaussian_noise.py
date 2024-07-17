@@ -1,11 +1,11 @@
 import torch
 
-from input_transformations.noise import Noise
+from .noise import Noise
+
 
 class GaussianNoise(Noise):
     def __init__(self, device, target_modality=None, mean=0., std=1.):
         super().__init__("GaussianNoise", device, target_modality, mean, std)
-
 
     def __call__(self, x, y=None):
         for key in x.keys():
@@ -14,7 +14,6 @@ class GaussianNoise(Noise):
             else:
                 x[key] = x[key]
         return x
-
 
     def __repr__(self):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)

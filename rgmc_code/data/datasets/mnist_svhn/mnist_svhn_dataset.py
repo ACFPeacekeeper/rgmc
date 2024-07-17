@@ -1,11 +1,12 @@
 import os
 import torch
+import torchvision
 import numpy as np
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
-from torchvision import datasets, transforms
 from ..multimodal_dataset import MultimodalDataset
+
 
 # Adapted from https://github.com/iffsid/mmvae
 class MnistSvhnDataset(MultimodalDataset):
@@ -17,11 +18,12 @@ class MnistSvhnDataset(MultimodalDataset):
     @staticmethod
     def _download():
         # Get the individual datasets
-        tx = transforms.ToTensor()
-        train_mnist = datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=True, download=True, transform=tx)
-        test_mnist = datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=False, download=True, transform=tx)
-        train_svhn = datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='train', download=True, transform=tx)
-        test_svhn = datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='test', download=True, transform=tx)
+        tx = torchvision.transforms.ToTensor()
+        train_mnist = torchvision.datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=True, download=True, transform=tx)
+        test_mnist = torchvision.datasets.MNIST(os.path.join("datasets", "mnist_svhn"), train=False, download=True, transform=tx)
+        train_svhn = torchvision.datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='train', download=True, transform=tx)
+        test_svhn = torchvision.datasets.SVHN(os.path.join("datasets", "mnist_svhn"), split='test', download=True, transform=tx)
+
         # SVHN labels need extra work
         train_svhn.labels = torch.LongTensor(train_svhn.labels.squeeze().astype(int)) % 10
         test_svhn.labels = torch.LongTensor(test_svhn.labels.squeeze().astype(int)) % 10
@@ -69,10 +71,9 @@ class MnistSvhnDataset(MultimodalDataset):
         test_dict["mnist"] = torch.stack(test_dict["mnist"])
         test_dict["svhn"] = torch.stack(test_dict["svhn"])
         test_dict["labels"] = torch.stack(test_dict["labels"])
-        
+
         torch.save(train_dict, os.path.join("datasets", "mnist_svhn", 'mnist_svhn_train.pt'))
         torch.save(test_dict, os.path.join("datasets", "mnist_svhn", 'mnist_svhn_test.pt'))
-        return
     
     def _load_data(self, train):
         if train:
@@ -89,18 +90,13 @@ class MnistSvhnDataset(MultimodalDataset):
             'svhn': (data['svhn'] - torch.min(data['svhn'])) / (torch.max(data['svhn']) - torch.min(data['svhn']))          # size (n_samples x n_channels x npixels_width x npixels_height) = 56068||10000 x 3 x 32 x 32
         }
         self.labels = data["labels"].to(self.device)                                                                        # size (n_samples) = 56068||10000 (int value)
-
         if self.exclude_modality != 'none' and self.exclude_modality is not None:
             self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
-
-        return
     
     def _show_dataset_label_distribution(self):
         label_dict = {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0}
-
         for data_set in ['train', 'test']:
             data_path = os.path.join(self.dataset_dir, f"mnist_svhn_{data_set}.pt")
-
             data = torch.load(data_path)
             labels = data["labels"]
             dataset_len = len(labels)
@@ -121,4 +117,3 @@ class MnistSvhnDataset(MultimodalDataset):
             fig.legend()
             fig.savefig(os.path.join(self.dataset_dir, f'ms_{data_set}.png'))
             plt.close()
-        return

@@ -1,2 +1,2 @@
 from models.gmc import AffectGMC
-from downstream.classifier import MMClassifier
+from models.downstream.classifier import MMClassifier

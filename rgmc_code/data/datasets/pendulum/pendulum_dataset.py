@@ -1,8 +1,9 @@
 import os
 import torch
+import subprocess
 
-from subprocess import run
 from ..multimodal_dataset import MultimodalDataset
+
 
 class PendulumDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
@@ -11,12 +12,11 @@ class PendulumDataset(MultimodalDataset):
     @staticmethod
     def _download():
         dataset_dir = os.path.join(os.getcwd(), "datasets", "pendulum")
-        run([os.path.join(dataset_dir, "download_pendulum_dataset.sh"), "bash"], shell=True)
+        subprocess.run([os.path.join(dataset_dir, "download_pendulum_dataset.sh"), "bash"], shell=True)
         before_filenames = ["train_dataset_samples20000_stack2_freq440.0_vel20.0_rec[\'LEFT_BOTTOM\'\,\ \'RIGHT_BOTTOM\'\,\ \'MIDDLE_TOP\'].pt", "test_dataset_samples2000_stack2_freq440.0_vel20.0_rec[\'LEFT_BOTTOM\'\,\ \'RIGHT_BOTTOM\'\,\ \'MIDDLE_TOP\'].pt"]
         after_filenames = ["train_dataset_samples20000_stack2_freq440.0_vel20.0_rec.pt", "test_dataset_samples2000_stack2_freq440.0_vel20.0_rec.pt"]
         for name_before, name_after in zip(before_filenames, after_filenames):
             os.rename(name_before, name_after)
-        return
     
     def _load_data(self, train):
         if train:
@@ -41,10 +41,7 @@ class PendulumDataset(MultimodalDataset):
             'audio_t++': data[5].to(self.device),                           # size (n_samples x n_channels x n_microphones x sound_features[amplitude, frequency]) = 20000||2000 x 2 x 3 x 2
             'amplitude': data[7]['amplitude'],                              # [np.float64, np.float64]
             'frequency': data[7]['frequency']                               # [np.float64, np.float64]
-            }
-
+        }
         if self.exclude_modality != 'none' and self.exclude_modality is not None:
             self.dataset[f'{self.exclude_modality}'] = torch.full(self.dataset[f'{self.exclude_modality}'].size(), -1).to(self.device)
             self.dataset[f'{self.exclude_modality}++'] = torch.full(self.dataset[f'{self.exclude_modality}++'].size(), -1).to(self.device)
-
-        return

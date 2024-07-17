@@ -1,8 +1,8 @@
+import collections
 import numpy as np
-from collections import namedtuple
 
 
-Transition = namedtuple(
+Transition = collections.namedtuple(
     "Transition", ("state", "action", "next_state", "reward", "terminal")
 )
 

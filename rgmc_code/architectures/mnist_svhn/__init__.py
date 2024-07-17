@@ -10,4 +10,4 @@ from models.mdae import MSMDAE
 from models.mvae import MSMVAE
 from models.rgmc import MSRGMC
 from models.vae import MSVAE
-from downstream.classifier import MSClassifier
+from models.downstream.classifier import MSClassifier

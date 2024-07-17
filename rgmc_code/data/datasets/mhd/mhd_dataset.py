@@ -1,10 +1,11 @@
 import os
 import torch
+import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 
-from subprocess import run
 from ..multimodal_dataset import MultimodalDataset
+
 
 class MhdDataset(MultimodalDataset):
     def __init__(self, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
@@ -13,8 +14,7 @@ class MhdDataset(MultimodalDataset):
     @staticmethod
     def _download():
         dataset_dir = os.path.join(os.getcwd(), "datasets", "mhd")
-        run([os.path.join(dataset_dir, "download_mhd_dataset.sh"), "bash"], shell=True)
-        return
+        subprocess.run([os.path.join(dataset_dir, "download_mhd_dataset.sh"), "bash"], shell=True)
 
     def _load_data(self, train):
         if train:
@@ -37,18 +37,13 @@ class MhdDataset(MultimodalDataset):
             'min': [data[4]['min'], data[5]['min']]     # [float, np.float32]
         }
         self.labels = data[0].to(self.device)           # size (n_samples) = 50000||10000 (int value)
-        
         if self.exclude_modality != 'none' and self.exclude_modality is not None:
             self.dataset[self.exclude_modality] = torch.full(self.dataset[self.exclude_modality], -1).to(self.device)
-
-        return
     
     def _show_dataset_label_distribution(self):
         label_dict = {"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0}
-        
         for data_set in ['train', 'test']:
             data_path = os.path.join(self.dataset_dir, f"mhd_{data_set}.pt")
-
             data = torch.load(data_path)
             labels = data["labels"]
             dataset_len = len(labels)
@@ -69,4 +64,3 @@ class MhdDataset(MultimodalDataset):
             fig.legend()
             fig.savefig(os.path.join(self.dataset_dir, f'mhd_{data_set}.png'))
             plt.close()
-        return

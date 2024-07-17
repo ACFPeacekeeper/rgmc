@@ -9,14 +9,11 @@ class AdversarialAttack(object):
         self.supported_modes = ['default']
         self.target_modality = target_modality
 
-
     def __call__(self, x, y):
         raise NotImplementedError
-    
 
     def __repr__(self):
         raise NotImplementedError
-    
 
     def _set_mode_targeted(self, mode, quiet):
         if "targeted" not in self.supported_modes:
@@ -26,7 +23,6 @@ class AdversarialAttack(object):
             self.attack_mode = mode
             if not quiet:
                 print("Attack mode is changed to '%s'." % mode)
-
 
     def _get_target_label(self, inputs, labels=None):
         if self.attack_mode == 'targeted(label)':

@@ -10,4 +10,4 @@ from models.mdae import MHDMDAE
 from models.mvae import MHDMVAE
 from models.rgmc import MHDRGMC
 from models.vae import MHDVAE
-from downstream.classifier import MHDClassifier
+from models.downstream.classifier import MHDClassifier

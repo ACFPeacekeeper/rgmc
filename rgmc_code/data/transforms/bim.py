@@ -1,8 +1,8 @@
-from torch import autograd, clamp
-from torch.nn import BCEWithLogitsLoss
-from input_transformations.adversarial_attack import AdversarialAttack
+import torch
+import torch.nn as nn
 
-import torch.nn.functional as F
+from .adversarial_attack import AdversarialAttack
+
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/bim.py
 class BIM(AdversarialAttack):
@@ -22,27 +22,22 @@ class BIM(AdversarialAttack):
             x_adv[key].requires_grad = True
 
         y = y.clone().detach().to(self.device)
-
-        loss = BCEWithLogitsLoss()
-
+        loss = nn.BCEWithLogitsLoss()
         original_x = x_adv[self.target_modality].clone().detach()
-
         for _ in range(self.steps):
             for key in x.keys():
                 x_adv[key].requires_grad = True
                 
             model_output, _ = self.model(x_adv)
             if y.dim() == 1:
-                y = F.one_hot(y, model_output.size(dim=-1)).float()
+                y = nn.functional.one_hot(y, model_output.size(dim=-1)).float()
 
             cost = loss(model_output, y)
-            grad = autograd.grad(cost, x_adv[self.target_modality], retain_graph=False, create_graph=False)[0]
+            grad = torch.autograd.grad(cost, x_adv[self.target_modality], retain_graph=False, create_graph=False)[0]
 
             x_adv[self.target_modality] = x[self.target_modality] + self.alpha * grad.sign()
-            a = clamp(original_x - self.eps, min=0)
+            a = torch.clamp(original_x - self.eps, min=0)
             b = (x_adv[self.target_modality] >= a).float() * x_adv[self.target_modality] + (x_adv[self.target_modality] < a).float() * a
             c = (b > original_x + self.eps).float() * (original_x + self.eps) + (b <= original_x + self.eps).float() * b
-            x_adv[self.target_modality] = clamp(c, max=1).detach()
-
+            x_adv[self.target_modality] = torch.clamp(c, max=1).detach()
         return x_adv
-

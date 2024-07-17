@@ -6,7 +6,6 @@ class Noise(object):
         self.device = device
         self.target_modality = target_modality
 
-
     def __call__(self, x, y=None):
         raise NotImplementedError
 

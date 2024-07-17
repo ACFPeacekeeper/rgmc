@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
-from input_transformations.adversarial_attack import AdversarialAttack
+from .adversarial_attack import AdversarialAttack
+
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/cw.py#L123
 class CW(AdversarialAttack):
@@ -12,7 +12,6 @@ class CW(AdversarialAttack):
         self.steps = steps
         self.kappa = kappa
         self.learning_rate = learning_rate
-
 
     def __call__(self, x, y):
         adv_x = dict.fromkeys(x)
@@ -37,8 +36,7 @@ class CW(AdversarialAttack):
         x_dim = len(adv_x[self.target_modality].shape)
 
         flatten = nn.Flatten()
-        optimizer = optim.Adam([w], lr=self.learning_rate)
-
+        optimizer = torch.optim.Adam([w], lr=self.learning_rate)
         for step in range(self.steps):
             # Get adversarial modality
             adv_x[self.target_modality] = self._tanh_space(w)
@@ -47,7 +45,6 @@ class CW(AdversarialAttack):
             current_L2 = loss(flatten(adv_x[self.target_modality], flatten(x[self.target_modality])))
             L2_loss = current_L2.sum()
             result, _ = self.model(adv_x)
-
             if self.targeted:
                 f_loss = self._f_function(result, target_labels).sum()
             else:
@@ -77,23 +74,18 @@ class CW(AdversarialAttack):
                     return adv_x
                 prev_cost = cost.item()
 
-
         adv_x[self.target_modality] = best_adv_mod
         return adv_x
 
-
     def _tanh_space(self, x):
-        return 1/2*(torch.tanh(x) + 1)
-    
+        return 1/2*(torch.tanh(x) + 1)    
 
     def _inverse_tanh_space(self, x):
         # atanh is defined in the range -1 to 1
         return self._atanh(torch.clamp(x*2-1, min=-1, max=1))
-    
 
     def _atanh(self, x):
         return 0.5*torch.log((1+x)/(1-x))
-    
 
     def _f_function(self, outputs, labels):
         one_hot_labels = torch.eye(outputs.shape[1]).to(self.device)[labels]
@@ -103,7 +95,6 @@ class CW(AdversarialAttack):
 
         # get the target class's logit
         real = torch.max(one_hot_labels * outputs, dim=1)[0]
-
         if self.targeted:
             return torch.clamp((other - real), min = -self.kappa)
         else:

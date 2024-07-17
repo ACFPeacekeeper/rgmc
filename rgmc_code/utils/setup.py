@@ -1,29 +1,31 @@
 import os
+import re
 import sys
 import json
 import wandb
+import torch
+import threading
+import subprocess
+import torch.optim as optim
 
-from re import sub
-from threading import Lock
-from torch import cuda, load
-from torch.optim import SGD, Adam
-from subprocess import check_output
-
-from input_transformations import *
+from architectures import (
+    MHDCMDAE, MHDCMDVAE, MHDCMVAE, MHDDAE, MHDDGMC, MHDGMC, MHDGMCWD, MHDMDAE, MHDMVAE, MHDRGMC, MHDVAE, MHDClassifier,
+    MSCMDAE, MSCMDVAE, MSCMVAE, MSDAE, MSDGMC, MSGMC, MSGMCWD, MSMDAE, MSMVAE, MSRGMC, MSVAE, MSClassifier,
+    AffectGMC, MMClassifier,
+    PendulumGMC
+)
+from data.transforms import GaussianNoise, FGSM, BIM, PGD, CW
 from utils.command_parser import create_idx_dict, config_validation
+from data.datasets import MhdDataset, MnistSvhnDataset, MoseiDataset, MosiDataset, PendulumDataset
 
-from datasets import *
-from architectures.mhd import *
-from architectures.mnist_svhn import *
-from architectures.mosei_mosi import *
-from architectures.pendulum import *
 
-idx_lock = Lock()
-device_lock = Lock()
+idx_lock = threading.Lock()
+device_lock = threading.Lock()
 WAIT_TIME = 0 # Seconds to wait for experimental notes
 
+
 def setup_device(m_path):
-    if cuda.is_available():
+    if torch.cuda.is_available():
         device_idx_path = os.path.join(m_path, "tmp", "device_idx.txt")
         device_lock.acquire()
         if os.path.isfile(device_idx_path):
@@ -37,7 +39,7 @@ def setup_device(m_path):
                 device_counter = 0
                 device_file.write('0')
         
-        device_id = device_counter % cuda.device_count()
+        device_id = device_counter % torch.cuda.device_count()
         device = f"cuda:{device_id}"
         device_lock.release()
     else:
@@ -45,16 +47,17 @@ def setup_device(m_path):
 
     return device
 
+
 def setup_env(m_path, config):
-    if cuda.is_available():
-        config['device'] = cuda.get_device_name(cuda.current_device())
+    if torch.cuda.is_available():
+        config['device'] = torch.cuda.get_device_name(torch.cuda.current_device())
     else:
         command = "cat /proc/cpuinfo"
-        all_info = check_output(command, shell=True).decode().strip()
+        all_info = subprocess.check_output(command, shell=True).decode().strip()
         device_info = ""
         for line in all_info.split("\n"):
             if "model name" in line:
-                device_info = sub( ".*model name.*:", "", line, 1)
+                device_info = re.sub( ".*model name.*:", "", line, 1)
                 break
 
         config['device'] = device_info
@@ -98,6 +101,7 @@ def setup_env(m_path, config):
 
     return config
 
+
 def setup_experiment(m_path, config, device, train=True):
     def setup_dataset(m_path, config, device, train):
         if config['dataset'] == 'mhd':
@@ -122,7 +126,6 @@ def setup_experiment(m_path, config, device, train=True):
         return clf
 
     dataset = setup_dataset(m_path, config, device, train)
-
     if "download" in config:
         config['download'] = None
 
@@ -213,18 +216,17 @@ def setup_experiment(m_path, config, device, train=True):
         model.to(device)
     else:
         if "path_model" in config and config["path_model"] is not None and config["stage"] != "train_model":
-            model.load_state_dict(load(os.path.join(m_path, "saved_models", config["path_model"] + ".pt")))
+            model.load_state_dict(torch.load(os.path.join(m_path, "saved_models", config["path_model"] + ".pt")))
             model.eval()
             for param in model.parameters():
                 param.requires_grad = False
-
 
         model.to(device)
         if 'classifier' in config['stage']:
             if "path_classifier" in config and config["path_classifier"] is not None and config["stage"] == "test_classifier":
                 clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + '.json')))
                 model = setup_classifier(latent_dim=clf_config['latent_dimension'], model=model, exclude_mod=clf_config['exclude_modality'])
-                model.load_state_dict(load(os.path.join(m_path, "saved_models", config["path_classifier"] + ".pt")))
+                model.load_state_dict(torch.load(os.path.join(m_path, "saved_models", config["path_classifier"] + ".pt")))
                 model.eval()
                 for param in model.parameters():
                     param.requires_grad = False
@@ -253,7 +255,7 @@ def setup_experiment(m_path, config, device, train=True):
         elif config['dataset'] == 'mosei' or config['dataset'] == 'mosi':
             gmc_model = AffectGMC(gmc_config['architecture'], gmc_config['exclude_modality'], gmc_config['common_dimension'], gmc_config['latent_dimension'], gmc_config['infonce_temperature'])
 
-        gmc_model.load_state_dict(load(os.path.join(m_path, "saved_models", gmc_config["model_out"] + ".pt")))
+        gmc_model.load_state_dict(torch.load(os.path.join(m_path, "saved_models", gmc_config["model_out"] + ".pt")))
         for param in gmc_model.parameters():
             param.requires_grad = False
 
@@ -263,7 +265,7 @@ def setup_experiment(m_path, config, device, train=True):
         else:
             clf_gmc_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", 'clf_' + config['model_out'][5:] + '.json')))
         clf_gmc_model = setup_classifier(latent_dim=gmc_config['latent_dimension'], model=gmc_model, exclude_mod=gmc_config['exclude_modality'])
-        clf_gmc_model.load_state_dict(load(os.path.join(m_path, "saved_models", clf_gmc_config["model_out"] + ".pt")))
+        clf_gmc_model.load_state_dict(torch.load(os.path.join(m_path, "saved_models", clf_gmc_config["model_out"] + ".pt")))
         clf_gmc_model.eval()
         for param in clf_gmc_model.parameters():
             param.requires_grad = False
@@ -274,11 +276,10 @@ def setup_experiment(m_path, config, device, train=True):
 
     if config['adversarial_attack'] is not None:
         target_modality = config['target_modality']
-
         if config['stage'] == "inference":
             clf_config = json.load(open(os.path.join(m_path, "configs", "train_classifier", config['path_classifier'] + '.json')))
             clf_model = setup_classifier(latent_dim=clf_config['latent_dimension'], model=model, exclude_mod=clf_config['exclude_modality'])
-            clf_model.load_state_dict(load(os.path.join(m_path, "saved_models", clf_config["model_out"] + ".pt")))
+            clf_model.load_state_dict(torch.load(os.path.join(m_path, "saved_models", clf_config["model_out"] + ".pt")))
             clf_model.eval()
             for param in clf_model.parameters():
                 param.requires_grad = False
@@ -305,9 +306,9 @@ def setup_experiment(m_path, config, device, train=True):
     if train and config['stage'] != 'inference':
         if config['optimizer'] is not None:
             if config['optimizer'] == 'adam':
-                optimizer = Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
+                optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'], betas=config['adam_betas'])
             elif config['optimizer'] == 'sgd':
-                optimizer = SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
+                optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'], momentum=config['momentum'])
 
         if 'notes' not in config:
             if os.name == 'posix':
@@ -340,7 +341,6 @@ def setup_experiment(m_path, config, device, train=True):
                     print(f"Timeout! Maximum time to enter notes is {WAIT_TIME} seconds!")
             else:
                 notes = None
-            
         else:
             notes = config['notes']
             config['notes'] = None

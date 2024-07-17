@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from input_transformations.adversarial_attack import AdversarialAttack
+from .adversarial_attack import AdversarialAttack
+
 
 # Code adapted from https://github.com/Harry24k/adversarial-attacks-pytorch/blob/master/torchattacks/attacks/pgd.py
 class PGD(AdversarialAttack):
@@ -12,7 +12,6 @@ class PGD(AdversarialAttack):
         self.steps = steps
         self.alpha = alpha
         self.random_start = random_start
-
 
     def __call__(self, x, y):
         adv_x = dict.fromkeys(x)
@@ -39,7 +38,7 @@ class PGD(AdversarialAttack):
             result, _ = self.model(adv_x)
             if y is not None:
                 if y.dim() == 1:
-                    y = F.one_hot(y, result.size(dim=-1)).float()
+                    y = nn.functional.one_hot(y, result.size(dim=-1)).float()
                 if self.targeted:
                     cost = (-1) * loss(result, target_labels)
                 else:

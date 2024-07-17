@@ -1,8 +1,7 @@
 import torch
 
-from torch.utils.data import Dataset
 
-class MultimodalDataset(Dataset):
+class MultimodalDataset(torch.utils.data.Dataset):
     def __init__(self, name, dataset_dir, device, download=False, exclude_modality='none', target_modality='none', train=True, transform=None, adv_attack=None):
         super().__init__()
         if download:
