@@ -1,6 +1,5 @@
 import math
-
-from torch import nn
+import torch.nn as nn
 
 
 class Normalization(nn.Module):
