@@ -1,7 +1,14 @@
-from torch.nn import ReLU
-from collections import Counter
-from ..modules.gmcwd_networks import *
+import torch
+import functools
+import collections
+import torch.nn as nn
+
 from pytorch_lightning import LightningModule
+from ..modules.gmcwd_networks import (
+    MSMNISTProcessor, MSSVHNProcessor, 
+    MSJointProcessor, MSJointDecoder,
+    MSCommonEncoder, MSCommonDecoder
+)
 
 
 class GMCWD(LightningModule):
@@ -14,7 +21,7 @@ class GMCWD(LightningModule):
         self.exclude_modality = exclude_modality
         self.scales = scales
         self.noise_factor = noise_factor
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.mnist_processor = None
         self.svhn_processor = None
         self.joint_processor = None
@@ -196,7 +203,7 @@ class GMCWD(LightningModule):
         x_hat = self.decode(batch_representations)
         recon_loss, recon_dict = self.recon_loss(data, x_hat)
         total_loss = recon_loss + loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -213,7 +220,7 @@ class GMCWD(LightningModule):
         x_hat = self.decode(batch_representations)
         recon_loss, recon_dict = self.recon_loss(data, x_hat)
         total_loss = recon_loss + loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
     
     def inference(self, data, labels):
         z = self.encode(data, sample=True)
@@ -229,8 +236,8 @@ class MSGMCWD(GMCWD):
         super(MSGMCWD, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
         self.svhn_dims = [128, 4, 4]
         self.mnist_dims = [128, 7, 7]
-        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
-        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
+        svhn_dim = functools.reduce(lambda x, y: x * y, self.svhn_dims)
+        mnist_dim = functools.reduce(lambda x, y: x * y, self.mnist_dims)
         self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
         self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
         self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=mnist_dim, svhn_dim=svhn_dim)

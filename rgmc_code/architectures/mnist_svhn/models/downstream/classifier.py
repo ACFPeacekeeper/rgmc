@@ -1,8 +1,8 @@
 import torch
+import collections
+import torch.nn as nn
+import torch.nn.functional as F
 
-from torch import nn
-from collections import Counter
-from torch.nn import functional as F
 
 class MSClassifier(nn.Module):
     def __init__(self, latent_dimension, model, exclude_modality):
@@ -48,7 +48,7 @@ class MSClassifier(nn.Module):
             accuracy += int(num_pred == label)
 
         accuracy = accuracy / batch_size
-        loss_dict = Counter({'nll_loss': loss, 'accuracy': accuracy})
+        loss_dict = collections.Counter({'nll_loss': loss, 'accuracy': accuracy})
         return loss, loss_dict
     
     def training_step(self, x, labels):

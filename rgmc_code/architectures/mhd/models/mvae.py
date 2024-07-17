@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from ..modules.mvae_networks import (
     TrajectoryEncoder, TrajectoryDecoder,
-    ImageEncoder, ImageDecoder,
+    ImageEncoder, ImageDecoder
 )
 
 

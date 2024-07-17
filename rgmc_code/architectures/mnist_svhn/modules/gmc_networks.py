@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 filter_base = 32
@@ -29,7 +28,7 @@ class MSCommonEncoder(nn.Module):
 
     def forward(self, x):
         h = self.common_fc(x)
-        return F.normalize(self.latent_fc(self.feature_extractor(h)), dim=-1)
+        return nn.functional.normalize(self.latent_fc(self.feature_extractor(h)), dim=-1)
 
 
 class MSMNISTProcessor(nn.Module):

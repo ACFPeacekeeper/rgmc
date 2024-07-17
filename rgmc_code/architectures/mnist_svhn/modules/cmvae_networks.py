@@ -15,7 +15,8 @@ class CommonEncoder(nn.Module):
 
     def forward(self, x):
         return self.fc_mean(x), self.fc_logvar(x)
-    
+
+
 class CommonDecoder(nn.Module):
     def __init__(self, latent_dimension):
         super(CommonDecoder, self).__init__()
@@ -28,6 +29,7 @@ class CommonDecoder(nn.Module):
 
     def forward(self, z):
         return self.latent_fc(z)
+
 
 class MNISTEncoder(nn.Module):
     def __init__(self, latent_dimension):

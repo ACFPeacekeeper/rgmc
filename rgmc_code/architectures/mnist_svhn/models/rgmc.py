@@ -1,9 +1,11 @@
+import torch
 import random
+import functools
+import collections
+import torch.nn as nn
 
-from collections import Counter
-from ..modules.rgmc_networks import *
 from pytorch_lightning import LightningModule
-from ..modules.ooo_network import OddOneOutNetwork
+from ..modules.rgmc_networks import MSMNISTProcessor, MSSVHNProcessor, MSJointProcessor, MSCommonEncoder, OddOneOutNetwork
 
 
 class RGMC(LightningModule):
@@ -190,7 +192,7 @@ class RGMC(LightningModule):
     def o3n_loss(self, perturbed_mod_weights, target_id, batch_size):
         ce_loss = nn.BCEWithLogitsLoss().to(self.device)
         target_labels = torch.full((batch_size,), target_id).to(self.device)
-        target_labels_1hot = F.one_hot(target_labels, self.num_modalities + 1).float()
+        target_labels_1hot = nn.functional.one_hot(target_labels, self.num_modalities + 1).float()
         loss = ce_loss(perturbed_mod_weights, target_labels_1hot) * self.scales['o3n_loss_scale']
         return loss, {"o3n_loss": loss}
 
@@ -211,7 +213,7 @@ class RGMC(LightningModule):
             loss, tqdm_dict = self.infonce(clean_representations, batch_size)
 
         total_loss = loss + o3n_loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -233,7 +235,7 @@ class RGMC(LightningModule):
             loss, tqdm_dict = self.infonce(clean_representations, batch_size)
         
         total_loss = loss + o3n_loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
 
 
 class MSRGMC(RGMC):
@@ -241,8 +243,8 @@ class MSRGMC(RGMC):
         super(MSRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
         self.svhn_dims = [128, 4, 4]
         self.mnist_dims = [128, 7, 7]
-        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
-        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
+        svhn_dim = functools.reduce(lambda x, y: x * y, self.svhn_dims)
+        mnist_dim = functools.reduce(lambda x, y: x * y, self.mnist_dims)
         self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
         self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
         self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=mnist_dim, svhn_dim=svhn_dim)

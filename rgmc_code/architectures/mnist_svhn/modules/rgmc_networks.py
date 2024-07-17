@@ -1,8 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-from functools import reduce
 
 
 filter_base = 32
@@ -31,33 +28,7 @@ class MSCommonEncoder(nn.Module):
 
     def forward(self, x):
         h = self.common_fc(x)
-        return F.normalize(self.latent_fc(self.feature_extractor(h)), dim=-1)
-
-
-class MSCommonDecoder(nn.Module):
-    def __init__(self, common_dim, latent_dimension):
-        super(MSCommonDecoder, self).__init__()
-        self.common_dim = common_dim
-        self.latent_dim = latent_dimension
-        self.latent_fc = nn.Linear(latent_dimension, 512)
-        self.feature_reconstructor = nn.Sequential(
-            nn.GELU(),
-            nn.Linear(512, 512),
-            nn.GELU(),
-        )
-        self.common_fc = nn.Linear(512, common_dim)
-
-    def set_latent_dim(self, latent_dim):
-        self.latent_fc = nn.Linear(512, latent_dim)
-        self.latent_dim = latent_dim
-
-    def set_common_dim(self, common_dim):
-        self.common_fc = nn.Linear(512, common_dim)
-        self.common_dim = common_dim
-
-    def forward(self, z):
-        h = self.latent_fc(z)
-        return self.common_fc(self.feature_reconstructor(h))
+        return nn.functional.normalize(self.latent_fc(self.feature_extractor(h)), dim=-1)
 
 
 class MSMNISTProcessor(nn.Module):
@@ -150,46 +121,33 @@ class MSJointProcessor(nn.Module):
         return self.projector(torch.cat((h_mnist, h_svhn), dim=-1))
     
 
-class MSJointDecoder(nn.Module):
-    def __init__(self, common_dim, mnist_dims, svhn_dims):
-        super(MSJointDecoder, self).__init__()
-        self.svhn_dims = svhn_dims
-        self.mnist_dims = mnist_dims
-        self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.svhn_dims) + reduce(lambda x, y: x * y, self.mnist_dims))
-        self.mnist_reconstructor = nn.Sequential(
-           nn.GELU(),
-           nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
-           nn.GELU(),
-           nn.ConvTranspose2d(filter_base * 2, 1, 4, 2, 1, bias=False),
+class OddOneOutNetwork(nn.Module):
+    def __init__(self, latent_dim, num_modalities, modalities, device):
+        super().__init__()
+        self.latent_dimension = latent_dim
+        self.num_modalities = num_modalities
+        self.modalities = modalities
+        self.device = device
+        self.embedder = nn.Sequential(
+            nn.Conv1d(num_modalities, 64, 4, 2, 1),
+            nn.GELU(),
+            nn.Conv1d(64, 128, 4, 2, 1),
+            nn.GELU(),
+            nn.Dropout(),
         )
+        self.clf_fc = nn.Linear(2048, num_modalities + 1)
+        self.classificator = nn.Softmax(dim=-1)
 
-        self.svhn_reconstructor = nn.Sequential(
-            nn.GELU(),
-            nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
-            nn.GELU(),
-            nn.ConvTranspose2d(filter_base * 2, filter_base, 4, 2, 1, bias=False),
-            nn.GELU(),
-            nn.ConvTranspose2d(filter_base, 3, 4, 2, 1, bias=False),
-        )
+    def set_latent_dim(self, latent_dim):
+        self.latent_dimension = latent_dim
 
-    def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.svhn_dims) + reduce(lambda x, y: x * y, self.mnist_dims))
-        self.common_dim = common_dim
-
-    def forward(self, z):
-        x_hat = self.projector(z)
-
-        # MNIST recon
-        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
-        mnist_hat = x_hat[:, :mnist_dim]
-        mnist_hat = mnist_hat.view(mnist_hat.size(0), *self.mnist_dims)
-        mnist_hat = self.mnist_reconstructor(mnist_hat)
-
-        # SVHN recon
-        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
-        svhn_hat = x_hat[:, mnist_dim:mnist_dim + svhn_dim]
-        svhn_hat = svhn_hat.view(svhn_hat.size(0), *self.svhn_dims)
-        svhn_hat = self.svhn_reconstructor(svhn_hat)
-
-        return {"mnist": mnist_hat, "svhn": svhn_hat}
+    def forward(self, mod_representations):
+        batch_size = mod_representations[0].size()[0]
+        representations = mod_representations[0].view(batch_size, 1, self.latent_dimension)
+        for mod_rep in mod_representations[1:]:
+            mod_rep = mod_rep.view(batch_size, 1, self.latent_dimension)
+            representations = torch.cat((representations, mod_rep), dim=1)
+        h = self.embedder(representations)
+        h = self.clf_fc(h.view(h.size(0), -1))
+        classes = self.classificator(h)
+        return classes

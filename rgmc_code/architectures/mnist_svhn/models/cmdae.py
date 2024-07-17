@@ -1,8 +1,12 @@
 import torch
+import collections
+import torch.nn as nn
 
-from torch.nn import ReLU
-from collections import Counter
-from ..modules.cmdae_networks import *
+from ..modules.cmdae_networks import (
+    MNISTEncoder, MNISTDecoder,
+    SVHNEncoder, SVHNDecoder,
+    CommonEncoder, CommonDecoder
+)
 
 
 class MSCMDAE(nn.Module):
@@ -14,15 +18,15 @@ class MSCMDAE(nn.Module):
         self.scales = scales
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.mnist_encoder = None
         self.mnist_decoder = None
         self.svhn_encoder = None
         self.svhn_decoder = None
-        self.svhn_encoder = SVHNEncoder(latent_dimension)
-        self.svhn_decoder = SVHNDecoder(latent_dimension)
         self.mnist_encoder = MNISTEncoder(latent_dimension)
         self.mnist_decoder = MNISTDecoder(latent_dimension)
+        self.svhn_encoder = SVHNEncoder(latent_dimension)
+        self.svhn_decoder = SVHNDecoder(latent_dimension)
         self.common_encoder = CommonEncoder(latent_dimension)
         self.common_decoder = CommonDecoder(latent_dimension)
         self.encoders = {'mnist': self.mnist_encoder, 'svhn': self.svhn_encoder}
@@ -74,7 +78,7 @@ class MSCMDAE(nn.Module):
         for value in recon_losses.values():
             recon_loss += value
 
-        loss_dict = Counter({'total_loss': recon_loss, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
+        loss_dict = collections.Counter({'total_loss': recon_loss, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
         return recon_loss, loss_dict
 
     def training_step(self, x, labels):

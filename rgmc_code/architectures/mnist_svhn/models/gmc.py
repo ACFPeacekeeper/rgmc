@@ -1,8 +1,9 @@
-from functools import reduce
-from collections import Counter
-from ..modules.gmc_networks import *
-from pytorch_lightning import LightningModule
+import torch
+import functools
+import collections
 
+from pytorch_lightning import LightningModule
+from ..modules.gmc_networks import MSMNISTProcessor, MSSVHNProcessor, MSJointProcessor, MSCommonEncoder
 
 class GMC(LightningModule):
     def __init__(self, name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type="infonce"):
@@ -153,7 +154,7 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+        return loss, collections.Counter(tqdm_dict)
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -166,7 +167,7 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+        return loss, collections.Counter(tqdm_dict)
 
 
 
@@ -175,8 +176,8 @@ class MSGMC(GMC):
         super(MSGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, loss_type)
         self.svhn_dims = [128, 4, 4]
         self.mnist_dims = [128, 7, 7]
-        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
-        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
+        svhn_dim = functools.reduce(lambda x, y: x * y, self.svhn_dims)
+        mnist_dim = functools.reduce(lambda x, y: x * y, self.mnist_dims)
         self.mnist_processor = MSMNISTProcessor(common_dim=self.common_dim, dim=mnist_dim)
         self.svhn_processor = MSSVHNProcessor(common_dim=self.common_dim, dim=svhn_dim)
         self.joint_processor = MSJointProcessor(common_dim=self.common_dim, mnist_dim=mnist_dim, svhn_dim=svhn_dim)

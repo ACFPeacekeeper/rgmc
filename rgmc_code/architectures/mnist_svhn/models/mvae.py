@@ -1,9 +1,11 @@
 import torch
+import collections
+import torch.nn as nn
 
-from torch.nn import ReLU
-from collections import Counter
-from torch.autograd import Variable
-from ..modules.mvae_networks import *
+from ..modules.mvae_networks import (
+    MNISTEncoder, MNISTDecoder,
+    SVHNEncoder, SVHNDecoder
+)
 
 
 # Code adapted from https://github.com/mhw32/multimodal-vae-public/blob/master/mnist/model.py
@@ -20,7 +22,7 @@ class MSMVAE(nn.Module):
         self.kld = 0.
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.poe_eps = poe_eps
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.mnist_encoder = None
         self.mnist_decoder = None
         self.svhn_encoder = None
@@ -84,7 +86,7 @@ class MSMVAE(nn.Module):
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
+        loss_dict = collections.Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
         self.kld = 0.
         return elbo, loss_dict
 
@@ -117,6 +119,6 @@ class PoE(nn.Module):
         return pd_mu, pd_logvar 
 
     def prior_expert(self, size, device):
-        mean   = Variable(torch.zeros(size)).to(device)
-        logvar = Variable(torch.zeros(size)).to(device)
+        mean   = torch.autograd.Variable(torch.zeros(size)).to(device)
+        logvar = torch.autograd.Variable(torch.zeros(size)).to(device)
         return mean, logvar

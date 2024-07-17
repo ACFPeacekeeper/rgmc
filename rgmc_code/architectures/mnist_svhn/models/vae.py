@@ -1,8 +1,8 @@
 import torch
+import collections
+import torch.nn as nn
 
-from torch.nn import ReLU
-from collections import Counter
-from ..modules.vae_networks import *
+from ..modules.vae_networks import Encoder, Decoder
 
 
 class MSVAE(nn.Module):
@@ -15,7 +15,7 @@ class MSVAE(nn.Module):
         self.latent_dimension = latent_dimension
         self.encoder = Encoder(self.latent_dimension, self.layer_dim)
         self.decoder = Decoder(self.latent_dimension, self.layer_dim)
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.device = device
         self.scales = scales
         self.mean = mean
@@ -63,7 +63,6 @@ class MSVAE(nn.Module):
 
         return x_hat, z
     
-    
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
@@ -74,7 +73,7 @@ class MSVAE(nn.Module):
 
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
+        loss_dict = collections.Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'mnist_recon_loss': recon_losses['mnist'], 'svhn_recon_loss': recon_losses['svhn']})
         self.kld = 0.
         return elbo, loss_dict
     
