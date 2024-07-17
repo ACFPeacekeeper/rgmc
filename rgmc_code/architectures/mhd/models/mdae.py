@@ -1,8 +1,11 @@
 import torch
+import collections
+import torch.nn as nn
 
-from torch.nn import ReLU
-from collections import Counter
-from ..modules.mdae_networks import *
+from ..modules.mdae_networks import (
+    TrajectoryEncoder, TrajectoryDecoder,
+    ImageEncoder, ImageDecoder,
+)
 
 
 class MHDMDAE(nn.Module):
@@ -14,7 +17,7 @@ class MHDMDAE(nn.Module):
         self.scales = scales
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.image_encoder = None
         self.image_decoder = None
         self.trajectory_encoder = None
@@ -71,7 +74,7 @@ class MHDMDAE(nn.Module):
         for value in recon_losses.values():
             recon_loss += value
 
-        loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
+        loss_dict = collections.Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         return recon_loss, loss_dict
 
     def training_step(self, x, labels):

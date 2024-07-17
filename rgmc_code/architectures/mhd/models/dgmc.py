@@ -1,7 +1,15 @@
-from torch.nn import ReLU
-from collections import Counter
-from ..modules.dgmc_networks import *
+import torch
+import functools
+import collections
+import torch.nn as nn
+
 from pytorch_lightning import LightningModule
+from ..modules.dgmc_networks import (
+    MHDImageProcessor, MHDImageDecoder,
+    MHDTrajectoryProcessor, MHDTrajectoryDecoder,
+    MHDJointProcessor, MHDJointDecoder,
+    MHDCommonEncoder, MHDCommonDecoder
+)
 
 
 class DGMC(LightningModule):
@@ -14,7 +22,7 @@ class DGMC(LightningModule):
         self.noise_factor = noise_factor
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.image_processor = None
         self.trajectory_processor = None
         self.joint_processor = None
@@ -209,7 +217,7 @@ class DGMC(LightningModule):
         x_hat = self.decode(batch_representations)
         recon_loss, recon_dict = self.recon_loss(data, x_hat)
         total_loss = recon_loss + loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -225,7 +233,7 @@ class DGMC(LightningModule):
         x_hat = self.decode(batch_representations)
         recon_loss, recon_dict = self.recon_loss(data, x_hat)
         total_loss = recon_loss + loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **recon_dict})
 
     def inference(self, data, labels):
         z = self.encode(data, sample=True)
@@ -241,7 +249,7 @@ class MHDDGMC(DGMC):
         super(MHDDGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, infonce_temperature, noise_factor, loss_type)
         self.traj_dim = 512
         self.image_dims = [128, 7, 7]
-        image_dim = reduce(lambda x, y: x * y, self.image_dims)
+        image_dim = functools.reduce(lambda x, y: x * y, self.image_dims)
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim, dim=image_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim, dim=self.traj_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim, image_dim=image_dim, traj_dim=self.traj_dim)

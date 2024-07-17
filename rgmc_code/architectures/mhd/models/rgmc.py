@@ -1,10 +1,11 @@
-import random, sys
-import torch.nn.functional as F
+import torch
+import random
+import functools
+import collections
+import torch.nn as nn
 
-from collections import Counter
-from ..modules.rgmc_networks import *
 from pytorch_lightning import LightningModule
-from ..modules.ooo_network import OddOneOutNetwork
+from ..modules.rgmc_networks import MHDImageProcessor, MHDTrajectoryProcessor, MHDJointProcessor, MHDCommonEncoder, OddOneOutNetwork
 
 
 class RGMC(LightningModule):
@@ -190,7 +191,7 @@ class RGMC(LightningModule):
     def o3n_loss(self, perturbed_mod_weights, target_id, batch_size):
         ce_loss = nn.BCEWithLogitsLoss().to(self.device)
         target_labels = torch.full((batch_size,), target_id).to(self.device)
-        target_labels_1hot = F.one_hot(target_labels, self.num_modalities + 1).float()
+        target_labels_1hot = nn.functional.one_hot(target_labels, self.num_modalities + 1).float()
         loss = ce_loss(perturbed_mod_weights, target_labels_1hot) * self.scales['o3n_loss_scale']
         return loss, {"o3n_loss": loss}
 
@@ -211,7 +212,7 @@ class RGMC(LightningModule):
             loss, tqdm_dict = self.infonce(clean_representations, batch_size)
 
         total_loss = loss + o3n_loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
     
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -230,7 +231,7 @@ class RGMC(LightningModule):
             loss, tqdm_dict = self.infonce(clean_representations, batch_size)
         
         total_loss = loss + o3n_loss
-        return total_loss, Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
+        return total_loss, collections.Counter({"total_loss": total_loss, **tqdm_dict, **o3n_dict})
 
 
 class MHDRGMC(RGMC):
@@ -238,7 +239,7 @@ class MHDRGMC(RGMC):
         super(MHDRGMC, self).__init__(name, common_dim, exclude_modality, latent_dimension, scales, noise_factor, loss_type)
         self.traj_dim = 512
         self.image_dims = [128, 7, 7]
-        image_dim = reduce(lambda x, y: x * y, self.image_dims)
+        image_dim = functools.reduce(lambda x, y: x * y, self.image_dims)
         self.image_processor = MHDImageProcessor(common_dim=self.common_dim, dim=image_dim)
         self.trajectory_processor = MHDTrajectoryProcessor(common_dim=self.common_dim, dim=self.traj_dim)
         self.joint_processor = MHDJointProcessor(common_dim=self.common_dim, image_dim=image_dim, traj_dim=self.traj_dim)

@@ -1,6 +1,8 @@
-from collections import Counter
-from ..modules.gmc_networks import *
+import torch
+import collections
+
 from pytorch_lightning import LightningModule
+from ..modules.gmc_networks import MHDImageProcessor, MHDTrajectoryProcessor, MHDSoundProcessor, MHDJointProcessor, MHDCommonEncoder
 
 
 # Code adapted from https://github.com/miguelsvasco/gmc
@@ -150,7 +152,7 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
+        return loss, collections.Counter(tqdm_dict)
 
     def validation_step(self, data, labels):
         batch_size = list(data.values())[0].size(dim=0)
@@ -162,8 +164,7 @@ class GMC(LightningModule):
             loss, tqdm_dict = self.infonce_with_joints_as_negatives(batch_representations, batch_size)
         else:
             loss, tqdm_dict = self.infonce(batch_representations, batch_size)
-        return loss, Counter(tqdm_dict)
-
+        return loss, collections.Counter(tqdm_dict)
 
 
 class MHDGMC(GMC):

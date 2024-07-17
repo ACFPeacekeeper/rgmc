@@ -1,9 +1,11 @@
 import torch
+import collections
+import torch.nn as nn
 
-from torch.nn import ReLU
-from collections import Counter
-from torch.autograd import Variable
-from ..modules.mvae_networks import *
+from ..modules.mvae_networks import (
+    TrajectoryEncoder, TrajectoryDecoder,
+    ImageEncoder, ImageDecoder,
+)
 
 
 # Code adapted from https://github.com/mhw32/multimodal-vae-public/blob/master/mnist/model.py
@@ -18,7 +20,7 @@ class MHDMVAE(nn.Module):
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
         self.kld = 0.
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.experts = PoE() if expert_type == 'PoE' else PoE()
         self.poe_eps = poe_eps
         self.image_encoder = None
@@ -50,7 +52,6 @@ class MHDMVAE(nn.Module):
     def forward(self, x, sample=False):
         batch_size = list(x.values())[0].size(dim=0)
         mean, logvar = self.experts.prior_expert((1, batch_size, self.latent_dimension), self.device)
-
         for key in x.keys():
             if key == self.exclude_modality:
                 continue
@@ -58,10 +59,8 @@ class MHDMVAE(nn.Module):
             mean = torch.cat((mean, tmp_mean.unsqueeze(0)), dim=0)
             logvar = torch.cat((logvar, tmp_logvar.unsqueeze(0)), dim=0)
 
-
         mean, logvar = self.experts(mean, logvar, self.poe_eps)
         std = torch.exp(torch.mul(logvar, 0.5))
-
         if sample is False and not isinstance(self.scales['kld_beta'], type(None)):
             z = self.reparameterization(mean, std)
             self.kld = - self.scales['kld_beta'] * torch.mean(1 + logvar - mean.pow(2) - std.pow(2)) * (self.latent_dimension / batch_size)
@@ -77,14 +76,13 @@ class MHDMVAE(nn.Module):
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses = dict.fromkeys(x.keys())
-
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
             recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum() 
         
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
+        loss_dict = collections.Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
 
@@ -117,6 +115,6 @@ class PoE(nn.Module):
         return pd_mu, pd_logvar 
 
     def prior_expert(self, size, device):
-        mean   = Variable(torch.zeros(size)).to(device)
-        logvar = Variable(torch.zeros(size)).to(device)
+        mean   = torch.autograd.Variable(torch.zeros(size)).to(device)
+        logvar = torch.autograd.Variable(torch.zeros(size)).to(device)
         return mean, logvar

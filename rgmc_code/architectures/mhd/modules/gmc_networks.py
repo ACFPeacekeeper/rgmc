@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 # Code adapted from https://github.com/miguelsvasco/gmc
@@ -27,7 +26,7 @@ class MHDCommonEncoder(nn.Module):
 
     def forward(self, x):
         h = self.common_fc(x)
-        return F.normalize(self.latent_fc(self.feature_extractor(h)), dim=-1)
+        return nn.functional.normalize(self.latent_fc(self.feature_extractor(h)), dim=-1)
 
 
 class MHDImageProcessor(nn.Module):

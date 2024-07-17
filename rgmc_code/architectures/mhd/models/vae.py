@@ -1,8 +1,8 @@
 import torch
+import collections
+import torch.nn as nn
 
-from torch.nn import ReLU
-from collections import Counter
-from ..modules.vae_networks import *
+from ..modules.vae_networks import Encoder, Decoder
 
 
 class MHDVAE(nn.Module):
@@ -15,7 +15,7 @@ class MHDVAE(nn.Module):
         self.latent_dimension = latent_dimension
         self.encoder = Encoder(self.latent_dimension, self.layer_dim)
         self.decoder = Decoder(self.latent_dimension, self.layer_dim)
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.device = device
         self.scales = scales
         self.mean = mean
@@ -66,14 +66,13 @@ class MHDVAE(nn.Module):
     def loss(self, x, x_hat):
         mse_loss = nn.MSELoss(reduction="none").to(self.device)
         recon_losses =  dict.fromkeys(x.keys())
-
         for key in x.keys():
             loss = mse_loss(x_hat[key], x[key])
             recon_losses[key] = self.scales[key] * (loss / torch.as_tensor(loss.size()).prod().sqrt()).sum()
 
         elbo = self.kld + torch.stack(list(recon_losses.values())).sum()
 
-        loss_dict = Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
+        loss_dict = collections.Counter({'elbo_loss': elbo, 'kld_loss': self.kld, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         self.kld = 0.
         return elbo, loss_dict
     
@@ -87,7 +86,6 @@ class MHDVAE(nn.Module):
         elbo, loss_dict = self.loss(x, x_hat)
         return elbo, loss_dict
     
-
     def inference(self, x, labels):
         x_hat, z = self.forward(x, sample=True)
         for key in x_hat.keys():

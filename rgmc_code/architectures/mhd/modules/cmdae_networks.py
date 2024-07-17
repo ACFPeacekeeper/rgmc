@@ -13,7 +13,8 @@ class CommonEncoder(nn.Module):
 
     def forward(self, x):
         return self.latent_fc(x)
-    
+
+
 class CommonDecoder(nn.Module):
     def __init__(self, latent_dimension):
         super(CommonDecoder, self).__init__()
@@ -26,6 +27,7 @@ class CommonDecoder(nn.Module):
 
     def forward(self, z):
         return self.latent_fc(z)
+
 
 class ImageEncoder(nn.Module):
     def __init__(self, latent_dimension):

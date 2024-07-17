@@ -1,8 +1,12 @@
 import torch
+import collections
+import torch.nn as nn
 
-from torch.nn import ReLU
-from collections import Counter
-from ..modules.cmvae_networks import *
+from ..modules.cmvae_networks import (
+    TrajectoryEncoder, TrajectoryDecoder,
+    ImageEncoder, ImageDecoder,
+    CommonEncoder, CommonDecoder
+)
 
 
 class MHDCMVAE(nn.Module):
@@ -16,7 +20,7 @@ class MHDCMVAE(nn.Module):
         self.scales = scales
         self.exclude_modality = exclude_modality
         self.latent_dimension = latent_dimension
-        self.inf_activation = ReLU()
+        self.inf_activation = nn.ReLU()
         self.trajectory_encoder = TrajectoryEncoder(latent_dimension)
         self.trajectory_decoder = TrajectoryDecoder(latent_dimension)
         self.image_encoder = ImageEncoder(latent_dimension)
@@ -78,7 +82,7 @@ class MHDCMVAE(nn.Module):
         for value in recon_losses.values():
             recon_loss += value
 
-        loss_dict = Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
+        loss_dict = collections.Counter({'total_loss': recon_loss, 'img_recon_loss': recon_losses['image'], 'traj_recon_loss': recon_losses['trajectory']})
         return recon_loss, loss_dict
 
     def training_step(self, x, labels):
