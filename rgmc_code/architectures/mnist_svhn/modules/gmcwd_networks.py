@@ -1,6 +1,7 @@
 import torch
-import functools
 import torch.nn as nn
+
+from functools import reduce
 
 
 filter_base = 32
@@ -153,7 +154,7 @@ class MSJointDecoder(nn.Module):
         self.svhn_dims = svhn_dims
         self.mnist_dims = mnist_dims
         self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, functools.reduce(lambda x, y: x * y, self.svhn_dims) + functools.reduce(lambda x, y: x * y, self.mnist_dims))
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.svhn_dims) + reduce(lambda x, y: x * y, self.mnist_dims))
         self.mnist_reconstructor = nn.Sequential(
            nn.GELU(),
            nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
@@ -171,20 +172,20 @@ class MSJointDecoder(nn.Module):
         )
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, functools.reduce(lambda x, y: x * y, self.svhn_dims) + functools.reduce(lambda x, y: x * y, self.mnist_dims))
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.svhn_dims) + reduce(lambda x, y: x * y, self.mnist_dims))
         self.common_dim = common_dim
 
     def forward(self, z):
         x_hat = self.projector(z)
 
         # MNIST recon
-        mnist_dim = functools.reduce(lambda x, y: x * y, self.mnist_dims)
+        mnist_dim = reduce(lambda x, y: x * y, self.mnist_dims)
         mnist_hat = x_hat[:, :mnist_dim]
         mnist_hat = mnist_hat.view(mnist_hat.size(0), *self.mnist_dims)
         mnist_hat = self.mnist_reconstructor(mnist_hat)
 
         # SVHN recon
-        svhn_dim = functools.reduce(lambda x, y: x * y, self.svhn_dims)
+        svhn_dim = reduce(lambda x, y: x * y, self.svhn_dims)
         svhn_hat = x_hat[:, mnist_dim:mnist_dim + svhn_dim]
         svhn_hat = svhn_hat.view(svhn_hat.size(0), *self.svhn_dims)
         svhn_hat = self.svhn_reconstructor(svhn_hat)

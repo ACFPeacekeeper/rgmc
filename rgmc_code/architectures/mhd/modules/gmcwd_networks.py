@@ -1,6 +1,7 @@
 import torch
-import functools
 import torch.nn as nn
+
+from functools import reduce
 
 
 filter_base = 32
@@ -147,7 +148,7 @@ class MHDJointDecoder(nn.Module):
         self.traj_dim = traj_dim
         self.image_dims = image_dims
         self.common_dim = common_dim
-        self.projector = nn.Linear(common_dim, functools.reduce(lambda x, y: x * y, self.image_dims) + 512)
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.image_dims) + 512)
         self.image_reconstructor = nn.Sequential(
            nn.GELU(),
            nn.ConvTranspose2d(filter_base * 4, filter_base * 2, 4, 2, 1, bias=False),
@@ -163,14 +164,14 @@ class MHDJointDecoder(nn.Module):
         )
 
     def set_common_dim(self, common_dim):
-        self.projector = nn.Linear(common_dim, functools.reduce(lambda x, y: x * y, self.image_dims) + self.traj_dim)
+        self.projector = nn.Linear(common_dim, reduce(lambda x, y: x * y, self.image_dims) + self.traj_dim)
         self.common_dim = common_dim
 
     def forward(self, z):
         x_hat = self.projector(z)
 
         # Image recon
-        image_dim = functools.reduce(lambda x, y: x * y, self.image_dims)
+        image_dim = reduce(lambda x, y: x * y, self.image_dims)
         img_hat = x_hat[:, :image_dim]
         img_hat = img_hat.view(img_hat.size(0), *self.image_dims)
         img_hat = self.image_reconstructor(img_hat)
