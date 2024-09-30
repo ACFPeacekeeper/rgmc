@@ -57,8 +57,15 @@ RECON_SCALE_DEFAULTS = {
 }
 
 
+class CommandParser(argparse.ArgumentParser):
+    def error(self, message):
+        print(message, end=' ')
+        self.print_help()
+        sys.exit(2)
+
+
 def process_arguments(m_path):
-    parser = argparse.ArgumentParser(prog="rgmc", description="Program to test the performance and robustness of several different models with clean and noisy/adversarial samples.")
+    parser = CommandParser(prog="rgmc", description="Program to test the performance and robustness of several different models with clean and noisy/adversarial samples.")
     subparsers = parser.add_subparsers(help="command", dest="command")
     comp_parser = subparsers.add_parser("compare")
     comp_parser.add_argument('-a', '--architecture', choices=ARCHITECTURES + ["all"], help='Architecture to be used in the comparison.')
@@ -135,6 +142,9 @@ def process_arguments(m_path):
     exp_parser.add_argument('--download', type=bool, default=False, help='If true, downloads the choosen dataset.')
     
     args = vars(parser.parse_args())
+    if args['command'] is None:
+        parser.error("Correct program")
+
     if args['command'] == 'compare':
         config = {
             'architecture': args['architecture'],

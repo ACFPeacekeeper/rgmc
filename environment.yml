@@ -1,5 +1,6 @@
 # run: conda env create --file environment.yml
-name: RGMC
+# del: conda remove -n rgmc --all -y
+name: rgmc
 channels:
   - pytorch
   - nvidia
