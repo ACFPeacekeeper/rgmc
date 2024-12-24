@@ -51,7 +51,3 @@ For example, to compare metrics for a DAE-based classifier on the MHD dataset gi
 ```bash
 python main.py compare -a dae -d mhd -s test_classifier --pc noise_std --pp target_modality
 ```
-
-## Contacts & Questions
-
-For any additional questions, feel free to email "afonso.fernandes[at]tecnico.ulisboa.pt".
