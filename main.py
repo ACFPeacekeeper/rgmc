@@ -5,57 +5,52 @@ import torch
 import wandb
 import traceback
 
+from utils.definitions import ROOT_DIR, WAIT_TIME
 from utils.train import run_training
 from utils.test import run_test, run_inference
 from utils.command_parser import process_arguments
 from utils.setup import setup_experiment, setup_env, setup_device
 
 
-# Assign path to current directory
-m_path = os.getcwd()
-
-WAIT_TIME = 0 # Seconds to wait between sequential experiments
-
-
 def train_model(config, device):
-    dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
-    model = run_training(m_path, config, device, dataset, model, optimizer)
+    dataset, model, optimizer = setup_experiment(ROOT_DIR, config, device, train=True)
+    model = run_training(ROOT_DIR, config, device, dataset, model, optimizer)
     return model
 
 
 def train_downstream_classifier(config, device):
-    dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
-    model = run_training(m_path, config, device, dataset, model, optimizer)
+    dataset, model, optimizer = setup_experiment(ROOT_DIR, config, device, train=True)
+    model = run_training(ROOT_DIR, config, device, dataset, model, optimizer)
     return model
 
 
 def train_supervised_model(config, device):
-    dataset, model, optimizer = setup_experiment(m_path, config, device, train=True)
-    model = run_training(m_path, config, device, dataset, model, optimizer)
+    dataset, model, optimizer = setup_experiment(ROOT_DIR, config, device, train=True)
+    model = run_training(ROOT_DIR, config, device, dataset, model, optimizer)
     return model
 
 
 def test_model(config, device):
-    dataset, model, _ = setup_experiment(m_path, config, device, train=False)
-    run_test(m_path, config, device, model, dataset)
+    dataset, model, _ = setup_experiment(ROOT_DIR, config, device, train=False)
+    run_test(ROOT_DIR, config, device, model, dataset)
 
 
 def test_downstream_classifier(config, device):
-    dataset, model, _ = setup_experiment(m_path, config, device, train=False)
-    run_test(m_path, config, device, model, dataset)
+    dataset, model, _ = setup_experiment(ROOT_DIR, config, device, train=False)
+    run_test(ROOT_DIR, config, device, model, dataset)
 
 
 def inference(config, device):
-    dataset, model, _ = setup_experiment(m_path, config, device, train=True)
-    run_inference(m_path, config, device, model, dataset)
+    dataset, model, _ = setup_experiment(ROOT_DIR, config, device, train=True)
+    run_inference(ROOT_DIR, config, device, model, dataset)
 
 
 def call_with_configs(config_ls):
     def decorate(run_experiment):
         def wrapper(*args, **kwargs):
-            device = setup_device(m_path)
+            device = setup_device(ROOT_DIR)
             for config in config_ls:
-                config = setup_env(m_path, config)
+                config = setup_env(ROOT_DIR, config)
                 kwargs['device'] = torch.device(device)
                 kwargs['config'] = config
                 print(f'Starting up experiment on device {device}...')
@@ -90,16 +85,16 @@ def run_experiment(**kwargs):
 
 def main():
     try:
-        os.makedirs(os.path.join(m_path, "results"), exist_ok=True)
-        os.makedirs(os.path.join(m_path, "compare"), exist_ok=True)
-        os.makedirs(os.path.join(m_path, "configs"), exist_ok=True)
-        os.makedirs(os.path.join(m_path, "saved_models"), exist_ok=True)
-        os.makedirs(os.path.join(m_path, "checkpoints"), exist_ok=True)
-        os.makedirs(os.path.join(m_path, "tmp"), exist_ok=True)
+        os.makedirs(os.path.join(ROOT_DIR, "results"), exist_ok=True)
+        os.makedirs(os.path.join(ROOT_DIR, "compare"), exist_ok=True)
+        os.makedirs(os.path.join(ROOT_DIR, "configs"), exist_ok=True)
+        os.makedirs(os.path.join(ROOT_DIR, "saved_models"), exist_ok=True)
+        os.makedirs(os.path.join(ROOT_DIR, "checkpoints"), exist_ok=True)
+        os.makedirs(os.path.join(ROOT_DIR, "tmp"), exist_ok=True)
     except IOError as e:
         traceback.print_exception(*sys.exc_info())
     finally:
-        configs = process_arguments(m_path)
+        configs = process_arguments(ROOT_DIR)
         call_with_configs(config_ls=configs)(run_experiment)()
 
 if __name__ == "__main__":

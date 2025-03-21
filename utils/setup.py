@@ -8,6 +8,7 @@ import threading
 import subprocess
 import torch.optim as optim
 
+from .definitions import TIMEOUT
 from architectures import (
     MHDCMDAE, MHDCMDVAE, MHDCMVAE, MHDDAE, MHDDGMC, MHDGMC, MHDGMCWD, MHDMDAE, MHDMVAE, MHDRGMC, MHDVAE, MHDClassifier,
     MSCMDAE, MSCMDVAE, MSCMVAE, MSDAE, MSDGMC, MSGMC, MSGMCWD, MSMDAE, MSMVAE, MSRGMC, MSVAE, MSClassifier,
@@ -21,7 +22,6 @@ from data.datasets import MhdDataset, MnistSvhnDataset, MoseiDataset, MosiDatase
 
 idx_lock = threading.Lock()
 device_lock = threading.Lock()
-WAIT_TIME = 0 # Seconds to wait for experimental notes
 
 
 def setup_device(m_path):
@@ -316,19 +316,19 @@ def setup_experiment(m_path, config, device, train=True):
 
                 sys.stdout.write('Enter you experimental notes:\n')
                 sys.stdout.flush()
-                notes, _, _ = select.select([sys.stdin], [], [], WAIT_TIME)
+                notes, _, _ = select.select([sys.stdin], [], [], TIMEOUT)
                 if notes:
                     notes = sys.stdin.readline().rstrip('\n')
                 else:
                     notes = None
-                    print(f"Timeout! Maximum time to enter notes is {WAIT_TIME} seconds!")
+                    print(f"Timeout! Maximum time to enter notes is {TIMEOUT} seconds!")
             elif os.name == 'nt':
                 import msvcrt, time
 
                 timer = time.monotonic
                 sys.stdout.write('Enter you experimental notes:\n')
                 sys.stdout.flush()
-                endtime = timer() + WAIT_TIME
+                endtime = timer() + TIMEOUT
                 output = []
                 while timer() < endtime:
                     if msvcrt.kbhit():
@@ -338,7 +338,7 @@ def setup_experiment(m_path, config, device, train=True):
                     time.sleep(0.05)
                 else:
                     notes = None
-                    print(f"Timeout! Maximum time to enter notes is {WAIT_TIME} seconds!")
+                    print(f"Timeout! Maximum time to enter notes is {TIMEOUT} seconds!")
             else:
                 notes = None
         else:

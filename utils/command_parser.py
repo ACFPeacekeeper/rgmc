@@ -9,59 +9,61 @@ import itertools
 import traceback
 import numpy as np
 
+from definitions import *
+from typing import Iterable
 from utils.logger import plot_loss_compare_graph, plot_metric_compare_bar, plot_bar_across_models, save_config
 
 
-TIMEOUT = 0 # Seconds to wait for user to input notes
-ARCHITECTURES = ['vae', 'dae', 'mvae', 'cmvae', 'cmdvae', 'mdae', 'cmdae', 'gmc', 'dgmc', 'gmcwd', 'rgmc']
-DATASETS = ['mhd', 'mnist_svhn', 'mosi', 'mosei']
-OPTIMIZERS = ['sgd', 'adam', None]
-ADVERSARIAL_ATTACKS = ["gaussian_noise", "fgsm", "pgd", "bim", None]
-EXPERTS_FUSION_TYPES = ['poe', 'moe', None]
-STAGES = ['train_model', 'train_classifier', 'train_supervised', 'train_rl', 'test_model', 'test_classifier', 'inference']
-MODALITIES = {
-    'mhd': ['image', 'trajectory', 'sound'],
-    'mnist_svhn': ['mnist', 'svhn'],
-    'mosei_mosi': ['text', 'audio', 'vision'],
-    'pendulum': ['image_t', 'audio_t']
-}
-
-SEED = 42
-LR_DEFAULT = 0.001
-EPOCHS_DEFAULT = 100
-BATCH_SIZE_DEFAULT = 64
-CHECKPOINT_DEFAULT = 0
-LATENT_DIM_DEFAULT = 64
-COMMON_DIM_DEFAULT = 64
-INFONCE_TEMPERATURE_DEFAULT = 0.1
-KLD_BETA_DEFAULT = 0.5
-REPARAMETERIZATION_MEAN_DEFAULT = 0.0
-REPARAMETERIZATION_STD_DEFAULT = 1.0
-EXPERTS_FUSION_DEFAULT = "poe"
-POE_EPS_DEFAULT = 1e-8
-O3N_LOSS_SCALE_DEFAULT = 1.0
-MODEL_TRAIN_NOISE_FACTOR_DEFAULT = 1.0
-MOMENTUM_DEFAULT = 0.9
-ADAM_BETAS_DEFAULTS = [0.9, 0.999]
-NOISE_STD_DEFAULT = 1.0
-ADV_EPSILON_DEFAULT = 0.15
-ADV_ALPHA_DEFAULT = 25 / 255
-ADV_STEPS_DEFAULT = 10
-ADV_KAPPA_DEFAULT = 10
-ADV_LR_DEFAULT = 0.001
-RECON_SCALE_DEFAULTS = {
-    'mhd': {'image': 0.5, 'trajectory': 0.5, 'sound': 0.0}, 
-    'mnist_svhn': {'mnist': 0.5, 'svhn': 0.5},
-    'mosei_mosi': {'text': 1/3, 'audio': 1/3, 'vision': 1/3},
-    'pendulum': {'image_t': 0.5, 'audio_t': 0.5}
-}
-
-
 class CommandParser(argparse.ArgumentParser):
-    def error(self, message):
+    def _str_to_nargs(self, nargs):
+        if isinstance(nargs, Iterable) and len(nargs) == 1:    
+            return nargs[0].split() if isinstance(nargs[0], str) else nargs
+        else:
+            nargs
+
+    def _process_args(self, namespace):
+        for action in self._actions:
+            if action.nargs is not None:
+                if action.dest == 'help':
+                    continue
+
+                # Check if the argument has nargs and process it
+                value = getattr(namespace, action.dest)
+                if value is not None:
+                    transformed_value = self._str_to_nargs(value)
+                    setattr(namespace, action.dest, transformed_value)
+    
+    def parse_process_args(self, args=None):
+        if args is None:
+            args = sys.argv[2:]
+        for action in self._actions:
+            if action.dest == 'help':
+                continue
+
+            # Split strings with whitespace for nargs
+            if action.nargs is not None and action.type is not None:
+                opts = action.option_strings
+                idx = next((i for i, x in enumerate(args) if x in opts), None)
+                if idx is not None: #and isinstance(args[idx+1], str):
+                    arg = args[idx+1].split()
+                    if len(arg) > 1:
+                        args[idx+1:idx+2] = arg
+
+        subnamespace = super().parse_args(args)
+        return vars(subnamespace)
+    
+    def parse_command(self, args=None):
+        command = sys.argv[1] if args is None else args[1]
+        if command not in self._subparsers._actions[-1].choices.keys():
+            self.error_message("Correct program")
+        
+        return command
+
+    def error_message(self, message, print_help=True):
         print(message, end=' ')
-        self.print_help()
-        sys.exit(2)
+        if print_help:
+            self.print_help()
+        sys.exit(1)
 
 
 def process_arguments(m_path):
@@ -143,7 +145,7 @@ def process_arguments(m_path):
     
     args = vars(parser.parse_args())
     if args['command'] is None:
-        parser.error("Correct program")
+        parser.error_message("Correct program")
 
     if args['command'] == 'compare':
         config = {
